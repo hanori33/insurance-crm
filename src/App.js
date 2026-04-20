@@ -186,25 +186,33 @@ export default function App() {
     setForm({});
   }
 
-  function saveCustomer() {
-    if (!form.name || !form.phone) return;
+ function saveCustomer() {
+  if (!form.name || !form.phone) return;
 
-    if (form.id) {
-      updateData((d) => ({
-        ...d,
-        customers: d.customers.map((c) => (c.id === form.id ? { ...c, ...form } : c)),
-      }));
-    } else {
-      updateData((d) => ({
-        ...d,
-        customers: [
-          ...d.customers,
-          { ...form, id: Date.now(), createdAt: new Date().toISOString().slice(0, 10) },
-        ],
-      }));
-    }
-    closeModal();
+  if (form.id) {
+    updateData((d) => ({
+      ...d,
+      customers: d.customers.map((c) =>
+        c.id === form.id ? { ...c, ...form } : c
+      ),
+    }));
+  } else {
+    updateData((d) => ({
+      ...d,
+      customers: [
+        ...d.customers,
+        {
+          ...form,
+          id: Date.now(),
+          createdAt: new Date().toISOString().slice(0, 10),
+        },
+      ],
+    }));
   }
+
+  closeModal();
+  setView("customers");
+}
 
   function deleteCustomer(id) {
     updateData((d) => ({
