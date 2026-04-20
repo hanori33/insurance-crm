@@ -208,7 +208,18 @@ export default function App() {
       saveData(next);
       return next;
     });
+useEffect(() => {
+  const alreadyReloaded = sessionStorage.getItem("app_reloaded");
 
+  if (!alreadyReloaded) {
+    sessionStorage.setItem("app_reloaded", "true");
+    window.location.reload();
+  }
+
+  return () => {
+    sessionStorage.removeItem("app_reloaded");
+  };
+}, []);
   const customers = data.customers.filter(
     (c) =>
       c.name.includes(search) ||
