@@ -4,26 +4,105 @@ const STORAGE_KEY = "insurance_crm_data";
 
 const initialData = {
   customers: [
-    { id: 1, name: "김민준", phone: "010-1234-5678", birth: "1985-04-25", email: "minjun@email.com", memo: "VIP 고객, 가족 소개 多", createdAt: "2024-01-10" },
-    { id: 2, name: "이서연", phone: "010-9876-5432", birth: "1990-05-03", email: "seoyeon@email.com", memo: "직장인, 저녁 연락 선호", createdAt: "2024-02-05" },
+    {
+      id: 1,
+      name: "김민준",
+      phone: "010-1234-5678",
+      birth: "1985-04-25",
+      email: "minjun@email.com",
+      memo: "VIP 고객, 가족 소개 多",
+      createdAt: "2024-01-10",
+    },
+    {
+      id: 2,
+      name: "이서연",
+      phone: "010-9876-5432",
+      birth: "1990-05-03",
+      email: "seoyeon@email.com",
+      memo: "직장인, 저녁 연락 선호",
+      createdAt: "2024-02-05",
+    },
   ],
   consultations: [
-    { id: 1, customerId: 1, date: "2024-03-10", type: "방문", content: "종신보험 관심 표명, 다음달 재상담 예정", nextDate: "2024-04-10" },
-    { id: 2, customerId: 1, date: "2024-04-10", type: "전화", content: "보험료 부담 언급, 저렴한 상품 안내", nextDate: "2024-05-01" },
-    { id: 3, customerId: 2, date: "2024-02-20", type: "방문", content: "실손보험 문의, 건강 이력 확인 필요", nextDate: "2024-03-05" },
+    {
+      id: 1,
+      customerId: 1,
+      date: "2024-03-10",
+      type: "방문",
+      content: "종신보험 관심 표명, 다음달 재상담 예정",
+      nextDate: "2024-04-10",
+    },
+    {
+      id: 2,
+      customerId: 1,
+      date: "2024-04-10",
+      type: "전화",
+      content: "보험료 부담 언급, 저렴한 상품 안내",
+      nextDate: "2024-05-01",
+    },
+    {
+      id: 3,
+      customerId: 2,
+      date: "2024-02-20",
+      type: "방문",
+      content: "실손보험 문의, 건강 이력 확인 필요",
+      nextDate: "2024-03-05",
+    },
   ],
   policies: [
-    { id: 1, customerId: 1, company: "삼성생명", product: "삼성 종신보험", type: "종신", startDate: "2024-05-01", endDate: "2054-05-01", premium: 120000, status: "유지" },
-    { id: 2, customerId: 2, company: "현대해상", product: "굿앤굿실손보험", type: "실손", startDate: "2024-03-15", endDate: "2025-03-15", premium: 45000, status: "유지" },
-    { id: 3, customerId: 1, company: "DB손해보험", product: "다이렉트자동차보험", type: "자동차", startDate: "2024-05-01", endDate: "2026-05-10", premium: 60000, status: "유지" },
+    {
+      id: 1,
+      customerId: 1,
+      company: "삼성생명",
+      product: "삼성 종신보험",
+      type: "종신",
+      startDate: "2024-05-01",
+      endDate: "2054-05-01",
+      premium: 120000,
+      status: "유지",
+    },
+    {
+      id: 2,
+      customerId: 2,
+      company: "현대해상",
+      product: "굿앤굿실손보험",
+      type: "실손",
+      startDate: "2024-03-15",
+      endDate: "2025-03-15",
+      premium: 45000,
+      status: "유지",
+    },
+    {
+      id: 3,
+      customerId: 1,
+      company: "DB손해보험",
+      product: "다이렉트자동차보험",
+      type: "자동차",
+      startDate: "2024-05-01",
+      endDate: "2026-05-10",
+      premium: 60000,
+      status: "유지",
+    },
   ],
   schedules: [
     { id: 1, customerId: 1, date: "2025-05-15", title: "갱신 안내 연락", done: false },
     { id: 2, customerId: 2, date: "2025-05-20", title: "추가 상품 상담", done: false },
   ],
   notes: [
-    { id: 1, customerId: 1, content: "고객 성격 급한 편, 결론 먼저 말하는 방식 선호", createdAt: "2024-03-10", updatedAt: "2024-03-10" },
-    { id: 2, customerId: 1, content: "배우자도 보험 관심 있음 — 별도 상담 필요", createdAt: "2024-04-10", updatedAt: "2024-04-10" },
+    {
+      id: 1,
+      customerId: 1,
+      content: "고객 성격 급한 편, 결론 먼저 말하는 방식 선호",
+      createdAt: "2024-03-10",
+      updatedAt: "2024-03-10",
+    },
+    {
+      id: 2,
+      customerId: 1,
+      content: "배우자도 보험 관심 있음 — 별도 상담 필요",
+      createdAt: "2024-04-10",
+      updatedAt: "2024-04-10",
+    },
   ],
 };
 
@@ -35,6 +114,7 @@ function loadData() {
     return initialData;
   }
 }
+
 function saveData(data) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -138,12 +218,14 @@ export default function App() {
   );
 
   const getCustomer = (id) => data.customers.find((c) => c.id === id);
+
   const getConsultations = (id) =>
     (data.consultations || [])
       .filter((c) => c.customerId === id)
       .sort((a, b) => b.date.localeCompare(a.date));
 
   const getPolicies = (id) => (data.policies || []).filter((p) => p.customerId === id);
+
   const getSchedules = (id) =>
     (data.schedules || [])
       .filter((s) => s.customerId === id && !s.done)
@@ -186,33 +268,36 @@ export default function App() {
     setForm({});
   }
 
- function saveCustomer() {
-  if (!form.name || !form.phone) return;
+  function saveCustomer() {
+    if (!form.name || !form.phone) {
+      alert("이름과 연락처는 필수예요.");
+      return;
+    }
 
-  if (form.id) {
-    updateData((d) => ({
-      ...d,
-      customers: d.customers.map((c) =>
-        c.id === form.id ? { ...c, ...form } : c
-      ),
-    }));
-  } else {
-    updateData((d) => ({
-      ...d,
-      customers: [
-        ...d.customers,
-        {
-          ...form,
-          id: Date.now(),
-          createdAt: new Date().toISOString().slice(0, 10),
-        },
-      ],
-    }));
+    if (form.id) {
+      updateData((d) => ({
+        ...d,
+        customers: d.customers.map((c) => (c.id === form.id ? { ...c, ...form } : c)),
+      }));
+    } else {
+      updateData((d) => ({
+        ...d,
+        customers: [
+          ...d.customers,
+          {
+            ...form,
+            id: Date.now(),
+            createdAt: new Date().toISOString().slice(0, 10),
+          },
+        ],
+      }));
+    }
+
+    closeModal();
+    setSelectedCustomer(null);
+    setEditingNote(null);
+    setView("customers");
   }
-
-  closeModal();
-  setView("customers");
-}
 
   function deleteCustomer(id) {
     updateData((d) => ({
@@ -375,7 +460,7 @@ export default function App() {
       a.download = `insurance-crm-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e) {
+    } catch {
       alert("백업 파일 생성 중 오류가 발생했습니다.");
     }
   }
@@ -411,7 +496,7 @@ export default function App() {
         });
 
         alert("백업 파일을 불러왔습니다.");
-      } catch (err) {
+      } catch {
         alert("JSON 파일을 읽는 중 오류가 발생했습니다.");
       } finally {
         event.target.value = "";
@@ -523,9 +608,7 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div style={card}>
                 <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>다가오는 일정</div>
-                {allUpcoming.length === 0 && (
-                  <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다</div>
-                )}
+                {allUpcoming.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다</div>}
                 {allUpcoming.map((s) => (
                   <div
                     key={s.id}
@@ -543,10 +626,7 @@ export default function App() {
                       </div>
                       <div style={{ fontSize: 12, color: "#666" }}>{s.date}</div>
                     </div>
-                    <button
-                      onClick={() => toggleSchedule(s.id)}
-                      style={{ ...btn("#1D9E75"), padding: "4px 10px", fontSize: 12 }}
-                    >
+                    <button onClick={() => toggleSchedule(s.id)} style={{ ...btn("#1D9E75"), padding: "4px 10px", fontSize: 12 }}>
                       완료
                     </button>
                   </div>
@@ -613,9 +693,7 @@ export default function App() {
               </button>
             </div>
 
-            {customers.length === 0 && (
-              <div style={{ color: "#666", fontSize: 14 }}>고객이 없습니다.</div>
-            )}
+            {customers.length === 0 && <div style={{ color: "#666", fontSize: 14 }}>고객이 없습니다.</div>}
 
             {customers.map((c) => (
               <div
@@ -645,9 +723,7 @@ export default function App() {
                   </div>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>{c.name}</div>
-                    <div style={{ fontSize: 13, color: "#666" }}>
-                      {c.phone} · {c.birth}
-                    </div>
+                    <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {c.birth}</div>
                   </div>
                 </div>
 
@@ -665,6 +741,7 @@ export default function App() {
           (() => {
             const c = getCustomer(selectedCustomer);
             if (!c) return null;
+
             const cons = getConsultations(selectedCustomer);
             const pols = getPolicies(selectedCustomer);
             const scheds = getSchedules(selectedCustomer);
@@ -678,12 +755,7 @@ export default function App() {
                     setSelectedCustomer(null);
                     setEditingNote(null);
                   }}
-                  style={{
-                    ...btn("transparent"),
-                    color: "#666",
-                    border: "0.5px solid #bbb",
-                    marginBottom: 16,
-                  }}
+                  style={{ ...btn("transparent"), color: "#666", border: "0.5px solid #bbb", marginBottom: 16 }}
                 >
                   ← 목록으로
                 </button>
@@ -708,19 +780,14 @@ export default function App() {
                     </div>
                     <div>
                       <div style={{ fontSize: 18, fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: 13, color: "#666" }}>
-                        {c.phone} · {c.birth}
-                      </div>
+                      <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {c.birth}</div>
                       {c.email && <div style={{ fontSize: 13, color: "#666" }}>{c.email}</div>}
                       {c.memo && <div style={{ fontSize: 13, marginTop: 4 }}>{c.memo}</div>}
                     </div>
                   </div>
 
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={() => openModal("customer", { ...c })}
-                      style={{ ...btn("#888780"), padding: "6px 12px", fontSize: 12 }}
-                    >
+                    <button onClick={() => openModal("customer", { ...c })} style={{ ...btn("#888780"), padding: "6px 12px", fontSize: 12 }}>
                       수정
                     </button>
                     <button
@@ -736,21 +803,13 @@ export default function App() {
 
                 {scheds.length > 0 && (
                   <div style={{ ...card, background: "#E6F1FB", borderColor: "#B5D4F4" }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0C447C", marginBottom: 8 }}>
-                      예정 일정
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0C447C", marginBottom: 8 }}>예정 일정</div>
                     {scheds.map((s) => (
-                      <div
-                        key={s.id}
-                        style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}
-                      >
+                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
                         <span>
                           {s.date} — {s.title}
                         </span>
-                        <button
-                          onClick={() => toggleSchedule(s.id)}
-                          style={{ ...btn("#1D9E75"), padding: "3px 10px", fontSize: 12 }}
-                        >
+                        <button onClick={() => toggleSchedule(s.id)} style={{ ...btn("#1D9E75"), padding: "3px 10px", fontSize: 12 }}>
                           완료
                         </button>
                       </div>
@@ -758,21 +817,10 @@ export default function App() {
                   </div>
                 )}
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 10,
-                    marginTop: 4,
-                  }}
-                >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, marginTop: 4 }}>
                   <div style={{ fontSize: 15, fontWeight: 500 }}>메모 정리</div>
                   {editingNote === null && (
-                    <button
-                      onClick={startNewNote}
-                      style={{ ...btn("#533AB7"), padding: "6px 14px", fontSize: 12 }}
-                    >
+                    <button onClick={startNewNote} style={{ ...btn("#533AB7"), padding: "6px 14px", fontSize: 12 }}>
                       + 메모 추가
                     </button>
                   )}
@@ -780,22 +828,13 @@ export default function App() {
 
                 {editingNote === "new" && (
                   <div style={{ ...card, border: "1.5px solid #AFA9EC", background: "#EEEDFE" }}>
-                    <div style={{ fontSize: 12, color: "#3C3489", marginBottom: 6, fontWeight: 500 }}>
-                      새 메모
-                    </div>
+                    <div style={{ fontSize: 12, color: "#3C3489", marginBottom: 6, fontWeight: 500 }}>새 메모</div>
                     <textarea
                       autoFocus
                       value={noteInput}
                       onChange={(e) => setNoteInput(e.target.value)}
                       placeholder="고객에 대한 메모를 자유롭게 입력하세요..."
-                      style={{
-                        ...inp,
-                        height: 100,
-                        resize: "vertical",
-                        background: "#fff",
-                        border: "1.5px solid #AFA9EC",
-                        marginBottom: 10,
-                      }}
+                      style={{ ...inp, height: 100, resize: "vertical", background: "#fff", border: "1.5px solid #AFA9EC", marginBottom: 10 }}
                     />
                     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                       <button onClick={cancelNote} style={{ ...btn("#888780"), padding: "6px 14px", fontSize: 12 }}>
@@ -809,18 +848,13 @@ export default function App() {
                 )}
 
                 {notes.length === 0 && editingNote === null && (
-                  <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
-                    메모가 없습니다. 추가해 보세요!
-                  </div>
+                  <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>메모가 없습니다. 추가해 보세요!</div>
                 )}
 
                 {notes.map((n) => (
                   <div
                     key={n.id}
-                    style={{
-                      ...card,
-                      border: editingNote === n.id ? "1.5px solid #AFA9EC" : "0.5px solid #d9d9d9",
-                    }}
+                    style={{ ...card, border: editingNote === n.id ? "1.5px solid #AFA9EC" : "0.5px solid #d9d9d9" }}
                   >
                     {editingNote === n.id ? (
                       <>
@@ -828,14 +862,7 @@ export default function App() {
                           autoFocus
                           value={noteInput}
                           onChange={(e) => setNoteInput(e.target.value)}
-                          style={{
-                            ...inp,
-                            height: 90,
-                            resize: "vertical",
-                            background: "#fff",
-                            border: "1.5px solid #AFA9EC",
-                            marginBottom: 10,
-                          }}
+                          style={{ ...inp, height: 90, resize: "vertical", background: "#fff", border: "1.5px solid #AFA9EC", marginBottom: 10 }}
                         />
                         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                           <button onClick={cancelNote} style={{ ...btn("#888780"), padding: "6px 14px", fontSize: 12 }}>
@@ -855,10 +882,7 @@ export default function App() {
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                          <button
-                            onClick={() => startEditNote(n)}
-                            style={{ ...btn("#888780"), padding: "4px 10px", fontSize: 12 }}
-                          >
+                          <button onClick={() => startEditNote(n)} style={{ ...btn("#888780"), padding: "4px 10px", fontSize: 12 }}>
                             수정
                           </button>
                           <button
@@ -875,27 +899,14 @@ export default function App() {
                   </div>
                 ))}
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 10,
-                    marginTop: 8,
-                  }}
-                >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, marginTop: 8 }}>
                   <div style={{ fontSize: 15, fontWeight: 500 }}>상담 방문 기록</div>
-                  <button
-                    onClick={() => openModal("consultation", { type: "방문" })}
-                    style={{ ...btn(), padding: "6px 14px", fontSize: 12 }}
-                  >
+                  <button onClick={() => openModal("consultation", { type: "방문" })} style={{ ...btn(), padding: "6px 14px", fontSize: 12 }}>
                     + 기록 추가
                   </button>
                 </div>
 
-                {cons.length === 0 && (
-                  <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>상담 기록이 없습니다.</div>
-                )}
+                {cons.length === 0 && <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>상담 기록이 없습니다.</div>}
 
                 {cons.map((cn) => (
                   <div key={cn.id} style={card}>
@@ -921,42 +932,22 @@ export default function App() {
                   </div>
                 ))}
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 10,
-                    marginTop: 8,
-                  }}
-                >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, marginTop: 8 }}>
                   <div style={{ fontSize: 15, fontWeight: 500 }}>보험 가입 이력</div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       onClick={() => openModal("policy", { type: "자동차", status: "유지" })}
-                      style={{
-                        ...btn("#185FA5"),
-                        padding: "6px 14px",
-                        fontSize: 12,
-                        background: "#E6F1FB",
-                        color: "#185FA5",
-                        border: "1px solid #B5D4F4",
-                      }}
+                      style={{ ...btn("#185FA5"), padding: "6px 14px", fontSize: 12, background: "#E6F1FB", color: "#185FA5", border: "1px solid #B5D4F4" }}
                     >
                       🚗 자동차 등록
                     </button>
-                    <button
-                      onClick={() => openModal("policy", { type: "종신", status: "유지" })}
-                      style={{ ...btn(), padding: "6px 14px", fontSize: 12 }}
-                    >
+                    <button onClick={() => openModal("policy", { type: "종신", status: "유지" })} style={{ ...btn(), padding: "6px 14px", fontSize: 12 }}>
                       + 계약 추가
                     </button>
                   </div>
                 </div>
 
-                {pols.length === 0 && (
-                  <div style={{ fontSize: 13, color: "#666" }}>가입 이력이 없습니다.</div>
-                )}
+                {pols.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>가입 이력이 없습니다.</div>}
 
                 {pols.map((p) => (
                   <div key={p.id} style={card}>
@@ -997,16 +988,7 @@ export default function App() {
 
         {view === "schedules" && (
           <div>
-            <div
-              style={{
-                display: "flex",
-                gap: 0,
-                marginBottom: 20,
-                border: "0.5px solid #ccc",
-                borderRadius: 10,
-                overflow: "hidden",
-              }}
-            >
+            <div style={{ display: "flex", gap: 0, marginBottom: 20, border: "0.5px solid #ccc", borderRadius: 10, overflow: "hidden" }}>
               {schedTabs.map((t) => (
                 <button
                   key={t.key}
@@ -1042,10 +1024,7 @@ export default function App() {
                   .map((s) => {
                     const days = getDaysUntil(s.date);
                     return (
-                      <div
-                        key={s.id}
-                        style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                      >
+                      <div key={s.id} style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div
                             style={{
@@ -1068,23 +1047,16 @@ export default function App() {
                             <div style={{ fontSize: 12, color: "#666" }}>{s.date}</div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => toggleSchedule(s.id)}
-                          style={{ ...btn("#1D9E75"), padding: "8px 16px", fontSize: 13 }}
-                        >
+                        <button onClick={() => toggleSchedule(s.id)} style={{ ...btn("#1D9E75"), padding: "8px 16px", fontSize: 13 }}>
                           완료
                         </button>
                       </div>
                     );
                   })}
 
-                {(data.schedules || []).filter((s) => !s.done).length === 0 && (
-                  <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다.</div>
-                )}
+                {(data.schedules || []).filter((s) => !s.done).length === 0 && <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다.</div>}
 
-                <div style={{ fontSize: 14, fontWeight: 500, margin: "20px 0 10px", color: "#666" }}>
-                  완료된 일정
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 500, margin: "20px 0 10px", color: "#666" }}>완료된 일정</div>
 
                 {(data.schedules || [])
                   .filter((s) => s.done)
@@ -1102,9 +1074,7 @@ export default function App() {
             {scheduleTab === "birthday" && (
               <div>
                 <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>고객 생일 현황</div>
-                {birthdayList.length === 0 && (
-                  <div style={{ fontSize: 13, color: "#666" }}>등록된 생일이 없습니다.</div>
-                )}
+                {birthdayList.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>등록된 생일이 없습니다.</div>}
 
                 {birthdayList.map(({ customer: c, date, days }) => (
                   <div
@@ -1160,9 +1130,7 @@ export default function App() {
             {scheduleTab === "car" && (
               <div>
                 <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>자동차보험 만기 현황</div>
-                {carExpireList.length === 0 && (
-                  <div style={{ fontSize: 13, color: "#666" }}>자동차보험 계약이 없습니다.</div>
-                )}
+                {carExpireList.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>자동차보험 계약이 없습니다.</div>}
 
                 {carExpireList.map(({ policy: p, customer: c, days }) => (
                   <div
@@ -1194,12 +1162,8 @@ export default function App() {
                         <div style={{ fontSize: 15, fontWeight: 500 }}>
                           {c?.name} — {p.product}
                         </div>
-                        <div style={{ fontSize: 12, color: "#666" }}>
-                          {p.company} · 만기 {p.endDate}
-                        </div>
-                        <div style={{ fontSize: 12, color: "#666" }}>
-                          월 {(p.premium || 0).toLocaleString()}원
-                        </div>
+                        <div style={{ fontSize: 12, color: "#666" }}>{p.company} · 만기 {p.endDate}</div>
+                        <div style={{ fontSize: 12, color: "#666" }}>월 {(p.premium || 0).toLocaleString()}원</div>
                       </div>
                     </div>
 
@@ -1252,9 +1216,7 @@ export default function App() {
           >
             {modal === "customer" && (
               <>
-                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>
-                  {form.id ? "고객 수정" : "고객 등록"}
-                </div>
+                <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>{form.id ? "고객 수정" : "고객 등록"}</div>
                 {[["name", "이름*"], ["phone", "연락처*"], ["birth", "생년월일 (YYYY-MM-DD)"], ["email", "이메일"], ["memo", "메모"]].map(
                   ([k, l]) => (
                     <div key={k}>
