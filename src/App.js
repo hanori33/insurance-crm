@@ -196,6 +196,8 @@ export default function App() {
   const [editingNote, setEditingNote] = useState(null);
   const [noteInput, setNoteInput] = useState("");
   const [scheduleTab, setScheduleTab] = useState("schedule");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -208,18 +210,29 @@ export default function App() {
       saveData(next);
       return next;
     });
-useEffect(() => {
-  const alreadyReloaded = sessionStorage.getItem("app_reloaded");
 
-  if (!alreadyReloaded) {
-    sessionStorage.setItem("app_reloaded", "true");
-    window.location.reload();
+  function runSavingAnimation(onDone) {
+    setIsSaving(true);
+    setSaveProgress(0);
+
+    const steps = [18, 36, 58, 76, 92, 100];
+    let index = 0;
+
+    const timer = setInterval(() => {
+      setSaveProgress(steps[index]);
+      index += 1;
+
+      if (index >= steps.length) {
+        clearInterval(timer);
+        setTimeout(() => {
+          setIsSaving(false);
+          setSaveProgress(0);
+          onDone?.();
+        }, 180);
+      }
+    }, 120);
   }
 
-  return () => {
-    sessionStorage.removeItem("app_reloaded");
-  };
-}, []);
   const customers = data.customers.filter(
     (c) =>
       c.name.includes(search) ||
@@ -275,6 +288,7 @@ useEffect(() => {
   }
 
   function closeModal() {
+    if (isSaving) return;
     setModal(null);
     setForm({});
   }
@@ -284,6 +298,8 @@ useEffect(() => {
       alert("이름과 연락처는 필수예요.");
       return;
     }
+
+    const savedCustomerId = form.id || Date.now();
 
     if (form.id) {
       updateData((d) => ({
@@ -297,17 +313,21 @@ useEffect(() => {
           ...d.customers,
           {
             ...form,
-            id: Date.now(),
+            id: savedCustomerId,
             createdAt: new Date().toISOString().slice(0, 10),
           },
         ],
       }));
     }
 
-    closeModal();
-    setSelectedCustomer(null);
+    setModal(null);
+    setForm({});
     setEditingNote(null);
-    setView("customers");
+
+    runSavingAnimation(() => {
+      setSelectedCustomer(savedCustomerId);
+      setView("detail");
+    });
   }
 
   function deleteCustomer(id) {
@@ -332,26 +352,31 @@ useEffect(() => {
         consultations: d.consultations.map((c) => (c.id === form.id ? { ...c, ...form } : c)),
       }));
     } else {
-      updateData((d) => ({
-        ...d,
-        consultations: [...d.consultations, { ...form, id: Date.now(), customerId: selectedCustomer }],
-      }));
+      updateData((d) => {
+        const newConsultations = [
+          ...d.consultations,
+          { ...form, id: Date.now(), customerId: selectedCustomer },
+        ];
 
-      if (form.nextDate) {
-        updateData((d) => ({
+        const newSchedules = form.nextDate
+          ? [
+              ...d.schedules,
+              {
+                id: Date.now() + 1,
+                customerId: selectedCustomer,
+                date: form.nextDate,
+                title: "재상담 예정",
+                done: false,
+              },
+            ]
+          : d.schedules;
+
+        return {
           ...d,
-          schedules: [
-            ...d.schedules,
-            {
-              id: Date.now() + 1,
-              customerId: selectedCustomer,
-              date: form.nextDate,
-              title: "재상담 예정",
-              done: false,
-            },
-          ],
-        }));
-      }
+          consultations: newConsultations,
+          schedules: newSchedules,
+        };
+      });
     }
     closeModal();
   }
@@ -378,6 +403,10 @@ useEffect(() => {
 
   function saveSchedule() {
     if (!form.date || !form.title) return;
+    if (!selectedCustomer && !form.customerId) {
+      alert("고객을 선택해주세요.");
+      return;
+    }
 
     updateData((d) => ({
       ...d,
@@ -734,7 +763,9 @@ useEffect(() => {
                   </div>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>{c.name}</div>
-                    <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {c.birth}</div>
+                    <div style={{ fontSize: 13, color: "#666" }}>
+                      {c.phone} · {c.birth}
+                    </div>
                   </div>
                 </div>
 
@@ -1200,6 +1231,66 @@ useEffect(() => {
         )}
       </div>
 
+      {isSaving && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(255,255,255,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+            backdropFilter: "blur(2px)",
+          }}
+        >
+          <div
+            style={{
+              width: 360,
+              maxWidth: "88vw",
+              background: "#fff",
+              borderRadius: 18,
+              padding: "24px 22px",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+              border: "1px solid #d9e4f2",
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 600, color: "#185FA5", marginBottom: 8 }}>
+              저장중
+            </div>
+
+            <div style={{ fontSize: 13, color: "#666", marginBottom: 14 }}>
+              고객 정보를 저장하고 다음 화면으로 이동하고 있어요.
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                height: 12,
+                borderRadius: 999,
+                background: "#eef3f8",
+                overflow: "hidden",
+                border: "1px solid #d7e2ef",
+              }}
+            >
+              <div
+                style={{
+                  width: `${saveProgress}%`,
+                  height: "100%",
+                  borderRadius: 999,
+                  background: "linear-gradient(90deg, #7fb8f1 0%, #185FA5 100%)",
+                  transition: "width 0.12s ease",
+                }}
+              />
+            </div>
+
+            <div style={{ fontSize: 12, color: "#185FA5", marginTop: 10, textAlign: "right", fontWeight: 500 }}>
+              {saveProgress}%
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal && (
         <div
           style={{
@@ -1241,10 +1332,26 @@ useEffect(() => {
                   )
                 )}
                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <button onClick={closeModal} style={btn("#888780")}>
+                  <button
+                    onClick={closeModal}
+                    style={{
+                      ...btn("#888780"),
+                      opacity: isSaving ? 0.7 : 1,
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                    }}
+                    disabled={isSaving}
+                  >
                     취소
                   </button>
-                  <button onClick={saveCustomer} style={btn()}>
+                  <button
+                    onClick={saveCustomer}
+                    style={{
+                      ...btn(),
+                      opacity: isSaving ? 0.7 : 1,
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                    }}
+                    disabled={isSaving}
+                  >
                     저장
                   </button>
                 </div>
