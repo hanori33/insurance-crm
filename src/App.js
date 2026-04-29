@@ -67,6 +67,51 @@ function money(n) {
   return (Number(n) || 0).toLocaleString();
 }
 
+function onlyDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function birthFromSsn(ssn) {
+  const digits = onlyDigits(ssn);
+  if (digits.length < 6) return "";
+
+  const yy = Number(digits.slice(0, 2));
+  const mm = Number(digits.slice(2, 4));
+  const dd = Number(digits.slice(4, 6));
+  const genderCode = digits[6];
+
+  if (!yy && yy !== 0) return "";
+  if (mm < 1 || mm > 12) return "";
+  if (dd < 1 || dd > 31) return "";
+
+  let century = "";
+
+  if (["1", "2", "5", "6"].includes(genderCode)) century = "19";
+  if (["3", "4", "7", "8"].includes(genderCode)) century = "20";
+
+  if (!century) {
+    const currentYY = Number(String(new Date().getFullYear()).slice(2));
+    century = yy <= currentYY ? "20" : "19";
+  }
+
+  const year = Number(`${century}${String(yy).padStart(2, "0")}`);
+  const date = new Date(year, mm - 1, dd);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== mm - 1 ||
+    date.getDate() !== dd
+  ) {
+    return "";
+  }
+
+  return `${year}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+}
+
+function getBirthValue(customer) {
+  return customer?.birth || birthFromSsn(customer?.ssn) || "";
+}
+
 function getDday(dateStr) {
   if (!dateStr) return null;
   const today = new Date();
@@ -119,8 +164,16 @@ export default function App() {
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [salesMonth, setSalesMonth] = useState(todayText().slice(0, 7));
 
+const [isMobile, setIsMobile] = useState(window.innerWidth < 600);
+
+useEffect(() => {
+  const handleResize = () => setIsMobile(window.innerWidth < 600);
+  window.addEventListener("resize", handleResize);
+  return () => window.removeEventListener("resize", handleResize);
+}, []);
   const backupInputRef = useRef(null);
   const excelInputRef = useRef(null);
+  const notifiedRef = useRef({});
 
   const updateData = (fn) => {
     setData((prev) => {
@@ -156,6 +209,36 @@ export default function App() {
     fetchAllFromDb();
   }, [session]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!("Notification" in window)) return;
+      if (Notification.permission !== "granted") return;
+
+      const now = new Date();
+      const today = todayText();
+
+      data.schedules
+        .filter((s) => !s.done && s.date === today && s.time)
+        .forEach((s) => {
+          const target = new Date(`${s.date}T${s.time}`);
+          if (Number.isNaN(target.getTime())) return;
+
+          const diffMin = Math.round((target.getTime() - now.getTime()) / 60000);
+          const notifyKey = `${s.id}-${s.date}-${s.time}`;
+
+          if (diffMin <= 10 && diffMin >= 0 && !notifiedRef.current[notifyKey]) {
+            const customerName = getCustomer(s.customerId)?.name || "미지정 고객";
+            new Notification("보험 CRM 일정 알림", {
+              body: `${customerName} · ${(s.icon || "🔔") + " " + s.title} · ${s.time}`,
+            });
+            notifiedRef.current[notifyKey] = true;
+          }
+        });
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, [data.schedules, data.customers]);
+
   async function fetchAllFromDb() {
     const userId = session.user.id;
 
@@ -170,26 +253,29 @@ export default function App() {
       ]);
 
     const next = {
-      customers: (customersRes.data || []).map((c) => ({
-        id: c.app_customer_id,
-        name: c.name || "",
-        phone: c.phone || "",
-        ssn: c.ssn || "",
-        address: c.address || "",
-        birth: c.birth || "",
-        ageDate: c.age_date || "",
-        job: c.job || "",
-        transferDay: c.transfer_day || "",
-        bankAccount: c.bank_account || "",
-        carNumber: c.car_number || "",
-        email: c.email || "",
-        memo: c.memo || "",
-        status: c.status || "가망",
-        customerType: c.customer_type || "일반",
-        petName: c.pet_name || "",
-        babyName: c.baby_name || "",
-        createdAt: c.created_at || "",
-      })),
+      customers: (customersRes.data || []).map((c) => {
+        const birth = c.birth || birthFromSsn(c.ssn) || "";
+        return {
+          id: c.app_customer_id,
+          name: c.name || "",
+          phone: c.phone || "",
+          ssn: c.ssn || "",
+          address: c.address || "",
+          birth,
+          ageDate: c.age_date || "",
+          job: c.job || "",
+          transferDay: c.transfer_day || "",
+          bankAccount: c.bank_account || "",
+          carNumber: c.car_number || "",
+          email: c.email || "",
+          memo: c.memo || "",
+          status: c.status || "가망",
+          customerType: c.customer_type || "일반",
+          petName: c.pet_name || "",
+          babyName: c.baby_name || "",
+          createdAt: c.created_at || "",
+        };
+      }),
       consultations: (consultationsRes.data || []).map((c) => ({
         id: c.app_consultation_id,
         customerId: c.customer_app_id,
@@ -301,6 +387,8 @@ export default function App() {
     data.notes.filter((n) => n.customerId === id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   function makeCustomerPayload(id) {
+    const autoBirth = form.birth || birthFromSsn(form.ssn) || "";
+
     return {
       user_id: session.user.id,
       app_customer_id: id,
@@ -308,7 +396,7 @@ export default function App() {
       phone: form.phone || "",
       ssn: form.ssn || "",
       address: form.address || "",
-      birth: form.birth || "",
+      birth: autoBirth,
       age_date: form.ageDate || "",
       job: form.job || "",
       transfer_day: form.transferDay || "",
@@ -390,13 +478,29 @@ export default function App() {
   async function convertToContract(c) {
     await supabase.from("customers").update({ status: "가입" }).eq("user_id", session.user.id).eq("app_customer_id", c.id);
 
+    const consultationItem = {
+      id: Date.now(),
+      customerId: c.id,
+      date: todayText(),
+      type: "전화",
+      content: "가입 전환 완료",
+      nextDate: "",
+    };
+
+    await supabase.from("consultations").insert([{
+      user_id: session.user.id,
+      app_consultation_id: consultationItem.id,
+      customer_app_id: consultationItem.customerId,
+      date: consultationItem.date,
+      type: consultationItem.type,
+      content: consultationItem.content,
+      next_date: consultationItem.nextDate,
+    }]);
+
     updateData((d) => ({
       ...d,
       customers: d.customers.map((item) => (item.id === c.id ? { ...item, status: "가입" } : item)),
-      consultations: [
-        ...d.consultations,
-        { id: Date.now(), customerId: c.id, date: todayText(), type: "전화", content: "가입 전환 완료", nextDate: "" },
-      ],
+      consultations: [...d.consultations, consultationItem],
     }));
   }
 
@@ -673,6 +777,8 @@ export default function App() {
 
         if (!phone || !name) return;
 
+        const ssn = normalizeHeaderValue(r, ["주민번호", "주민등록번호"]);
+        const birth = normalizeHeaderValue(r, ["생년월일", "생일"]) || birthFromSsn(ssn);
         const petName = normalizeHeaderValue(r, ["펫이름", "강아지이름", "강아지 이름"]);
         const babyName = normalizeHeaderValue(r, ["태명&아기이름", "태명아기이름", "태명/아기이름", "태명", "아기이름"]);
         const customerTypeRaw = normalizeHeaderValue(r, ["고객유형", "유형"]);
@@ -686,9 +792,9 @@ export default function App() {
           id,
           name,
           phone,
-          ssn: normalizeHeaderValue(r, ["주민번호", "주민등록번호"]),
+          ssn,
           address: normalizeHeaderValue(r, ["주소"]),
-          birth: normalizeHeaderValue(r, ["생년월일", "생일"]),
+          birth,
           ageDate: normalizeHeaderValue(r, ["상령일"]),
           job: normalizeHeaderValue(r, ["직업"]),
           transferDay: normalizeHeaderValue(r, ["이체일자", "자동이체일자"]),
@@ -807,20 +913,27 @@ export default function App() {
   const calendarDays = [...Array(firstDay).fill(null), ...Array.from({ length: lastDate }, (_, i) => i + 1)];
 
   const birthdayList = data.customers
-    .filter((c) => c.birth)
     .map((c) => {
-      const raw = c.birth.replaceAll("-", "");
+      const birth = getBirthValue(c);
+      if (!birth) return null;
+
+      const raw = birth.replaceAll("-", "");
       const month = raw.slice(4, 6);
       const day = raw.slice(6, 8);
       const next = new Date(new Date().getFullYear(), Number(month) - 1, Number(day));
+
+      if (Number.isNaN(next.getTime())) return null;
       if (next < new Date()) next.setFullYear(new Date().getFullYear() + 1);
+
       return {
         ...c,
+        birth,
         birthdayText: `${month}월 ${day}일`,
         nextBirthday: next.toISOString().slice(0, 10),
         dday: getDday(next.toISOString().slice(0, 10)),
       };
     })
+    .filter(Boolean)
     .sort((a, b) => a.dday - b.dday);
 
   const carPolicies = data.policies
@@ -832,6 +945,14 @@ export default function App() {
   const monthlyFirst = monthSales.reduce((sum, s) => sum + Number(s.firstCommission || 0), 0);
   const monthlyFifteenth = monthSales.reduce((sum, s) => sum + Number(s.fifteenthCommission || 0), 0);
   const monthlyIncentive = monthSales.reduce((sum, s) => sum + Number(s.incentive || 0), 0);
+
+  const monthlyGraphData = Array.from({ length: 12 }, (_, i) => {
+    const month = `${salesMonth.slice(0, 4)}-${String(i + 1).padStart(2, "0")}`;
+    const total = data.sales
+      .filter((s) => (s.contractDate || "").startsWith(month))
+      .reduce((sum, s) => sum + Number(s.premium || 0), 0);
+    return { month, total };
+  });
 
   const nav = [
     { key: "dashboard", label: "홈" },
@@ -1025,7 +1146,7 @@ export default function App() {
                       {c.name}
                       <span style={statusBadge(c.status || "가망")}>{c.status || "가망"}</span>
                     </div>
-                    <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {c.birth}</div>
+                    <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {getBirthValue(c)}</div>
                     <div style={{ fontSize: 12, color: "#666" }}>
                       주민번호 {c.ssn || "-"} · 주소 {c.address || "-"} · 차량 {c.carNumber || "-"}
                     </div>
@@ -1067,7 +1188,7 @@ export default function App() {
                   </div>
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{c.name}<span style={statusBadge(c.status || "가망")}>{c.status || "가망"}</span></div>
-                    <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {c.birth}</div>
+                    <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {getBirthValue(c)}</div>
                     {c.email && <div style={{ fontSize: 13, color: "#666" }}>{c.email}</div>}
                     <div style={{ fontSize: 13, color: "#666" }}>주민번호: {c.ssn || "-"} / 주소: {c.address || "-"}</div>
                     <div style={{ fontSize: 13, color: "#666" }}>상령일: {c.ageDate || "-"} / 직업: {c.job || "-"}</div>
@@ -1174,7 +1295,7 @@ export default function App() {
                     <button onClick={showTestNotification} style={{ ...btn("#BA7517"), padding: "6px 12px", fontSize: 12 }}>알림 테스트</button>
                   </div>
 
-                  <div style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>날짜를 누르면 일정 등록창이 떠요.</div>
+                  <div style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>날짜를 누르면 일정 등록창이 떠요. 시간 입력 시 앱이 켜져 있을 때 10분 전 알림이 울려요.</div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
                     {["일", "월", "화", "수", "목", "금", "토"].map((d) => <div key={d} style={{ textAlign: "center", fontWeight: 700 }}>{d}</div>)}
@@ -1213,6 +1334,7 @@ export default function App() {
             {scheduleTab === "birthday" && (
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>고객 생일 현황</div>
+                {birthdayList.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>생일 정보가 있는 고객이 없습니다.</div>}
                 {birthdayList.map((c) => (
                   <div key={c.id} style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -1271,6 +1393,24 @@ export default function App() {
             </div>
 
             <div style={card}>
+              <div style={{ fontWeight: 700, marginBottom: 10 }}>월별 매출 그래프</div>
+              {monthlyGraphData.map((g) => {
+                const max = Math.max(...monthlyGraphData.map((x) => Number(x.total) || 0), 1);
+                return (
+                  <div key={g.month} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                      <span>{g.month}</span>
+                      <span>{money(g.total)}원</span>
+                    </div>
+                    <div style={{ height: 10, background: "#eee", borderRadius: 8 }}>
+                      <div style={{ height: 10, width: `${Math.min(100, (Number(g.total) / max) * 100)}%`, background: "#185FA5", borderRadius: 8 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={card}>
               <div style={{ fontWeight: 700, marginBottom: 10 }}>이번달 계약 그래프</div>
               {monthSales.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>등록된 매출이 없습니다.</div>}
               {monthSales.map((s) => {
@@ -1279,7 +1419,7 @@ export default function App() {
                   <div key={s.id} style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 13 }}>{s.product} · {money(s.premium)}원</div>
                     <div style={{ height: 10, background: "#eee", borderRadius: 8 }}>
-                      <div style={{ height: 10, width: `${Math.min(100, (Number(s.premium) / max) * 100)}%`, background: "#185FA5", borderRadius: 8 }} />
+                      <div style={{ height: 10, width: `${Math.min(100, (Number(s.premium) / max) * 100)}%`, background: "#1D9E75", borderRadius: 8 }} />
                     </div>
                   </div>
                 );
@@ -1311,7 +1451,7 @@ export default function App() {
                 <ModalTitle title={form.id ? "고객 수정" : "고객 등록"} />
                 <Field label="이름*" k="name" form={form} setForm={setForm} />
                 <Field label="연락처*" k="phone" form={form} setForm={setForm} />
-                <Field label="주민번호" k="ssn" form={form} setForm={setForm} />
+                <Field label="주민번호" k="ssn" form={form} setForm={setForm} autoBirth />
                 <Field label="주소" k="address" form={form} setForm={setForm} />
                 <Field label="생년월일 (YYYY-MM-DD)" k="birth" form={form} setForm={setForm} />
                 <Field label="상령일" k="ageDate" form={form} setForm={setForm} />
@@ -1409,11 +1549,26 @@ function ModalTitle({ title }) {
   return <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{title}</div>;
 }
 
-function Field({ label, k, form, setForm, type = "text" }) {
+function Field({ label, k, form, setForm, type = "text", autoBirth = false }) {
   return (
     <div>
       <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>{label}</div>
-      <input type={type} style={inp} value={form[k] || ""} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+      <input
+        type={type}
+        style={inp}
+        value={form[k] || ""}
+        onChange={(e) => {
+          const value = e.target.value;
+          setForm((f) => {
+            const next = { ...f, [k]: value };
+            if (autoBirth) {
+              const converted = birthFromSsn(value);
+              if (converted) next.birth = converted;
+            }
+            return next;
+          });
+        }}
+      />
     </div>
   );
 }
