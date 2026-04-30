@@ -1054,55 +1054,122 @@ export default function App() {
       </div>
 
       <div style={{ padding: "20px 24px" }}>
-        {view === "dashboard" && (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-              {[
-                { label: "전체 고객", value: data.customers.length + "명" },
-                { label: "가망 고객", value: data.customers.filter((c) => (c.status || "가망") === "가망").length + "명" },
-                { label: "가입 고객", value: data.customers.filter((c) => c.status === "가입").length + "명" },
-                { label: "이번달 매출", value: money(monthlyPremium) + "원" },
-              ].map((m) => (
-                <div key={m.label} style={{ background: "#eef2f7", borderRadius: 8, padding: "14px 16px" }}>
-                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{m.label}</div>
-                  <div style={{ fontSize: 22, fontWeight: 700 }}>{m.value}</div>
-                </div>
-              ))}
+        
+{view === "dashboard" && (
+  <div>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+      {[
+        { label: "전체 고객", value: data.customers.length + "명" },
+        { label: "가망 고객", value: data.customers.filter((c) => (c.status || "가망") === "가망").length + "명" },
+        { label: "가입 고객", value: data.customers.filter((c) => c.status === "가입").length + "명" },
+        { label: "이번달 매출", value: money(monthlyPremium) + "원" },
+      ].map((m) => (
+        <div key={m.label} style={{ background: "#eef2f7", borderRadius: 8, padding: "14px 16px" }}>
+          <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{m.label}</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{m.value}</div>
+        </div>
+      ))}
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
+      <div style={card}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>다가오는 일정</div>
+        {allUpcoming.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다</div>}
+        {allUpcoming.map((s) => (
+          <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #eee" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{getCustomer(s.customerId)?.name || "고객 없음"} — {(s.icon || "🔔") + " " + s.title}</div>
+              <div style={{ fontSize: 12, color: "#666" }}>{s.date} {s.time}</div>
             </div>
+            <button onClick={() => toggleSchedule(s.id)} style={{ ...btn("#1D9E75"), padding: "4px 10px", fontSize: 12 }}>완료</button>
+          </div>
+        ))}
+      </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
-              <div style={card}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>다가오는 일정</div>
-                {allUpcoming.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다</div>}
-                {allUpcoming.map((s) => (
-                  <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #eee" }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{getCustomer(s.customerId)?.name || "고객 없음"} — {(s.icon || "🔔") + " " + s.title}</div>
-                      <div style={{ fontSize: 12, color: "#666" }}>{s.date} {s.time}</div>
-                    </div>
-                    <button onClick={() => toggleSchedule(s.id)} style={{ ...btn("#1D9E75"), padding: "4px 10px", fontSize: 12 }}>완료</button>
-                  </div>
-                ))}
-              </div>
-
-              <div style={card}>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>최근 등록 고객</div>
-                {data.customers.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 4).map((c) => (
-                  <div key={c.id} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #eee", cursor: "pointer" }}>
-                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#0C447C" }}>
-                      {customerIcon(c)}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: "#666" }}>{c.phone}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+      <div style={card}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>최근 등록 고객</div>
+        {data.customers.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 4).map((c) => (
+          <div key={c.id} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #eee", cursor: "pointer" }}>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#0C447C" }}>
+              {customerIcon(c)}
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</div>
+              <div style={{ fontSize: 12, color: "#666" }}>{c.phone}</div>
             </div>
           </div>
-        )}
+        ))}
+      </div>
+    </div>
 
+    <div style={{ marginTop: 20 }}>
+      <div style={{ ...card, border: "2px solid #FFD5C2" }}>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>🟧 손해보험사 고객센터</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+          {[
+            ["삼성화재", "1588-5114"],
+            ["DB손해보험", "1588-0100"],
+            ["현대해상", "1588-5656"],
+            ["KB손해보험", "1544-0114"],
+            ["메리츠화재", "1566-7711"],
+            ["한화손해보험", "1566-8000"],
+            ["흥국화재", "1688-1688"],
+            ["롯데손해보험", "1588-3344"],
+          ].map(([name, phone]) => (
+            <div
+              key={name}
+              onClick={() => window.location.href = `tel:${phone}`}
+              style={{
+                padding: 12,
+                borderRadius: 12,
+                background: "#FFF1EB",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              📞 {name}<br />
+              <span style={{ color: "#444" }}>{phone}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ ...card, marginTop: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>🟦 생명보험사 고객센터</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+          {[
+            ["삼성생명", "1588-3114"],
+            ["한화생명", "1588-6363"],
+            ["교보생명", "1588-1001"],
+            ["신한라이프", "1588-5580"],
+            ["메트라이프", "1588-9600"],
+            ["라이나생명", "1588-0058"],
+            ["푸본현대생명", "1577-3311"],
+            ["ABL생명", "1588-6500"],
+          ].map(([name, phone]) => (
+            <div
+              key={name}
+              onClick={() => window.location.href = `tel:${phone}`}
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                background: "#F5F8FC",
+                cursor: "pointer",
+                fontSize: 13,
+              }}
+            >
+              📞 {name}<br />
+              <span style={{ color: "#555" }}>{phone}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
         {view === "customers" && (
           <div>
             <div style={{ display: "flex", gap: 10, marginBottom: 12, flexDirection: isMobile ? "column" : "row" }}>
@@ -1140,30 +1207,75 @@ export default function App() {
                     {customerIcon(c)}
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>
-                      {c.name}
-                      <span style={statusBadge(c.status || "가망")}>{c.status || "가망"}</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: "#666" }}>{c.phone} · {getBirthValue(c)}</div>
-                    <div style={{ fontSize: 12, color: "#666" }}>
-                      주민번호 {c.ssn || "-"} · 주소 {c.address || "-"} · 차량 {c.carNumber || "-"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#666" }}>
-                      상령일 {c.ageDate || "-"} · 직업 {c.job || "-"} · 이체일 {c.transferDay || "-"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#666" }}>
-                      자동이체 {c.bankAccount || "-"}
-                    </div>
-                    {c.customerType === "펫" && <div style={{ fontSize: 13, color: "#666" }}>🐶 {c.petName}</div>}
-                    {c.customerType === "태아" && <div style={{ fontSize: 13, color: "#666" }}>👶 {c.babyName}</div>}
-                  </div>
+  <div style={{ fontSize: 15, fontWeight: 700 }}>
+    {c.name}
+    <span style={statusBadge(c.status || "가망")}>
+      {c.status || "가망"}
+    </span>
+  </div>
+
+  <div style={{ fontSize: 13, marginTop: 4 }}>
+    📞 {c.phone}
+  </div>
+
+  <div style={{ fontSize: 13 }}>
+    🎂 {getBirthValue(c) || "-"} / 🆔 {c.ssn || "-"}
+  </div>
+
+  <div style={{ fontSize: 13 }}>
+    🏠 {c.address || "-"}
+  </div>
+
+  <div style={{ fontSize: 13 }}>
+    💼 {c.job || "-"} / 📅 상령일 {c.ageDate || "-"}
+  </div>
+
+  <div style={{ fontSize: 13 }}>
+    💳 이체일 {c.transferDay || "-"} / {c.bankAccount || "-"}
+  </div>
+
+  <div style={{ fontSize: 13 }}>
+    🚗 {c.carNumber || "-"}
+  </div>
+
+  {c.customerType === "펫" && (
+    <div style={{ fontSize: 13 }}>🐶 {c.petName}</div>
+  )}
+
+  {c.customerType === "태아" && (
+    <div style={{ fontSize: 13 }}>👶 {c.babyName}</div>
+  )}
+</div>
                 </div>
                 {!isMobile && (
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 12, color: "#666" }}>계약 {getPolicies(c.id).length}건</div>
-                    <div style={{ fontSize: 12, color: "#666" }}>상담 {getConsultations(c.id).length}건</div>
-                  </div>
-                )}
+  <div style={{ textAlign: "right", minWidth: 120 }}>
+    <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 6 }}>
+      {[...new Set(getPolicies(c.id).map((p) => p.company).filter(Boolean))].slice(0, 3).map((company) => (
+        <span
+          key={company}
+          style={{
+            fontSize: 11,
+            padding: "3px 7px",
+            borderRadius: 999,
+            background: "#E6F1FB",
+            color: "#185FA5",
+            fontWeight: 700,
+            border: "1px solid #B5D4F4",
+          }}
+        >
+          🏢 {company}
+        </span>
+      ))}
+    </div>
+
+    <div style={{ fontSize: 12, color: "#666" }}>
+      계약 {getPolicies(c.id).length}건
+    </div>
+    <div style={{ fontSize: 12, color: "#666" }}>
+      상담 {getConsultations(c.id).length}건
+    </div>
+  </div>
+)}
               </div>
             ))}
           </div>
