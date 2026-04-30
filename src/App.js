@@ -80,12 +80,9 @@ function birthFromSsn(ssn) {
   const dd = Number(digits.slice(4, 6));
   const genderCode = digits[6];
 
-  if (!yy && yy !== 0) return "";
-  if (mm < 1 || mm > 12) return "";
-  if (dd < 1 || dd > 31) return "";
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return "";
 
   let century = "";
-
   if (["1", "2", "5", "6"].includes(genderCode)) century = "19";
   if (["3", "4", "7", "8"].includes(genderCode)) century = "20";
 
@@ -163,17 +160,18 @@ export default function App() {
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [salesMonth, setSalesMonth] = useState(todayText().slice(0, 7));
+  const [isMobile, setIsMobile] = useState(false);
 
-const [isMobile, setIsMobile] = useState(window.innerWidth < 600);
-
-useEffect(() => {
-  const handleResize = () => setIsMobile(window.innerWidth < 600);
-  window.addEventListener("resize", handleResize);
-  return () => window.removeEventListener("resize", handleResize);
-}, []);
   const backupInputRef = useRef(null);
   const excelInputRef = useRef(null);
   const notifiedRef = useRef({});
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 800);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const updateData = (fn) => {
     setData((prev) => {
@@ -1058,7 +1056,7 @@ useEffect(() => {
       <div style={{ padding: "20px 24px" }}>
         {view === "dashboard" && (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
               {[
                 { label: "전체 고객", value: data.customers.length + "명" },
                 { label: "가망 고객", value: data.customers.filter((c) => (c.status || "가망") === "가망").length + "명" },
@@ -1072,7 +1070,7 @@ useEffect(() => {
               ))}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
               <div style={card}>
                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>다가오는 일정</div>
                 {allUpcoming.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다</div>}
@@ -1107,7 +1105,7 @@ useEffect(() => {
 
         {view === "customers" && (
           <div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 12, flexDirection: isMobile ? "column" : "row" }}>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="이름, 연락처, 주민번호, 주소, 차량번호 검색" style={{ ...inp, marginBottom: 0, flex: 1 }} />
               <button onClick={() => openModal("customer", { customerType: "일반", status: "가망" })} style={btn()}>+ 고객 등록</button>
             </div>
@@ -1120,7 +1118,7 @@ useEffect(() => {
                     필수 헤더: 이름, 연락처, 주민번호, 주소, 상령일, 직업, 이체일자, 자동이체은행계좌, 펫이름, 태명&아기이름, 차량번호
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={downloadExcelTemplate} style={btn("#1D9E75")}>📥 양식 다운로드</button>
                   <button onClick={() => excelInputRef.current?.click()} style={btn("#185FA5")}>📂 엑셀 업로드</button>
                 </div>
@@ -1136,9 +1134,9 @@ useEffect(() => {
             {customers.length === 0 && <div style={{ color: "#666", fontSize: 14 }}>고객이 없습니다.</div>}
 
             {customers.map((c) => (
-              <div key={c.id} style={{ ...card, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }}>
+              <div key={c.id} style={{ ...card, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 700, color: "#0C447C" }}>
+                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
                     {customerIcon(c)}
                   </div>
                   <div>
@@ -1160,10 +1158,12 @@ useEffect(() => {
                     {c.customerType === "태아" && <div style={{ fontSize: 13, color: "#666" }}>👶 {c.babyName}</div>}
                   </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 12, color: "#666" }}>계약 {getPolicies(c.id).length}건</div>
-                  <div style={{ fontSize: 12, color: "#666" }}>상담 {getConsultations(c.id).length}건</div>
-                </div>
+                {!isMobile && (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 12, color: "#666" }}>계약 {getPolicies(c.id).length}건</div>
+                    <div style={{ fontSize: 12, color: "#666" }}>상담 {getConsultations(c.id).length}건</div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1181,9 +1181,9 @@ useEffect(() => {
             <div>
               <button onClick={() => { setView("customers"); setSelectedCustomer(null); setEditingNote(null); }} style={{ ...btn("transparent"), color: "#666", border: "1px solid #bbb", marginBottom: 16, background: "#fff" }}>← 목록으로</button>
 
-              <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, color: "#0C447C" }}>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
                     {customerIcon(c)}
                   </div>
                   <div>
@@ -1200,7 +1200,7 @@ useEffect(() => {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={() => openModal("customer", { ...c })} style={{ ...btn("#888780"), padding: "6px 12px", fontSize: 12 }}>수정</button>
                   <button onClick={() => deleteCustomer(c.id)} style={{ ...btn("#E24B4A"), padding: "6px 12px", fontSize: 12 }}>삭제</button>
                   {(c.status || "가망") !== "가입" && <button onClick={() => convertToContract(c)} style={{ ...btn("#4CAF50"), padding: "6px 12px", fontSize: 12 }}>가입 전환</button>}
@@ -1297,22 +1297,67 @@ useEffect(() => {
 
                   <div style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>날짜를 누르면 일정 등록창이 떠요. 시간 입력 시 앱이 켜져 있을 때 10분 전 알림이 울려요.</div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
-                    {["일", "월", "화", "수", "목", "금", "토"].map((d) => <div key={d} style={{ textAlign: "center", fontWeight: 700 }}>{d}</div>)}
-                    {calendarDays.map((day, idx) => {
-                      const dateStr = day ? `${calendarYear}-${String(calendarMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` : "";
-                      const daySchedules = data.schedules.filter((s) => s.date === dateStr);
-                      return (
-                        <div key={idx} onClick={() => day && openModal("schedule", { date: dateStr, icon: "🔔" })} style={{ minHeight: 86, background: day ? "#fff" : "#f0f0f0", border: "1px solid #d6d6d6", borderRadius: 10, padding: 8, cursor: day ? "pointer" : "default" }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{day}</div>
-                          {daySchedules.slice(0, 2).map((s) => (
-                            <div key={s.id} style={{ fontSize: 11, background: "#E6F1FB", color: "#185FA5", borderRadius: 6, padding: "2px 5px", marginBottom: 3, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-                              {(s.icon || "🔔") + " " + s.title}
-                            </div>
-                          ))}
+                  <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "repeat(7, 90px)" : "repeat(7, 1fr)",
+                        gap: 8,
+                        minWidth: isMobile ? 630 : "auto",
+                      }}
+                    >
+                      {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
+                        <div key={d} style={{ textAlign: "center", fontWeight: 700 }}>
+                          {d}
                         </div>
-                      );
-                    })}
+                      ))}
+
+                      {calendarDays.map((day, idx) => {
+                        const dateStr = day
+                          ? `${calendarYear}-${String(calendarMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+                          : "";
+
+                        const daySchedules = data.schedules.filter((s) => s.date === dateStr);
+
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => day && openModal("schedule", { date: dateStr, icon: "🔔" })}
+                            style={{
+                              minHeight: isMobile ? 110 : 86,
+                              background: day ? "#fff" : "#f0f0f0",
+                              border: "1px solid #d6d6d6",
+                              borderRadius: 10,
+                              padding: 8,
+                              cursor: day ? "pointer" : "default",
+                            }}
+                          >
+                            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                              {day}
+                            </div>
+
+                            {daySchedules.slice(0, 2).map((s) => (
+                              <div
+                                key={s.id}
+                                style={{
+                                  fontSize: 11,
+                                  background: "#E6F1FB",
+                                  color: "#185FA5",
+                                  borderRadius: 6,
+                                  padding: "2px 5px",
+                                  marginBottom: 3,
+                                  overflow: "hidden",
+                                  whiteSpace: "nowrap",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {(s.icon || "🔔") + " " + s.title}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -1378,7 +1423,7 @@ useEffect(() => {
               <button onClick={() => openModal("sale", { contractDate: todayText() })} style={btn()}>+ 매출 등록</button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
               {[
                 ["월 보험료", monthlyPremium],
                 ["초회 수수료", monthlyFirst],
