@@ -74,34 +74,21 @@ function onlyDigits(value) {
 function birthFromSsn(ssn) {
   const digits = onlyDigits(ssn);
   if (digits.length < 6) return "";
-
   const yy = Number(digits.slice(0, 2));
   const mm = Number(digits.slice(2, 4));
   const dd = Number(digits.slice(4, 6));
   const genderCode = digits[6];
-
   if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return "";
-
   let century = "";
   if (["1", "2", "5", "6"].includes(genderCode)) century = "19";
   if (["3", "4", "7", "8"].includes(genderCode)) century = "20";
-
   if (!century) {
     const currentYY = Number(String(new Date().getFullYear()).slice(2));
     century = yy <= currentYY ? "20" : "19";
   }
-
   const year = Number(`${century}${String(yy).padStart(2, "0")}`);
   const date = new Date(year, mm - 1, dd);
-
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== mm - 1 ||
-    date.getDate() !== dd
-  ) {
-    return "";
-  }
-
+  if (date.getFullYear() !== year || date.getMonth() !== mm - 1 || date.getDate() !== dd) return "";
   return `${year}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 
@@ -121,13 +108,8 @@ function getDday(dateStr) {
 
 function statusBadge(status) {
   return {
-    marginLeft: 8,
-    padding: "2px 8px",
-    borderRadius: 6,
-    fontSize: 11,
-    color: "#fff",
-    background:
-      status === "가입" ? "#4CAF50" : status === "보류" ? "#BA7517" : "#999",
+    marginLeft: 8, padding: "2px 8px", borderRadius: 6, fontSize: 11, color: "#fff",
+    background: status === "가입" ? "#4CAF50" : status === "보류" ? "#BA7517" : "#999",
   };
 }
 
@@ -166,6 +148,10 @@ export default function App() {
   const excelInputRef = useRef(null);
   const notifiedRef = useRef({});
 
+  const isEmailConfirm =
+    window.location.hash.includes("type=signup") ||
+    window.location.hash.includes("type=recovery");
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 800);
     checkMobile();
@@ -181,24 +167,17 @@ export default function App() {
     });
   };
 
-  useEffect(() => {
-    saveLocal(data);
-  }, [data]);
+  useEffect(() => { saveLocal(data); }, [data]);
 
   useEffect(() => {
     async function initSession() {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
     }
-
     initSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -211,35 +190,27 @@ export default function App() {
     const timer = setInterval(() => {
       if (!("Notification" in window)) return;
       if (Notification.permission !== "granted") return;
-
       const now = new Date();
       const today = todayText();
-
-      data.schedules
-        .filter((s) => !s.done && s.date === today && s.time)
-        .forEach((s) => {
-          const target = new Date(`${s.date}T${s.time}`);
-          if (Number.isNaN(target.getTime())) return;
-
-          const diffMin = Math.round((target.getTime() - now.getTime()) / 60000);
-          const notifyKey = `${s.id}-${s.date}-${s.time}`;
-
-          if (diffMin <= 10 && diffMin >= 0 && !notifiedRef.current[notifyKey]) {
-            const customerName = getCustomer(s.customerId)?.name || "미지정 고객";
-            new Notification("보험 CRM 일정 알림", {
-              body: `${customerName} · ${(s.icon || "🔔") + " " + s.title} · ${s.time}`,
-            });
-            notifiedRef.current[notifyKey] = true;
-          }
-        });
+      data.schedules.filter((s) => !s.done && s.date === today && s.time).forEach((s) => {
+        const target = new Date(`${s.date}T${s.time}`);
+        if (Number.isNaN(target.getTime())) return;
+        const diffMin = Math.round((target.getTime() - now.getTime()) / 60000);
+        const notifyKey = `${s.id}-${s.date}-${s.time}`;
+        if (diffMin <= 10 && diffMin >= 0 && !notifiedRef.current[notifyKey]) {
+          const customerName = getCustomer(s.customerId)?.name || "미지정 고객";
+          new Notification("보험 CRM 일정 알림", {
+            body: `${customerName} · ${(s.icon || "🔔") + " " + s.title} · ${s.time}`,
+          });
+          notifiedRef.current[notifyKey] = true;
+        }
+      });
     }, 30000);
-
     return () => clearInterval(timer);
   }, [data.schedules, data.customers]);
 
   async function fetchAllFromDb() {
     const userId = session.user.id;
-
     const [customersRes, consultationsRes, policiesRes, schedulesRes, notesRes, salesRes] =
       await Promise.all([
         supabase.from("customers").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
@@ -249,81 +220,52 @@ export default function App() {
         supabase.from("notes").select("*").eq("user_id", userId),
         supabase.from("sales").select("*").eq("user_id", userId),
       ]);
-
     const next = {
-      customers: (customersRes.data || []).map((c) => {
-        const birth = c.birth || birthFromSsn(c.ssn) || "";
-        return {
-          id: c.app_customer_id,
-          name: c.name || "",
-          phone: c.phone || "",
-          ssn: c.ssn || "",
-          address: c.address || "",
-          birth,
-          ageDate: c.age_date || "",
-          job: c.job || "",
-          transferDay: c.transfer_day || "",
-          bankAccount: c.bank_account || "",
-          carNumber: c.car_number || "",
-          email: c.email || "",
-          memo: c.memo || "",
-          status: c.status || "가망",
-          customerType: c.customer_type || "일반",
-          petName: c.pet_name || "",
-          babyName: c.baby_name || "",
-          createdAt: c.created_at || "",
-        };
-      }),
+      customers: (customersRes.data || []).map((c) => ({
+        id: c.app_customer_id, name: c.name || "", phone: c.phone || "",
+        ssn: c.ssn || "", address: c.address || "",
+        birth: c.birth || birthFromSsn(c.ssn) || "",
+        ageDate: c.age_date || "", job: c.job || "",
+        transferDay: c.transfer_day || "", bankAccount: c.bank_account || "",
+        carNumber: c.car_number || "", email: c.email || "",
+        memo: c.memo || "", status: c.status || "가망",
+        customerType: c.customer_type || "일반",
+        petName: c.pet_name || "", babyName: c.baby_name || "",
+        createdAt: c.created_at || "",
+      })),
       consultations: (consultationsRes.data || []).map((c) => ({
-        id: c.app_consultation_id,
-        customerId: c.customer_app_id,
-        date: c.date || "",
-        type: c.type || "방문",
-        content: c.content || "",
-        nextDate: c.next_date || "",
+        id: c.app_consultation_id, customerId: c.customer_app_id,
+        date: c.date || "", type: c.type || "방문",
+        content: c.content || "", nextDate: c.next_date || "",
       })),
       policies: (policiesRes.data || []).map((p) => ({
-        id: p.app_policy_id,
-        customerId: p.customer_app_id,
-        type: p.type || "종신",
-        status: p.status || "유지",
-        company: p.company || "",
-        product: p.product || "",
+        id: p.app_policy_id, customerId: p.customer_app_id,
+        type: p.type || "종신", status: p.status || "유지",
+        company: p.company || "", product: p.product || "",
         premium: Number(p.premium) || 0,
-        startDate: p.start_date || "",
-        endDate: p.end_date || "",
+        startDate: p.start_date || "", endDate: p.end_date || "",
       })),
       schedules: (schedulesRes.data || []).map((s) => ({
-        id: s.app_schedule_id,
-        customerId: s.customer_app_id,
-        date: s.date || "",
-        time: s.time || "",
-        title: s.title || "",
-        icon: s.icon || "🔔",
-        memo: s.memo || "",
-        done: !!s.done,
+        id: s.app_schedule_id, customerId: s.customer_app_id,
+        date: s.date || "", time: s.time || "",
+        title: s.title || "", icon: s.icon || "🔔",
+        memo: s.memo || "", done: !!s.done,
       })),
       notes: (notesRes.data || []).map((n) => ({
-        id: n.app_note_id,
-        customerId: n.customer_app_id,
+        id: n.app_note_id, customerId: n.customer_app_id,
         content: n.content || "",
         createdAt: n.created_at_text || todayText(),
         updatedAt: n.updated_at_text || todayText(),
       })),
       sales: (salesRes.data || []).map((s) => ({
-        id: s.id,
-        customerId: s.customer_id,
-        contractDate: s.contract_date || "",
-        company: s.company || "",
-        product: s.product || "",
-        premium: Number(s.premium) || 0,
+        id: s.id, customerId: s.customer_id,
+        contractDate: s.contract_date || "", company: s.company || "",
+        product: s.product || "", premium: Number(s.premium) || 0,
         firstCommission: Number(s.first_commission) || 0,
         fifteenthCommission: Number(s.fifteenth_commission) || 0,
-        incentive: Number(s.incentive) || 0,
-        memo: s.memo || "",
+        incentive: Number(s.incentive) || 0, memo: s.memo || "",
       })),
     };
-
     setData(next);
     saveLocal(next);
   }
@@ -332,22 +274,16 @@ export default function App() {
     const name = authForm.name.trim();
     const email = authForm.email.trim();
     const password = authForm.password.trim();
-
     if (authMode === "reset") {
       if (!email) return alert("이메일을 입력해주세요.");
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin,
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
       if (error) return alert("비밀번호 찾기 실패: " + error.message);
       return alert("비밀번호 재설정 메일을 보냈어요.");
     }
-
     if (!email || !password) return alert("이메일과 비밀번호를 입력해주세요.");
-
     if (authMode === "signup") {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
+        email, password,
         options: { data: { name }, emailRedirectTo: window.location.origin },
       });
       if (error) return alert("회원가입 실패: " + error.message);
@@ -355,7 +291,6 @@ export default function App() {
       setAuthMode("login");
       return;
     }
-
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return alert("로그인 실패: " + error.message);
   }
@@ -365,70 +300,41 @@ export default function App() {
     setSession(null);
   }
 
-  function openModal(type, defaults = {}) {
-    setModal(type);
-    setForm(defaults);
-  }
-
-  function closeModal() {
-    setModal(null);
-    setForm({});
-  }
+  function openModal(type, defaults = {}) { setModal(type); setForm(defaults); }
+  function closeModal() { setModal(null); setForm({}); }
 
   const getCustomer = (id) => data.customers.find((c) => c.id === id);
-  const getConsultations = (id) =>
-    data.consultations.filter((c) => c.customerId === id).sort((a, b) => b.date.localeCompare(a.date));
+  const getConsultations = (id) => data.consultations.filter((c) => c.customerId === id).sort((a, b) => b.date.localeCompare(a.date));
   const getPolicies = (id) => data.policies.filter((p) => p.customerId === id);
-  const getSchedules = (id) =>
-    data.schedules.filter((s) => s.customerId === id && !s.done).sort((a, b) => a.date.localeCompare(b.date));
-  const getNotes = (id) =>
-    data.notes.filter((n) => n.customerId === id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const getSchedules = (id) => data.schedules.filter((s) => s.customerId === id && !s.done).sort((a, b) => a.date.localeCompare(b.date));
+  const getNotes = (id) => data.notes.filter((n) => n.customerId === id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   function makeCustomerPayload(id) {
     const autoBirth = form.birth || birthFromSsn(form.ssn) || "";
-
     return {
-      user_id: session.user.id,
-      app_customer_id: id,
-      name: form.name || "",
-      phone: form.phone || "",
-      ssn: form.ssn || "",
-      address: form.address || "",
-      birth: autoBirth,
-      age_date: form.ageDate || "",
-      job: form.job || "",
-      transfer_day: form.transferDay || "",
-      bank_account: form.bankAccount || "",
-      car_number: form.carNumber || "",
-      email: form.email || "",
-      memo: form.memo || "",
-      status: form.status || "가망",
-      customer_type: form.customerType || "일반",
-      pet_name: form.petName || "",
-      baby_name: form.babyName || "",
+      user_id: session.user.id, app_customer_id: id,
+      name: form.name || "", phone: form.phone || "",
+      ssn: form.ssn || "", address: form.address || "",
+      birth: autoBirth, age_date: form.ageDate || "",
+      job: form.job || "", transfer_day: form.transferDay || "",
+      bank_account: form.bankAccount || "", car_number: form.carNumber || "",
+      email: form.email || "", memo: form.memo || "",
+      status: form.status || "가망", customer_type: form.customerType || "일반",
+      pet_name: form.petName || "", baby_name: form.babyName || "",
     };
   }
+ 
 
   function payloadToCustomer(payload, createdAt = new Date().toISOString()) {
     return {
-      id: payload.app_customer_id,
-      name: payload.name,
-      phone: payload.phone,
-      ssn: payload.ssn,
-      address: payload.address,
-      birth: payload.birth,
-      ageDate: payload.age_date,
-      job: payload.job,
-      transferDay: payload.transfer_day,
-      bankAccount: payload.bank_account,
-      carNumber: payload.car_number,
-      email: payload.email,
-      memo: payload.memo,
-      status: payload.status,
+      id: payload.app_customer_id, name: payload.name, phone: payload.phone,
+      ssn: payload.ssn, address: payload.address, birth: payload.birth,
+      ageDate: payload.age_date, job: payload.job,
+      transferDay: payload.transfer_day, bankAccount: payload.bank_account,
+      carNumber: payload.car_number, email: payload.email,
+      memo: payload.memo, status: payload.status,
       customerType: payload.customer_type,
-      petName: payload.pet_name,
-      babyName: payload.baby_name,
-      createdAt,
+      petName: payload.pet_name, babyName: payload.baby_name, createdAt,
     };
   }
 
@@ -436,29 +342,20 @@ export default function App() {
     if (!form.name || !form.phone) return alert("이름과 연락처는 필수예요.");
     const id = form.id || Date.now();
     const payload = makeCustomerPayload(id);
-
     const res = form.id
       ? await supabase.from("customers").update(payload).eq("user_id", session.user.id).eq("app_customer_id", id)
       : await supabase.from("customers").insert([payload]);
-
     if (res.error) return alert("DB 저장 실패: " + res.error.message);
-
     const item = payloadToCustomer(payload, form.createdAt || new Date().toISOString());
-
-    updateData((d) =>
-      form.id
-        ? { ...d, customers: d.customers.map((c) => (c.id === id ? item : c)) }
-        : { ...d, customers: [...d.customers, item] }
-    );
-
+    updateData((d) => form.id
+      ? { ...d, customers: d.customers.map((c) => (c.id === id ? item : c)) }
+      : { ...d, customers: [...d.customers, item] });
     closeModal();
   }
 
   async function deleteCustomer(id) {
     if (!window.confirm("삭제하시겠습니까?")) return;
-
     await supabase.from("customers").delete().eq("user_id", session.user.id).eq("app_customer_id", id);
-
     updateData((d) => ({
       ...d,
       customers: d.customers.filter((c) => c.id !== id),
@@ -468,33 +365,18 @@ export default function App() {
       notes: d.notes.filter((n) => n.customerId !== id),
       sales: d.sales.filter((s) => s.customerId !== id),
     }));
-
     setSelectedCustomer(null);
     setView("customers");
   }
 
   async function convertToContract(c) {
     await supabase.from("customers").update({ status: "가입" }).eq("user_id", session.user.id).eq("app_customer_id", c.id);
-
-    const consultationItem = {
-      id: Date.now(),
-      customerId: c.id,
-      date: todayText(),
-      type: "전화",
-      content: "가입 전환 완료",
-      nextDate: "",
-    };
-
+    const consultationItem = { id: Date.now(), customerId: c.id, date: todayText(), type: "전화", content: "가입 전환 완료", nextDate: "" };
     await supabase.from("consultations").insert([{
-      user_id: session.user.id,
-      app_consultation_id: consultationItem.id,
-      customer_app_id: consultationItem.customerId,
-      date: consultationItem.date,
-      type: consultationItem.type,
-      content: consultationItem.content,
-      next_date: consultationItem.nextDate,
+      user_id: session.user.id, app_consultation_id: consultationItem.id,
+      customer_app_id: consultationItem.customerId, date: consultationItem.date,
+      type: consultationItem.type, content: consultationItem.content, next_date: consultationItem.nextDate,
     }]);
-
     updateData((d) => ({
       ...d,
       customers: d.customers.map((item) => (item.id === c.id ? { ...item, status: "가입" } : item)),
@@ -504,85 +386,35 @@ export default function App() {
 
   async function saveConsultation() {
     if (!form.date || !form.content) return alert("상담일자와 내용은 필수예요.");
-    const item = {
-      id: Date.now(),
-      customerId: selectedCustomer,
-      date: form.date,
-      type: form.type || "방문",
-      content: form.content,
-      nextDate: form.nextDate || "",
-    };
-
+    const item = { id: Date.now(), customerId: selectedCustomer, date: form.date, type: form.type || "방문", content: form.content, nextDate: form.nextDate || "" };
     await supabase.from("consultations").insert([{
-      user_id: session.user.id,
-      app_consultation_id: item.id,
-      customer_app_id: item.customerId,
-      date: item.date,
-      type: item.type,
-      content: item.content,
-      next_date: item.nextDate,
+      user_id: session.user.id, app_consultation_id: item.id,
+      customer_app_id: item.customerId, date: item.date,
+      type: item.type, content: item.content, next_date: item.nextDate,
     }]);
-
     updateData((d) => ({ ...d, consultations: [...d.consultations, item] }));
     closeModal();
   }
 
   async function savePolicy() {
     if (!form.company || !form.product) return alert("보험사와 상품명은 필수예요.");
-    const item = {
-      id: Date.now(),
-      customerId: selectedCustomer,
-      company: form.company,
-      product: form.product,
-      type: form.type || "종신",
-      startDate: form.startDate || "",
-      endDate: form.endDate || "",
-      premium: Number(form.premium) || 0,
-      status: form.status || "유지",
-    };
-
+    const item = { id: Date.now(), customerId: selectedCustomer, company: form.company, product: form.product, type: form.type || "종신", startDate: form.startDate || "", endDate: form.endDate || "", premium: Number(form.premium) || 0, status: form.status || "유지" };
     await supabase.from("policies").insert([{
-      user_id: session.user.id,
-      app_policy_id: item.id,
-      customer_app_id: item.customerId,
-      type: item.type,
-      status: item.status,
-      company: item.company,
-      product: item.product,
-      premium: item.premium,
-      start_date: item.startDate,
-      end_date: item.endDate,
+      user_id: session.user.id, app_policy_id: item.id, customer_app_id: item.customerId,
+      type: item.type, status: item.status, company: item.company, product: item.product,
+      premium: item.premium, start_date: item.startDate, end_date: item.endDate,
     }]);
-
     updateData((d) => ({ ...d, policies: [...d.policies, item] }));
     closeModal();
   }
 
   async function saveSchedule() {
     if (!form.date || !form.title) return alert("일정 날짜와 제목은 필수예요.");
-    const item = {
-      id: Date.now(),
-      customerId: selectedCustomer || form.customerId || null,
-      date: form.date,
-      time: form.time || "",
-      title: form.title,
-      icon: form.icon || "🔔",
-      memo: form.memo || "",
-      done: false,
-    };
-
+    const item = { id: Date.now(), customerId: selectedCustomer || form.customerId || null, date: form.date, time: form.time || "", title: form.title, icon: form.icon || "🔔", memo: form.memo || "", done: false };
     await supabase.from("schedules").insert([{
-      user_id: session.user.id,
-      app_schedule_id: item.id,
-      customer_app_id: item.customerId,
-      date: item.date,
-      time: item.time,
-      title: item.title,
-      icon: item.icon,
-      memo: item.memo,
-      done: item.done,
+      user_id: session.user.id, app_schedule_id: item.id, customer_app_id: item.customerId,
+      date: item.date, time: item.time, title: item.title, icon: item.icon, memo: item.memo, done: item.done,
     }]);
-
     updateData((d) => ({ ...d, schedules: [...d.schedules, item] }));
     closeModal();
   }
@@ -590,55 +422,26 @@ export default function App() {
   async function toggleSchedule(id) {
     const target = data.schedules.find((s) => s.id === id);
     if (!target) return;
-
     await supabase.from("schedules").update({ done: !target.done }).eq("user_id", session.user.id).eq("app_schedule_id", id);
-
-    updateData((d) => ({
-      ...d,
-      schedules: d.schedules.map((s) => (s.id === id ? { ...s, done: !s.done } : s)),
-    }));
+    updateData((d) => ({ ...d, schedules: d.schedules.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) }));
   }
 
-  function startNewNote() {
-    setEditingNote("new");
-    setNoteInput("");
-  }
-
-  function startEditNote(n) {
-    setEditingNote(n.id);
-    setNoteInput(n.content);
-  }
-
-  function cancelNote() {
-    setEditingNote(null);
-    setNoteInput("");
-  }
+  function startNewNote() { setEditingNote("new"); setNoteInput(""); }
+  function startEditNote(n) { setEditingNote(n.id); setNoteInput(n.content); }
+  function cancelNote() { setEditingNote(null); setNoteInput(""); }
 
   async function saveNote() {
     if (!noteInput.trim()) return;
     const now = todayText();
-
     if (editingNote === "new") {
       const item = { id: Date.now(), customerId: selectedCustomer, content: noteInput.trim(), createdAt: now, updatedAt: now };
-      await supabase.from("notes").insert([{
-        user_id: session.user.id,
-        app_note_id: item.id,
-        customer_app_id: item.customerId,
-        content: item.content,
-        created_at_text: item.createdAt,
-        updated_at_text: item.updatedAt,
-      }]);
+      await supabase.from("notes").insert([{ user_id: session.user.id, app_note_id: item.id, customer_app_id: item.customerId, content: item.content, created_at_text: item.createdAt, updated_at_text: item.updatedAt }]);
       updateData((d) => ({ ...d, notes: [...d.notes, item] }));
     } else {
       await supabase.from("notes").update({ content: noteInput.trim(), updated_at_text: now }).eq("user_id", session.user.id).eq("app_note_id", editingNote);
-      updateData((d) => ({
-        ...d,
-        notes: d.notes.map((n) => (n.id === editingNote ? { ...n, content: noteInput.trim(), updatedAt: now } : n)),
-      }));
+      updateData((d) => ({ ...d, notes: d.notes.map((n) => (n.id === editingNote ? { ...n, content: noteInput.trim(), updatedAt: now } : n)) }));
     }
-
-    setEditingNote(null);
-    setNoteInput("");
+    setEditingNote(null); setNoteInput("");
   }
 
   async function deleteNote(id) {
@@ -648,42 +451,17 @@ export default function App() {
 
   async function saveSale() {
     if (!form.contractDate || !form.product) return alert("계약일과 상품명은 필수예요.");
-
     const payload = {
-      user_id: session.user.id,
-      customer_id: form.customerId || null,
-      contract_date: form.contractDate,
-      company: form.company || "",
-      product: form.product || "",
-      premium: Number(form.premium) || 0,
+      user_id: session.user.id, customer_id: form.customerId || null,
+      contract_date: form.contractDate, company: form.company || "",
+      product: form.product || "", premium: Number(form.premium) || 0,
       first_commission: Number(form.firstCommission) || 0,
       fifteenth_commission: Number(form.fifteenthCommission) || 0,
-      incentive: Number(form.incentive) || 0,
-      memo: form.memo || "",
+      incentive: Number(form.incentive) || 0, memo: form.memo || "",
     };
-
     const { data: saved, error } = await supabase.from("sales").insert([payload]).select().single();
     if (error) return alert("매출 저장 실패: " + error.message);
-
-    updateData((d) => ({
-      ...d,
-      sales: [
-        ...d.sales,
-        {
-          id: saved.id,
-          customerId: payload.customer_id,
-          contractDate: payload.contract_date,
-          company: payload.company,
-          product: payload.product,
-          premium: payload.premium,
-          firstCommission: payload.first_commission,
-          fifteenthCommission: payload.fifteenth_commission,
-          incentive: payload.incentive,
-          memo: payload.memo,
-        },
-      ],
-    }));
-
+    updateData((d) => ({ ...d, sales: [...d.sales, { id: saved.id, customerId: payload.customer_id, contractDate: payload.contract_date, company: payload.company, product: payload.product, premium: payload.premium, firstCommission: payload.first_commission, fifteenthCommission: payload.fifteenth_commission, incentive: payload.incentive, memo: payload.memo }] }));
     closeModal();
   }
 
@@ -705,44 +483,20 @@ export default function App() {
   function importBackup(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const parsed = JSON.parse(e.target.result);
         setData({ ...initialData, ...parsed });
         alert("백업 파일을 불러왔습니다.");
-      } catch {
-        alert("백업 파일 읽기 실패");
-      } finally {
-        event.target.value = "";
-      }
+      } catch { alert("백업 파일 읽기 실패"); }
+      finally { event.target.value = ""; }
     };
     reader.readAsText(file);
   }
 
   function downloadExcelTemplate() {
-    const rows = [
-      {
-        이름: "홍길동",
-        연락처: "01012345678",
-        주민번호: "900101-1234567",
-        주소: "경기도 시흥시 배곧",
-        상령일: "2026-01-01",
-        직업: "사무직",
-        이체일자: "25",
-        자동이체은행계좌: "국민 123456-78-901234",
-        펫이름: "",
-        "태명&아기이름": "",
-        차량번호: "12가3456",
-        생년월일: "1990-01-01",
-        이메일: "test@example.com",
-        상태: "가망",
-        고객유형: "일반",
-        메모: "예시 고객",
-      },
-    ];
-
+    const rows = [{ 이름: "홍길동", 연락처: "01012345678", 주민번호: "900101-1234567", 주소: "경기도 시흥시 배곧", 상령일: "2026-01-01", 직업: "사무직", 이체일자: "25", 자동이체은행계좌: "국민 123456-78-901234", 펫이름: "", "태명&아기이름": "", 차량번호: "12가3456", 생년월일: "1990-01-01", 이메일: "test@example.com", 상태: "가망", 고객유형: "일반", 메모: "예시 고객" }];
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "고객업로드양식");
@@ -752,151 +506,59 @@ export default function App() {
   async function uploadExcelCustomers(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-      if (!rows.length) {
-        alert("엑셀에 고객 데이터가 없습니다.");
-        return;
-      }
-
+      if (!rows.length) { alert("엑셀에 고객 데이터가 없습니다."); return; }
       const userId = session.user.id;
       let currentCustomers = [...data.customers];
-      const inserts = [];
-      const updates = [];
-
+      const inserts = []; const updates = [];
       rows.forEach((r, idx) => {
         const phone = normalizeHeaderValue(r, ["연락처", "전화번호", "휴대폰"]);
         const name = normalizeHeaderValue(r, ["이름", "고객명"]);
-
         if (!phone || !name) return;
-
         const ssn = normalizeHeaderValue(r, ["주민번호", "주민등록번호"]);
         const birth = normalizeHeaderValue(r, ["생년월일", "생일"]) || birthFromSsn(ssn);
-        const petName = normalizeHeaderValue(r, ["펫이름", "강아지이름", "강아지 이름"]);
-        const babyName = normalizeHeaderValue(r, ["태명&아기이름", "태명아기이름", "태명/아기이름", "태명", "아기이름"]);
+        const petName = normalizeHeaderValue(r, ["펫이름", "강아지이름"]);
+        const babyName = normalizeHeaderValue(r, ["태명&아기이름", "태명", "아기이름"]);
         const customerTypeRaw = normalizeHeaderValue(r, ["고객유형", "유형"]);
-        const customerType =
-          customerTypeRaw || (petName ? "펫" : babyName ? "태아" : "일반");
-
+        const customerType = customerTypeRaw || (petName ? "펫" : babyName ? "태아" : "일반");
         const existing = currentCustomers.find((c) => c.phone === phone);
         const id = existing?.id || Date.now() + idx;
-
-        const item = {
-          id,
-          name,
-          phone,
-          ssn,
-          address: normalizeHeaderValue(r, ["주소"]),
-          birth,
-          ageDate: normalizeHeaderValue(r, ["상령일"]),
-          job: normalizeHeaderValue(r, ["직업"]),
-          transferDay: normalizeHeaderValue(r, ["이체일자", "자동이체일자"]),
-          bankAccount: normalizeHeaderValue(r, ["자동이체은행계좌", "자동이체 은행계좌", "계좌", "은행계좌"]),
-          carNumber: normalizeHeaderValue(r, ["차량번호", "차번호"]),
-          email: normalizeHeaderValue(r, ["이메일", "email"]),
-          status: normalizeHeaderValue(r, ["상태"]) || "가망",
-          customerType,
-          petName,
-          babyName,
-          memo: normalizeHeaderValue(r, ["메모", "비고"]),
-          createdAt: existing?.createdAt || new Date().toISOString(),
-        };
-
-        const payload = {
-          user_id: userId,
-          app_customer_id: item.id,
-          name: item.name,
-          phone: item.phone,
-          ssn: item.ssn,
-          address: item.address,
-          birth: item.birth,
-          age_date: item.ageDate,
-          job: item.job,
-          transfer_day: item.transferDay,
-          bank_account: item.bankAccount,
-          car_number: item.carNumber,
-          email: item.email,
-          memo: item.memo,
-          status: item.status,
-          customer_type: item.customerType,
-          pet_name: item.petName,
-          baby_name: item.babyName,
-        };
-
-        if (existing) {
-          updates.push(payload);
-          currentCustomers = currentCustomers.map((c) => (c.id === existing.id ? item : c));
-        } else {
-          inserts.push(payload);
-          currentCustomers.push(item);
-        }
+        const item = { id, name, phone, ssn, address: normalizeHeaderValue(r, ["주소"]), birth, ageDate: normalizeHeaderValue(r, ["상령일"]), job: normalizeHeaderValue(r, ["직업"]), transferDay: normalizeHeaderValue(r, ["이체일자"]), bankAccount: normalizeHeaderValue(r, ["자동이체은행계좌", "계좌"]), carNumber: normalizeHeaderValue(r, ["차량번호"]), email: normalizeHeaderValue(r, ["이메일", "email"]), status: normalizeHeaderValue(r, ["상태"]) || "가망", customerType, petName, babyName, memo: normalizeHeaderValue(r, ["메모", "비고"]), createdAt: existing?.createdAt || new Date().toISOString() };
+        const payload = { user_id: userId, app_customer_id: item.id, name: item.name, phone: item.phone, ssn: item.ssn, address: item.address, birth: item.birth, age_date: item.ageDate, job: item.job, transfer_day: item.transferDay, bank_account: item.bankAccount, car_number: item.carNumber, email: item.email, memo: item.memo, status: item.status, customer_type: item.customerType, pet_name: item.petName, baby_name: item.babyName };
+        if (existing) { updates.push(payload); currentCustomers = currentCustomers.map((c) => (c.id === existing.id ? item : c)); }
+        else { inserts.push(payload); currentCustomers.push(item); }
       });
-
-      if (!inserts.length && !updates.length) {
-        alert("업로드할 고객이 없습니다. 이름과 연락처는 필수입니다.");
-        return;
-      }
-
+      if (!inserts.length && !updates.length) { alert("업로드할 고객이 없습니다."); return; }
       for (const payload of updates) {
-        const { error } = await supabase
-          .from("customers")
-          .update(payload)
-          .eq("user_id", userId)
-          .eq("app_customer_id", payload.app_customer_id);
+        const { error } = await supabase.from("customers").update(payload).eq("user_id", userId).eq("app_customer_id", payload.app_customer_id);
         if (error) throw error;
       }
-
-      if (inserts.length) {
-        const { error } = await supabase.from("customers").insert(inserts);
-        if (error) throw error;
-      }
-
+      if (inserts.length) { const { error } = await supabase.from("customers").insert(inserts); if (error) throw error; }
       updateData((d) => ({ ...d, customers: currentCustomers }));
       alert(`엑셀 업로드 완료! 신규 ${inserts.length}명 / 업데이트 ${updates.length}명`);
-    } catch (e) {
-      alert("엑셀 업로드 실패: " + (e.message || "파일을 확인해주세요."));
-    } finally {
-      event.target.value = "";
-    }
+    } catch (e) { alert("엑셀 업로드 실패: " + (e.message || "파일을 확인해주세요.")); }
+    finally { event.target.value = ""; }
   }
 
   function requestNotificationPermission() {
     if (!("Notification" in window)) return alert("이 브라우저는 알림을 지원하지 않아요.");
-    Notification.requestPermission().then((p) => {
-      alert(p === "granted" ? "알림 허용 완료!" : "알림이 허용되지 않았어요.");
-    });
+    Notification.requestPermission().then((p) => { alert(p === "granted" ? "알림 허용 완료!" : "알림이 허용되지 않았어요."); });
   }
 
   function showTestNotification() {
     if (!("Notification" in window)) return;
-    if (Notification.permission === "granted") {
-      new Notification("보험 CRM 일정 알림", { body: "일정 알림 테스트입니다." });
-    } else {
-      alert("먼저 알림 허용을 눌러주세요.");
-    }
+    if (Notification.permission === "granted") { new Notification("보험 CRM 일정 알림", { body: "일정 알림 테스트입니다." }); }
+    else { alert("먼저 알림 허용을 눌러주세요."); }
   }
 
   const customers = data.customers
     .filter((c) => {
       const q = search.trim();
-      const searchOk =
-        !q ||
-        c.name.includes(q) ||
-        c.phone.includes(q) ||
-        c.ssn?.includes(q) ||
-        c.address?.includes(q) ||
-        c.job?.includes(q) ||
-        c.carNumber?.includes(q) ||
-        c.email?.includes(q) ||
-        c.memo?.includes(q) ||
-        c.petName?.includes(q) ||
-        c.babyName?.includes(q);
-
+      const searchOk = !q || c.name.includes(q) || c.phone.includes(q) || c.ssn?.includes(q) || c.address?.includes(q) || c.job?.includes(q) || c.carNumber?.includes(q) || c.email?.includes(q) || c.memo?.includes(q) || c.petName?.includes(q) || c.babyName?.includes(q);
       const statusOk = statusFilter === "전체" ? true : (c.status || "가망") === statusFilter;
       return searchOk && statusOk;
     })
@@ -914,29 +576,18 @@ export default function App() {
     .map((c) => {
       const birth = getBirthValue(c);
       if (!birth) return null;
-
       const raw = birth.replaceAll("-", "");
       const month = raw.slice(4, 6);
       const day = raw.slice(6, 8);
       const next = new Date(new Date().getFullYear(), Number(month) - 1, Number(day));
-
       if (Number.isNaN(next.getTime())) return null;
       if (next < new Date()) next.setFullYear(new Date().getFullYear() + 1);
-
-      return {
-        ...c,
-        birth,
-        birthdayText: `${month}월 ${day}일`,
-        nextBirthday: next.toISOString().slice(0, 10),
-        dday: getDday(next.toISOString().slice(0, 10)),
-      };
+      return { ...c, birth, birthdayText: `${month}월 ${day}일`, nextBirthday: next.toISOString().slice(0, 10), dday: getDday(next.toISOString().slice(0, 10)) };
     })
     .filter(Boolean)
     .sort((a, b) => a.dday - b.dday);
 
-  const carPolicies = data.policies
-    .filter((p) => p.type === "자동차" && p.endDate)
-    .sort((a, b) => a.endDate.localeCompare(b.endDate));
+  const carPolicies = data.policies.filter((p) => p.type === "자동차" && p.endDate).sort((a, b) => a.endDate.localeCompare(b.endDate));
 
   const monthSales = data.sales.filter((s) => (s.contractDate || "").startsWith(salesMonth));
   const monthlyPremium = monthSales.reduce((sum, s) => sum + Number(s.premium || 0), 0);
@@ -946,9 +597,7 @@ export default function App() {
 
   const monthlyGraphData = Array.from({ length: 12 }, (_, i) => {
     const month = `${salesMonth.slice(0, 4)}-${String(i + 1).padStart(2, "0")}`;
-    const total = data.sales
-      .filter((s) => (s.contractDate || "").startsWith(month))
-      .reduce((sum, s) => sum + Number(s.premium || 0), 0);
+    const total = data.sales.filter((s) => (s.contractDate || "").startsWith(month)).reduce((sum, s) => sum + Number(s.premium || 0), 0);
     return { month, total };
   });
 
@@ -959,6 +608,21 @@ export default function App() {
     { key: "sales", label: "매출 관리" },
   ];
 
+  // ✅ 이메일 인증 완료 화면
+  if (isEmailConfirm) {
+    return (
+      <div style={{ display: "flex", height: "100vh", justifyContent: "center", alignItems: "center", flexDirection: "column", textAlign: "center", fontFamily: "sans-serif", background: "#f7f8fa", padding: 24 }}>
+        <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
+        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 10, color: "#185FA5" }}>이메일 인증 완료!</div>
+        <div style={{ fontSize: 16, color: "#666", marginBottom: 32, lineHeight: 1.6 }}>인증이 완료되었습니다.<br />아래 버튼을 눌러 로그인해주세요 😊</div>
+        <button onClick={() => { window.location.hash = ""; window.location.reload(); }}
+          style={{ padding: "14px 36px", borderRadius: 12, background: "#185FA5", color: "#fff", border: "none", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+          로그인 하러가기
+        </button>
+      </div>
+    );
+  }
+
   if (!session) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f7f8fa", fontFamily: "sans-serif" }}>
@@ -967,36 +631,28 @@ export default function App() {
           <div style={{ fontSize: 13, color: "#666", marginBottom: 20 }}>
             {authMode === "login" ? "로그인" : authMode === "signup" ? "회원가입" : "비밀번호 찾기"}
           </div>
-
           {authMode === "signup" && (
             <>
               <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>이름</div>
               <input style={inp} value={authForm.name} onChange={(e) => setAuthForm((f) => ({ ...f, name: e.target.value }))} />
             </>
           )}
-
           <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>이메일</div>
           <input style={inp} value={authForm.email} onChange={(e) => setAuthForm((f) => ({ ...f, email: e.target.value }))} />
-
           {authMode !== "reset" && (
             <>
               <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>비밀번호</div>
               <input type="password" style={inp} value={authForm.password} onChange={(e) => setAuthForm((f) => ({ ...f, password: e.target.value }))} />
             </>
           )}
-
           <button onClick={handleAuthSubmit} style={{ ...btn(), width: "100%", marginBottom: 10 }}>
             {authMode === "login" ? "로그인" : authMode === "signup" ? "회원가입" : "재설정 메일 보내기"}
           </button>
-
           <button onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")} style={{ ...btn("#888780"), width: "100%", marginBottom: 8 }}>
             {authMode === "login" ? "회원가입으로" : "로그인으로"}
           </button>
-
           {authMode === "login" && (
-            <button onClick={() => setAuthMode("reset")} style={{ ...btn("#BA7517"), width: "100%" }}>
-              비밀번호 찾기
-            </button>
+            <button onClick={() => setAuthMode("reset")} style={{ ...btn("#BA7517"), width: "100%" }}>비밀번호 찾기</button>
           )}
         </div>
       </div>
@@ -1013,7 +669,6 @@ export default function App() {
               {session?.user?.user_metadata?.name ? `${session.user.user_metadata.name} 설계사님` : "보험 설계사 고객관리"}
             </div>
           </div>
-
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <button onClick={exportBackup} style={{ ...btn("#533AB7"), padding: "8px 12px", fontSize: 12 }}>백업 저장</button>
             <button onClick={() => backupInputRef.current?.click()} style={{ ...btn("#185FA5"), padding: "8px 12px", fontSize: 12 }}>백업 불러오기</button>
@@ -1022,30 +677,12 @@ export default function App() {
             <input ref={excelInputRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={uploadExcelCustomers} />
           </div>
         </div>
-
         <div style={{ display: "flex", padding: "0 16px" }}>
           {nav.map((n) => {
             const active = view === n.key && selectedCustomer === null;
             return (
-              <button
-                key={n.key}
-                onClick={() => {
-                  setView(n.key);
-                  setSelectedCustomer(null);
-                  setEditingNote(null);
-                }}
-                style={{
-                  flex: 1,
-                  padding: "14px 8px",
-                  fontSize: 16,
-                  fontWeight: active ? 700 : 400,
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: active ? "3px solid #185FA5" : "3px solid transparent",
-                  color: active ? "#185FA5" : "#666",
-                  cursor: "pointer",
-                }}
-              >
+              <button key={n.key} onClick={() => { setView(n.key); setSelectedCustomer(null); setEditingNote(null); }}
+                style={{ flex: 1, padding: "14px 8px", fontSize: 16, fontWeight: active ? 700 : 400, background: "transparent", border: "none", borderBottom: active ? "3px solid #185FA5" : "3px solid transparent", color: active ? "#185FA5" : "#666", cursor: "pointer" }}>
                 {n.label}
               </button>
             );
@@ -1054,136 +691,87 @@ export default function App() {
       </div>
 
       <div style={{ padding: "20px 24px" }}>
-        
-{view === "dashboard" && (
-  <div>
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-      {[
-        { label: "전체 고객", value: data.customers.length + "명" },
-        { label: "가망 고객", value: data.customers.filter((c) => (c.status || "가망") === "가망").length + "명" },
-        { label: "가입 고객", value: data.customers.filter((c) => c.status === "가입").length + "명" },
-        { label: "이번달 매출", value: money(monthlyPremium) + "원" },
-      ].map((m) => (
-        <div key={m.label} style={{ background: "#eef2f7", borderRadius: 8, padding: "14px 16px" }}>
-          <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{m.label}</div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{m.value}</div>
-        </div>
-      ))}
-    </div>
 
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
-      <div style={card}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>다가오는 일정</div>
-        {allUpcoming.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다</div>}
-        {allUpcoming.map((s) => (
-          <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #eee" }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{getCustomer(s.customerId)?.name || "고객 없음"} — {(s.icon || "🔔") + " " + s.title}</div>
-              <div style={{ fontSize: 12, color: "#666" }}>{s.date} {s.time}</div>
+        {view === "dashboard" && (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+              {[
+                { label: "전체 고객", value: data.customers.length + "명" },
+                { label: "가망 고객", value: data.customers.filter((c) => (c.status || "가망") === "가망").length + "명" },
+                { label: "가입 고객", value: data.customers.filter((c) => c.status === "가입").length + "명" },
+                { label: "이번달 매출", value: money(monthlyPremium) + "원" },
+              ].map((m) => (
+                <div key={m.label} style={{ background: "#eef2f7", borderRadius: 8, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{m.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>{m.value}</div>
+                </div>
+              ))}
             </div>
-            <button onClick={() => toggleSchedule(s.id)} style={{ ...btn("#1D9E75"), padding: "4px 10px", fontSize: 12 }}>완료</button>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
+              <div style={card}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>다가오는 일정</div>
+                {allUpcoming.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>예정 일정이 없습니다</div>}
+                {allUpcoming.map((s) => (
+                  <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #eee" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{getCustomer(s.customerId)?.name || "고객 없음"} — {(s.icon || "🔔") + " " + s.title}</div>
+                      <div style={{ fontSize: 12, color: "#666" }}>{s.date} {s.time}</div>
+                    </div>
+                    <button onClick={() => toggleSchedule(s.id)} style={{ ...btn("#1D9E75"), padding: "4px 10px", fontSize: 12 }}>완료</button>
+                  </div>
+                ))}
+              </div>
+              <div style={card}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>최근 등록 고객</div>
+                {data.customers.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 4).map((c) => (
+                  <div key={c.id} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #eee", cursor: "pointer" }}>
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#0C447C" }}>
+                      {customerIcon(c)}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</div>
+                      <div style={{ fontSize: 12, color: "#666" }}>{c.phone}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 20 }}>
+              <div style={{ ...card, border: "2px solid #FFD5C2" }}>
+                <div style={{ fontWeight: 700, marginBottom: 10 }}>🟧 손해보험사 고객센터</div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+                  {[["삼성화재","1588-5114"],["DB손해보험","1588-0100"],["현대해상","1588-5656"],["KB손해보험","1544-0114"],["메리츠화재","1566-7711"],["한화손해보험","1566-8000"],["흥국화재","1688-1688"],["롯데손해보험","1588-3344"]].map(([name, phone]) => (
+                    <div key={name} onClick={() => window.location.href = `tel:${phone}`} style={{ padding: 12, borderRadius: 12, background: "#FFF1EB", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                      📞 {name}<br /><span style={{ color: "#444" }}>{phone}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ ...card, marginTop: 16 }}>
+                <div style={{ fontWeight: 700, marginBottom: 10 }}>🟦 생명보험사 고객센터</div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+                  {[["삼성생명","1588-3114"],["한화생명","1588-6363"],["교보생명","1588-1001"],["신한라이프","1588-5580"],["메트라이프","1588-9600"],["라이나생명","1588-0058"],["푸본현대생명","1577-3311"],["ABL생명","1588-6500"]].map(([name, phone]) => (
+                    <div key={name} onClick={() => window.location.href = `tel:${phone}`} style={{ padding: 10, borderRadius: 10, background: "#F5F8FC", cursor: "pointer", fontSize: 13 }}>
+                      📞 {name}<br /><span style={{ color: "#555" }}>{phone}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
+        )}
 
-      <div style={card}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>최근 등록 고객</div>
-        {data.customers.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 4).map((c) => (
-          <div key={c.id} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #eee", cursor: "pointer" }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#0C447C" }}>
-              {customerIcon(c)}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</div>
-              <div style={{ fontSize: 12, color: "#666" }}>{c.phone}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-
-    <div style={{ marginTop: 20 }}>
-      <div style={{ ...card, border: "2px solid #FFD5C2" }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>🟧 손해보험사 고객센터</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
-          {[
-            ["삼성화재", "1588-5114"],
-            ["DB손해보험", "1588-0100"],
-            ["현대해상", "1588-5656"],
-            ["KB손해보험", "1544-0114"],
-            ["메리츠화재", "1566-7711"],
-            ["한화손해보험", "1566-8000"],
-            ["흥국화재", "1688-1688"],
-            ["롯데손해보험", "1588-3344"],
-          ].map(([name, phone]) => (
-            <div
-              key={name}
-              onClick={() => window.location.href = `tel:${phone}`}
-              style={{
-                padding: 12,
-                borderRadius: 12,
-                background: "#FFF1EB",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-            >
-              📞 {name}<br />
-              <span style={{ color: "#444" }}>{phone}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ ...card, marginTop: 16 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>🟦 생명보험사 고객센터</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
-          {[
-            ["삼성생명", "1588-3114"],
-            ["한화생명", "1588-6363"],
-            ["교보생명", "1588-1001"],
-            ["신한라이프", "1588-5580"],
-            ["메트라이프", "1588-9600"],
-            ["라이나생명", "1588-0058"],
-            ["푸본현대생명", "1577-3311"],
-            ["ABL생명", "1588-6500"],
-          ].map(([name, phone]) => (
-            <div
-              key={name}
-              onClick={() => window.location.href = `tel:${phone}`}
-              style={{
-                padding: 10,
-                borderRadius: 10,
-                background: "#F5F8FC",
-                cursor: "pointer",
-                fontSize: 13,
-              }}
-            >
-              📞 {name}<br />
-              <span style={{ color: "#555" }}>{phone}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  </div>
-)}
         {view === "customers" && (
           <div>
             <div style={{ display: "flex", gap: 10, marginBottom: 12, flexDirection: isMobile ? "column" : "row" }}>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="이름, 연락처, 주민번호, 주소, 차량번호 검색" style={{ ...inp, marginBottom: 0, flex: 1 }} />
               <button onClick={() => openModal("customer", { customerType: "일반", status: "가망" })} style={btn()}>+ 고객 등록</button>
             </div>
-
             <div style={{ ...card, background: "#F7FBFF", borderColor: "#CFE5FF", marginBottom: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div>
                   <div style={{ fontWeight: 700, marginBottom: 4 }}>📋 엑셀로 고객 일괄 등록</div>
-                  <div style={{ fontSize: 13, color: "#666" }}>
-                    필수 헤더: 이름, 연락처, 주민번호, 주소, 상령일, 직업, 이체일자, 자동이체은행계좌, 펫이름, 태명&아기이름, 차량번호
-                  </div>
+                  <div style={{ fontSize: 13, color: "#666" }}>필수 헤더: 이름, 연락처, 주민번호, 주소, 상령일, 직업, 이체일자, 자동이체은행계좌, 펫이름, 태명&아기이름, 차량번호</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={downloadExcelTemplate} style={btn("#1D9E75")}>📥 양식 다운로드</button>
@@ -1191,15 +779,12 @@ export default function App() {
                 </div>
               </div>
             </div>
-
             <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
               {["전체", "가망", "가입", "보류"].map((status) => (
                 <button key={status} onClick={() => setStatusFilter(status)} style={{ ...btn(statusFilter === status ? "#185FA5" : "#888780"), padding: "6px 12px", fontSize: 12 }}>{status}</button>
               ))}
             </div>
-
             {customers.length === 0 && <div style={{ color: "#666", fontSize: 14 }}>고객이 없습니다.</div>}
-
             {customers.map((c) => (
               <div key={c.id} style={{ ...card, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1207,75 +792,28 @@ export default function App() {
                     {customerIcon(c)}
                   </div>
                   <div>
-  <div style={{ fontSize: 15, fontWeight: 700 }}>
-    {c.name}
-    <span style={statusBadge(c.status || "가망")}>
-      {c.status || "가망"}
-    </span>
-  </div>
-
-  <div style={{ fontSize: 13, marginTop: 4 }}>
-    📞 {c.phone}
-  </div>
-
-  <div style={{ fontSize: 13 }}>
-    🎂 {getBirthValue(c) || "-"} / 🆔 {c.ssn || "-"}
-  </div>
-
-  <div style={{ fontSize: 13 }}>
-    🏠 {c.address || "-"}
-  </div>
-
-  <div style={{ fontSize: 13 }}>
-    💼 {c.job || "-"} / 📅 상령일 {c.ageDate || "-"}
-  </div>
-
-  <div style={{ fontSize: 13 }}>
-    💳 이체일 {c.transferDay || "-"} / {c.bankAccount || "-"}
-  </div>
-
-  <div style={{ fontSize: 13 }}>
-    🚗 {c.carNumber || "-"}
-  </div>
-
-  {c.customerType === "펫" && (
-    <div style={{ fontSize: 13 }}>🐶 {c.petName}</div>
-  )}
-
-  {c.customerType === "태아" && (
-    <div style={{ fontSize: 13 }}>👶 {c.babyName}</div>
-  )}
-</div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{c.name}<span style={statusBadge(c.status || "가망")}>{c.status || "가망"}</span></div>
+                    <div style={{ fontSize: 13, marginTop: 4 }}>📞 {c.phone}</div>
+                    <div style={{ fontSize: 13 }}>🎂 {getBirthValue(c) || "-"} / 🆔 {c.ssn || "-"}</div>
+                    <div style={{ fontSize: 13 }}>🏠 {c.address || "-"}</div>
+                    <div style={{ fontSize: 13 }}>💼 {c.job || "-"} / 📅 상령일 {c.ageDate || "-"}</div>
+                    <div style={{ fontSize: 13 }}>💳 이체일 {c.transferDay || "-"} / {c.bankAccount || "-"}</div>
+                    <div style={{ fontSize: 13 }}>🚗 {c.carNumber || "-"}</div>
+                    {c.customerType === "펫" && <div style={{ fontSize: 13 }}>🐶 {c.petName}</div>}
+                    {c.customerType === "태아" && <div style={{ fontSize: 13 }}>👶 {c.babyName}</div>}
+                  </div>
                 </div>
                 {!isMobile && (
-  <div style={{ textAlign: "right", minWidth: 120 }}>
-    <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 6 }}>
-      {[...new Set(getPolicies(c.id).map((p) => p.company).filter(Boolean))].slice(0, 3).map((company) => (
-        <span
-          key={company}
-          style={{
-            fontSize: 11,
-            padding: "3px 7px",
-            borderRadius: 999,
-            background: "#E6F1FB",
-            color: "#185FA5",
-            fontWeight: 700,
-            border: "1px solid #B5D4F4",
-          }}
-        >
-          🏢 {company}
-        </span>
-      ))}
-    </div>
-
-    <div style={{ fontSize: 12, color: "#666" }}>
-      계약 {getPolicies(c.id).length}건
-    </div>
-    <div style={{ fontSize: 12, color: "#666" }}>
-      상담 {getConsultations(c.id).length}건
-    </div>
-  </div>
-)}
+                  <div style={{ textAlign: "right", minWidth: 120 }}>
+                    <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap", marginBottom: 6 }}>
+                      {[...new Set(getPolicies(c.id).map((p) => p.company).filter(Boolean))].slice(0, 3).map((company) => (
+                        <span key={company} style={{ fontSize: 11, padding: "3px 7px", borderRadius: 999, background: "#E6F1FB", color: "#185FA5", fontWeight: 700, border: "1px solid #B5D4F4" }}>🏢 {company}</span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#666" }}>계약 {getPolicies(c.id).length}건</div>
+                    <div style={{ fontSize: 12, color: "#666" }}>상담 {getConsultations(c.id).length}건</div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1288,11 +826,9 @@ export default function App() {
           const pols = getPolicies(selectedCustomer);
           const scheds = getSchedules(selectedCustomer);
           const notes = getNotes(selectedCustomer);
-
           return (
             <div>
               <button onClick={() => { setView("customers"); setSelectedCustomer(null); setEditingNote(null); }} style={{ ...btn("transparent"), color: "#666", border: "1px solid #bbb", marginBottom: 16, background: "#fff" }}>← 목록으로</button>
-
               <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexDirection: isMobile ? "column" : "row", gap: 12 }}>
                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                   <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#B5D4F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700, color: "#0C447C", flexShrink: 0 }}>
@@ -1311,7 +847,6 @@ export default function App() {
                     {c.memo && <div style={{ fontSize: 13, marginTop: 4 }}>{c.memo}</div>}
                   </div>
                 </div>
-
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={() => openModal("customer", { ...c })} style={{ ...btn("#888780"), padding: "6px 12px", fontSize: 12 }}>수정</button>
                   <button onClick={() => deleteCustomer(c.id)} style={{ ...btn("#E24B4A"), padding: "6px 12px", fontSize: 12 }}>삭제</button>
@@ -1370,7 +905,7 @@ export default function App() {
                 <div key={p.id} style={card}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <div>
-                      <div style={{ fontWeight: 700 }}>{p.product} <span style={statusBadge(p.status)}>{p.status}</span></div>
+                      <div style={{ fontWeight: 700 }}>{p.product}<span style={statusBadge(p.status)}>{p.status}</span></div>
                       <div style={{ fontSize: 12, color: "#666" }}>{p.company} · {p.type}보험</div>
                       <div style={{ fontSize: 12, color: "#666" }}>{p.startDate} ~ {p.endDate}</div>
                     </div>
@@ -1401,68 +936,25 @@ export default function App() {
                     <div style={{ fontSize: 20, fontWeight: 700 }}>{calendarYear}년 {calendarMonth + 1}월</div>
                     <button onClick={() => setCalendarDate(new Date(calendarYear, calendarMonth + 1, 1))} style={btn("#888780")}>다음달</button>
                   </div>
-
                   <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                     <button onClick={requestNotificationPermission} style={{ ...btn("#1D9E75"), padding: "6px 12px", fontSize: 12 }}>알림 허용</button>
                     <button onClick={showTestNotification} style={{ ...btn("#BA7517"), padding: "6px 12px", fontSize: 12 }}>알림 테스트</button>
                   </div>
-
                   <div style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>날짜를 누르면 일정 등록창이 떠요. 시간 입력 시 앱이 켜져 있을 때 10분 전 알림이 울려요.</div>
-
                   <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: isMobile ? "repeat(7, 90px)" : "repeat(7, 1fr)",
-                        gap: 8,
-                        minWidth: isMobile ? 630 : "auto",
-                      }}
-                    >
-                      {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
-                        <div key={d} style={{ textAlign: "center", fontWeight: 700 }}>
-                          {d}
-                        </div>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(7, 90px)" : "repeat(7, 1fr)", gap: 8, minWidth: isMobile ? 630 : "auto" }}>
+                      {["일","월","화","수","목","금","토"].map((d) => (
+                        <div key={d} style={{ textAlign: "center", fontWeight: 700 }}>{d}</div>
                       ))}
-
                       {calendarDays.map((day, idx) => {
-                        const dateStr = day
-                          ? `${calendarYear}-${String(calendarMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-                          : "";
-
+                        const dateStr = day ? `${calendarYear}-${String(calendarMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}` : "";
                         const daySchedules = data.schedules.filter((s) => s.date === dateStr);
-
                         return (
-                          <div
-                            key={idx}
-                            onClick={() => day && openModal("schedule", { date: dateStr, icon: "🔔" })}
-                            style={{
-                              minHeight: isMobile ? 110 : 86,
-                              background: day ? "#fff" : "#f0f0f0",
-                              border: "1px solid #d6d6d6",
-                              borderRadius: 10,
-                              padding: 8,
-                              cursor: day ? "pointer" : "default",
-                            }}
-                          >
-                            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
-                              {day}
-                            </div>
-
+                          <div key={idx} onClick={() => day && openModal("schedule", { date: dateStr, icon: "🔔" })}
+                            style={{ minHeight: isMobile ? 110 : 86, background: day ? "#fff" : "#f0f0f0", border: "1px solid #d6d6d6", borderRadius: 10, padding: 8, cursor: day ? "pointer" : "default" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{day}</div>
                             {daySchedules.slice(0, 2).map((s) => (
-                              <div
-                                key={s.id}
-                                style={{
-                                  fontSize: 11,
-                                  background: "#E6F1FB",
-                                  color: "#185FA5",
-                                  borderRadius: 6,
-                                  padding: "2px 5px",
-                                  marginBottom: 3,
-                                  overflow: "hidden",
-                                  whiteSpace: "nowrap",
-                                  textOverflow: "ellipsis",
-                                }}
-                              >
+                              <div key={s.id} style={{ fontSize: 11, background: "#E6F1FB", color: "#185FA5", borderRadius: 6, padding: "2px 5px", marginBottom: 3, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
                                 {(s.icon || "🔔") + " " + s.title}
                               </div>
                             ))}
@@ -1472,7 +964,6 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-
                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>전체 일정</div>
                 {data.schedules.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>등록된 일정이 없습니다.</div>}
                 {data.schedules.slice().sort((a, b) => a.date.localeCompare(b.date)).map((s) => (
@@ -1534,21 +1025,14 @@ export default function App() {
               </div>
               <button onClick={() => openModal("sale", { contractDate: todayText() })} style={btn()}>+ 매출 등록</button>
             </div>
-
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
-              {[
-                ["월 보험료", monthlyPremium],
-                ["초회 수수료", monthlyFirst],
-                ["15회차 예상", monthlyFifteenth],
-                ["시책 예상", monthlyIncentive],
-              ].map(([label, value]) => (
+              {[["월 보험료", monthlyPremium],["초회 수수료", monthlyFirst],["15회차 예상", monthlyFifteenth],["시책 예상", monthlyIncentive]].map(([label, value]) => (
                 <div key={label} style={{ ...card, background: "#eef2f7" }}>
                   <div style={{ fontSize: 12, color: "#666" }}>{label}</div>
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{money(value)}원</div>
                 </div>
               ))}
             </div>
-
             <div style={card}>
               <div style={{ fontWeight: 700, marginBottom: 10 }}>월별 매출 그래프</div>
               {monthlyGraphData.map((g) => {
@@ -1556,8 +1040,7 @@ export default function App() {
                 return (
                   <div key={g.month} style={{ marginBottom: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                      <span>{g.month}</span>
-                      <span>{money(g.total)}원</span>
+                      <span>{g.month}</span><span>{money(g.total)}원</span>
                     </div>
                     <div style={{ height: 10, background: "#eee", borderRadius: 8 }}>
                       <div style={{ height: 10, width: `${Math.min(100, (Number(g.total) / max) * 100)}%`, background: "#185FA5", borderRadius: 8 }} />
@@ -1566,7 +1049,6 @@ export default function App() {
                 );
               })}
             </div>
-
             <div style={card}>
               <div style={{ fontWeight: 700, marginBottom: 10 }}>이번달 계약 그래프</div>
               {monthSales.length === 0 && <div style={{ fontSize: 13, color: "#666" }}>등록된 매출이 없습니다.</div>}
@@ -1582,7 +1064,6 @@ export default function App() {
                 );
               })}
             </div>
-
             {monthSales.map((s) => (
               <div key={s.id} style={{ ...card, display: "flex", justifyContent: "space-between" }}>
                 <div>
@@ -1625,7 +1106,6 @@ export default function App() {
                 <ModalButtons save={saveCustomer} cancel={closeModal} />
               </>
             )}
-
             {modal === "consultation" && (
               <>
                 <ModalTitle title="상담 기록 추가" />
@@ -1636,7 +1116,6 @@ export default function App() {
                 <ModalButtons save={saveConsultation} cancel={closeModal} />
               </>
             )}
-
             {modal === "policy" && (
               <>
                 <ModalTitle title="보험 계약 추가" />
@@ -1650,7 +1129,6 @@ export default function App() {
                 <ModalButtons save={savePolicy} cancel={closeModal} />
               </>
             )}
-
             {modal === "schedule" && (
               <>
                 <ModalTitle title="일정 등록" />
@@ -1661,8 +1139,9 @@ export default function App() {
                 </select>
                 <div style={{ fontSize: 12, color: "#555", marginBottom: 8 }}>아이콘 선택</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 12 }}>
-                  {[["전화", "📞"], ["미팅", "💬"], ["생일", "🎂"], ["서류", "📄"], ["자동차", "🚗"], ["기본", "🔔"], ["보험료", "💰"], ["보장점검", "🩺"]].map(([label, icon]) => (
-                    <button key={label} type="button" onClick={() => setForm((f) => ({ ...f, icon }))} style={{ padding: "10px 6px", borderRadius: 10, border: form.icon === icon ? "2px solid #185FA5" : "1px solid #ddd", background: form.icon === icon ? "#E6F1FB" : "#fff", cursor: "pointer" }}>
+                  {[["전화","📞"],["미팅","💬"],["생일","🎂"],["서류","📄"],["자동차","🚗"],["기본","🔔"],["보험료","💰"],["보장점검","🩺"]].map(([label, icon]) => (
+                    <button key={label} type="button" onClick={() => setForm((f) => ({ ...f, icon }))}
+                      style={{ padding: "10px 6px", borderRadius: 10, border: form.icon === icon ? "2px solid #185FA5" : "1px solid #ddd", background: form.icon === icon ? "#E6F1FB" : "#fff", cursor: "pointer" }}>
                       <div style={{ fontSize: 20 }}>{icon}</div>
                       <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>{label}</div>
                     </button>
@@ -1675,7 +1154,6 @@ export default function App() {
                 <ModalButtons save={saveSchedule} cancel={closeModal} />
               </>
             )}
-
             {modal === "sale" && (
               <>
                 <ModalTitle title="매출 등록" />
@@ -1710,10 +1188,7 @@ function Field({ label, k, form, setForm, type = "text", autoBirth = false }) {
   return (
     <div>
       <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>{label}</div>
-      <input
-        type={type}
-        style={inp}
-        value={form[k] || ""}
+      <input type={type} style={inp} value={form[k] || ""}
         onChange={(e) => {
           const value = e.target.value;
           setForm((f) => {
@@ -1753,7 +1228,7 @@ function SelectField({ label, k, form, setForm, options }) {
 function ModalButtons({ save, cancel }) {
   return (
     <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-      <button onClick={cancel} style={{ ...btn("#888780") }}>취소</button>
+      <button onClick={cancel} style={btn("#888780")}>취소</button>
       <button onClick={save} style={btn()}>저장</button>
     </div>
   );
