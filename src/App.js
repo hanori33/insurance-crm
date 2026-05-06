@@ -113,6 +113,61 @@ function statusBadge(status) {
   };
 }
 
+function getReferralChildren(customers, parentId) {
+  return customers.filter((c) => String(c.referrerId) === String(parentId));
+}
+
+function ReferralTree({ customers, customerId, setSelectedCustomer, setView, depth = 0, visited = new Set() }) {
+  if (!customerId || visited.has(String(customerId))) return null;
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(String(customerId));
+
+  const children = getReferralChildren(customers, customerId);
+
+  if (children.length === 0) {
+    return <div style={{ fontSize: 12, color: "#888", marginTop: 6 }}>소개한 고객이 없습니다.</div>;
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {children.map((child) => (
+        <div key={child.id} style={{ marginLeft: depth * 16, marginTop: 8 }}>
+          <div
+            onClick={() => {
+              setSelectedCustomer(child.id);
+              setView("detail");
+            }}
+            style={{
+              padding: "8px 10px",
+              borderRadius: 10,
+              border: "1px solid #e5e5e5",
+              background: "#fafafa",
+              cursor: "pointer",
+              fontSize: 13,
+            }}
+          >
+            {"└ ".repeat(depth + 1)}
+            <b>{child.name}</b>
+            <span style={{ color: "#777" }}>
+              {" "} / {child.phone || "-"} / {(child.tags || []).join(", ") || "태그없음"}
+            </span>
+          </div>
+
+          <ReferralTree
+            customers={customers}
+            customerId={child.id}
+            setSelectedCustomer={setSelectedCustomer}
+            setView={setView}
+            depth={depth + 1}
+            visited={nextVisited}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function customerIcon(c) {
   if (c.customerType === "펫") return "🐶";
   if (c.customerType === "태아") return "👶";
@@ -132,6 +187,7 @@ export default function App() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("전체");
+  const [tagFilter, setTagFilter] = useState("전체");
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [editingNote, setEditingNote] = useState(null);
@@ -232,6 +288,9 @@ export default function App() {
         customerType: c.customer_type || "일반",
         petName: c.pet_name || "", babyName: c.baby_name || "",
         createdAt: c.created_at || "",
+      referrer_app_id: form.referrerId ? Number(form.referrerId) : null,
+tags: Array.isArray(form.tags) ? form.tags : [],
+relation_type: form.relationType || null,
       })),
       consultations: (consultationsRes.data || []).map((c) => ({
         id: c.app_consultation_id, customerId: c.customer_app_id,
@@ -319,9 +378,15 @@ export default function App() {
       job: form.job || "", transfer_day: form.transferDay || "",
       bank_account: form.bankAccount || "", car_number: form.carNumber || "",
       email: form.email || "", memo: form.memo || "",
-      status: form.status || "가망", customer_type: form.customerType || "일반",
-      pet_name: form.petName || "", baby_name: form.babyName || "",
-    };
+      status: form.status || "가망",
+      customer_type: form.customerType || "일반",
+           pet_name: form.petName || "",
+           baby_name: form.babyName || "",
+
+   tags: Array.isArray(form.tags) ? form.tags : [],
+referrer_app_id: form.referrerId ? Number(form.referrerId) : null,
+relation_type: form.relationType || null,
+          };
   }
  
 
@@ -334,7 +399,11 @@ export default function App() {
       carNumber: payload.car_number, email: payload.email,
       memo: payload.memo, status: payload.status,
       customerType: payload.customer_type,
-      petName: payload.pet_name, babyName: payload.baby_name, createdAt,
+      petName: payload.pet_name, 
+      babyName: payload.baby_name,
+      tags: payload.tags || [],
+referrerId: payload.referrer_app_id || "",
+relationType: payload.relation_type || "", createdAt,
     };
   }
 
@@ -342,7 +411,7 @@ export default function App() {
     if (!form.name || !form.phone) return alert("이름과 연락처는 필수예요.");
     const id = form.id || Date.now();
     const payload = makeCustomerPayload(id);
-    const res = form.id
+       const res = form.id
       ? await supabase.from("customers").update(payload).eq("user_id", session.user.id).eq("app_customer_id", id)
       : await supabase.from("customers").insert([payload]);
     if (res.error) return alert("DB 저장 실패: " + res.error.message);
@@ -559,8 +628,17 @@ export default function App() {
     .filter((c) => {
       const q = search.trim();
       const searchOk = !q || c.name.includes(q) || c.phone.includes(q) || c.ssn?.includes(q) || c.address?.includes(q) || c.job?.includes(q) || c.carNumber?.includes(q) || c.email?.includes(q) || c.memo?.includes(q) || c.petName?.includes(q) || c.babyName?.includes(q);
-      const statusOk = statusFilter === "전체" ? true : (c.status || "가망") === statusFilter;
-      return searchOk && statusOk;
+     const statusOk =
+  statusFilter === "전체"
+    ? true
+    : (c.status || "가망") === statusFilter;
+
+const tagOk =
+  tagFilter === "전체"
+    ? true
+    : (c.tags || []).includes(tagFilter);
+
+return searchOk && statusOk && tagOk;
     })
     .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ko-KR"));
 
@@ -784,6 +862,21 @@ export default function App() {
                 <button key={status} onClick={() => setStatusFilter(status)} style={{ ...btn(statusFilter === status ? "#185FA5" : "#888780"), padding: "6px 12px", fontSize: 12 }}>{status}</button>
               ))}
             </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+  {["전체", "지인", "소개", "광고유입", "VIP", "가족", "법인", "관심고객", "보류"].map((tag) => (
+    <button
+      key={tag}
+      onClick={() => setTagFilter(tag)}
+      style={{
+        ...btn(tagFilter === tag ? "#533AB7" : "#888780"),
+        padding: "6px 12px",
+        fontSize: 12,
+      }}
+    >
+      🏷️ {tag}
+    </button>
+  ))}
+</div>
             {customers.length === 0 && <div style={{ color: "#666", fontSize: 14 }}>고객이 없습니다.</div>}
             {customers.map((c) => (
               <div key={c.id} style={{ ...card, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }} onClick={() => { setSelectedCustomer(c.id); setView("detail"); }}>
@@ -794,6 +887,19 @@ export default function App() {
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{c.name}<span style={statusBadge(c.status || "가망")}>{c.status || "가망"}</span></div>
                     <div style={{ fontSize: 13, marginTop: 4 }}>📞 {c.phone}</div>
+                   <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+  🏷️ {(c.tags || []).length ? c.tags.join(", ") : "-"}
+</div>
+
+<div style={{ fontSize: 12, color: "#666" }}>
+  👥 소개자: {
+    data.customers.find((x) => x.id === c.referrerId)?.name || "-"
+  }
+</div>
+
+<div style={{ fontSize: 12, color: "#666" }}>
+  🔗 관계: {c.relationType || "-"}
+</div>
                     <div style={{ fontSize: 13 }}>🎂 {getBirthValue(c) || "-"} / 🆔 {c.ssn || "-"}</div>
                     <div style={{ fontSize: 13 }}>🏠 {c.address || "-"}</div>
                     <div style={{ fontSize: 13 }}>💼 {c.job || "-"} / 📅 상령일 {c.ageDate || "-"}</div>
@@ -842,6 +948,15 @@ export default function App() {
                     <div style={{ fontSize: 13, color: "#666" }}>상령일: {c.ageDate || "-"} / 직업: {c.job || "-"}</div>
                     <div style={{ fontSize: 13, color: "#666" }}>이체일자: {c.transferDay || "-"} / 자동이체: {c.bankAccount || "-"}</div>
                     <div style={{ fontSize: 13, color: "#666" }}>차량번호: {c.carNumber || "-"}</div>
+                    <div style={{ fontSize: 13, color: "#666" }}>
+  🏷️ 태그: {(c.tags || []).length ? c.tags.join(", ") : "-"}
+</div>
+<div style={{ fontSize: 13, color: "#666" }}>
+  👥 소개자: {data.customers.find((x) => String(x.id) === String(c.referrerId))?.name || "-"}
+</div>
+<div style={{ fontSize: 13, color: "#666" }}>
+  🔗 관계 유형: {c.relationType || "-"}
+</div>
                     {c.customerType === "펫" && <div style={{ fontSize: 13 }}>🐶 펫이름: {c.petName}</div>}
                     {c.customerType === "태아" && <div style={{ fontSize: 13 }}>👶 태명&아기이름: {c.babyName}</div>}
                     {c.memo && <div style={{ fontSize: 13, marginTop: 4 }}>{c.memo}</div>}
@@ -865,7 +980,16 @@ export default function App() {
                   ))}
                 </div>
               )}
+              <div style={{ marginTop: 16 }}>
+  <div style={{ fontWeight: 700, marginBottom: 6 }}>👥 소개 트리</div>
 
+  <ReferralTree
+    customers={data.customers}
+    customerId={selectedCustomer}
+    setSelectedCustomer={setSelectedCustomer}
+    setView={setView}
+  />
+</div>
               <SectionTitle title="메모 정리" button="+ 메모 추가" onClick={startNewNote} />
               {editingNote === "new" && <EditorCard value={noteInput} setValue={setNoteInput} save={saveNote} cancel={cancelNote} />}
               {notes.length === 0 && editingNote === null && <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>메모가 없습니다.</div>}
@@ -1102,6 +1226,115 @@ export default function App() {
                 <SelectField label="고객 유형" k="customerType" form={form} setForm={setForm} options={["일반", "펫", "태아"]} />
                 {form.customerType === "펫" && <Field label="펫이름" k="petName" form={form} setForm={setForm} />}
                 {form.customerType === "태아" && <Field label="태명&아기이름" k="babyName" form={form} setForm={setForm} />}
+               <div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>🏷️ 고객 태그</div>
+<div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+  {["지인", "소개", "광고유입", "VIP", "가족", "법인", "관심고객", "보류"].map((tag) => {
+    const checked = (form.tags || []).includes(tag);
+    return (
+      <button
+        key={tag}
+        type="button"
+        onClick={() => {
+          const currentTags = form.tags || [];
+          setForm((f) => ({
+            ...f,
+            tags: checked
+              ? currentTags.filter((t) => t !== tag)
+              : [...currentTags, tag],
+          }));
+        }}
+        style={{
+          padding: "7px 10px",
+          borderRadius: 999,
+          border: checked ? "1px solid #185FA5" : "1px solid #ddd",
+          background: checked ? "#E6F1FB" : "#fff",
+          color: checked ? "#185FA5" : "#555",
+          fontSize: 12,
+          fontWeight: checked ? 700 : 400,
+          cursor: "pointer",
+        }}
+      >
+        {checked ? "✓ " : ""}{tag}
+      </button>
+    );
+  })}
+</div>
+
+<SelectField
+  label="관계 유형"
+  k="relationType"
+  form={form}
+  setForm={setForm}
+  options={["", "지인", "소개", "광고유입", "가족", "기타"]}
+/>
+
+<div style={{ fontSize: 12, color: "#555", marginBottom: 4 }}>👥 소개자 검색</div>
+
+<input
+  style={{
+    width: "100%",
+    padding: 10,
+    borderRadius: 8,
+    border: "1px solid #ccc",
+    marginBottom: 8,
+  }}
+  placeholder="이름 / 연락처 / 주소로 검색"
+  value={form.referrerSearch || ""}
+  onChange={(e) => setForm((f) => ({ ...f, referrerSearch: e.target.value }))}
+ />
+
+<select
+  style={{
+    width: "100%",
+    padding: 10,
+    borderRadius: 8,
+    border: "1px solid #ccc",
+    marginBottom: 12,
+  }}
+  value={form.referrerId || ""}
+  onChange={(e) =>
+    setForm((f) => ({
+      ...f,
+      referrerId: e.target.value ? Number(e.target.value) : "",
+    }))
+  }
+>
+  <option value="">소개자 없음</option>
+  {data.customers
+    .filter((c) => c.id !== form.id)
+    .filter((c) => {
+      const q = (form.referrerSearch || "").trim();
+      if (!q) return true;
+
+      return (
+        c.name?.includes(q) ||
+        c.phone?.includes(q) ||
+        c.address?.includes(q) ||
+        c.ssn?.includes(q)
+      );
+    })
+    .slice(0, 30)
+    .map((c) => (
+      <option key={c.id} value={c.id}>
+        {c.name} / {c.phone || "-"} / {c.address || "-"}
+      </option>
+    ))}
+</select>
+
+{form.referrerId && (
+  <div style={{ fontSize: 12, color: "#185FA5", marginBottom: 12 }}>
+    선택된 소개자:{" "}
+    {
+      data.customers.find((x) => String(x.id) === String(form.referrerId))
+        ?.name
+    }{" "}
+    /{" "}
+    {
+      data.customers.find((x) => String(x.id) === String(form.referrerId))
+        ?.phone
+    }
+  </div>
+)}
                 <TextAreaField label="메모" k="memo" form={form} setForm={setForm} />
                 <ModalButtons save={saveCustomer} cancel={closeModal} />
               </>
@@ -1242,6 +1475,8 @@ function SectionTitle({ title, button, onClick }) {
     </div>
   );
 }
+
+
 
 function EditorCard({ value, setValue, save, cancel }) {
   return (
