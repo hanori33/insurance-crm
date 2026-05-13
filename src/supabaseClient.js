@@ -1,6 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = "https://ajuxgluckhourworlwmt.supabase.co";
-const supabaseKey = "sb_publishable_s_toIdqTWq8t5iIDFaQdWw_3W4ZyeD_";
+const URL = process.env.REACT_APP_SUPABASE_URL || '';
+const KEY = process.env.REACT_APP_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+if (!URL || !KEY) {
+  console.warn('[BoPlan] .env에 SUPABASE_URL / SUPABASE_ANON_KEY 를 설정해주세요.');
+}
+
+export const supabase = createClient(URL, KEY, {
+  auth: { persistSession: true, autoRefreshToken: true },
+});
