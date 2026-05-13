@@ -305,4 +305,4 @@ export default function CustomerDetailPage({ customerId, onBack }) {
       <EditModal visible={showEdit} onClose={()=>setShowEdit(false)} customer={customer} onSave={load} />
     </div>
   );
-}
+}pu
