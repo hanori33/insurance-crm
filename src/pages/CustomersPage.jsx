@@ -1,66 +1,308 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
-import { COLORS, CUSTOMER_FILTERS } from '../constants';
-import { Card, LoadingSpinner, FilterChip } from '../components/Common';
-import EmptyState from '../components/EmptyState';
-import CustomerCard from '../components/CustomerCard';
-import CustomerForm from '../components/CustomerForm';
+// src/pages/CustomerDetailPage.jsx
+import React, { useState, useEffect } from 'react';
+import { COLORS, CUSTOMER_STATUSES } from '../constants';
+import { Card, Avatar, StatusBadge, Divider, LoadingSpinner } from '../components/Common';
+import Modal from '../components/Modal';
+import Field from '../components/Field';
 import customerService from '../services/customerService';
+import { formatDate } from '../utils';
 
-export default function CustomersPage({ onNavigate }) {
-  const [filter, setFilter]     = useState('전체');
-  const [search, setSearch]     = useState('');
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [showForm, setShowForm] = useState(false);
+// ── 주민번호에서 생년월일 추출 ─────────────────
+function birthFromSsn(ssn) {
+  if (!ssn || ssn === 'EMPTY' || ssn === '') return null;
+  const clean = ssn.replace('-', '').replace(/\s/g, '');
+  if (clean.length < 7) return null;
+  const yy = clean.slice(0, 2);
+  const mm = clean.slice(2, 4);
+  const dd = clean.slice(4, 6);
+  const gender = clean.slice(6, 7);
+  const century = ['3','4','7','8'].includes(gender) ? '20' : '19';
+  return `${century}${yy}.${mm}.${dd}`;
+}
 
-  const load = useCallback(async () => {
+// ── 나이 계산 ────────────────────────────────
+function calcAge(birthStr) {
+  if (!birthStr) return null;
+  const clean = birthStr.replace(/\./g, '-');
+  const birth = new Date(clean);
+  if (isNaN(birth)) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return `${age}세`;
+}
+
+// ── 정보 행 ───────────────────────────────────
+function InfoRow({ label, value, isLast }) {
+  if (!value || value === 'EMPTY' || value === '') return null;
+  return (
+    <>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'11px 0' }}>
+        <span style={{ fontSize:13, color:COLORS.textGray, flexShrink:0, width:100 }}>{label}</span>
+        <span style={{ fontSize:13, color:COLORS.text, fontWeight:500, textAlign:'right', flex:1, lineHeight:1.5 }}>{value}</span>
+      </div>
+      {!isLast && <Divider />}
+    </>
+  );
+}
+
+// ── 섹션 카드 ─────────────────────────────────
+function Section({ title, icon, children, hasContent }) {
+  if (!hasContent) return null;
+  return (
+    <Card>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+        <span style={{ fontSize:18 }}>{icon}</span>
+        <span style={{ fontWeight:700, fontSize:15, color:COLORS.text }}>{title}</span>
+      </div>
+      {children}
+    </Card>
+  );
+}
+
+// ── 편집 모달 ─────────────────────────────────
+function EditModal({ visible, onClose, customer, onSave }) {
+  const [form, setForm] = useState({});
+  const [loading, setLoading] = useState(false);
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  useEffect(() => {
+    if (customer) setForm({
+      name:          customer.name || '',
+      phone:         customer.phone || '',
+      status:        customer.status || '상담중',
+      birth:         customer.birth || '',
+      email:         customer.email || '',
+      memo:          customer.memo || '',
+      job:           customer.job || '',
+      address:       customer.address || '',
+      customer_type: customer.customer_type || '일반',
+      pet_name:      customer.pet_name || '',
+      baby_name:     customer.baby_name || '',
+      transfer_day:  customer.transfer_day || '',
+      car_number:    customer.car_number || '',
+      relation_type: customer.relation_type || '',
+      car_expire:    customer.car_expire || '',
+      pet_insured:   customer.pet_insured || '',
+      baby_insured:  customer.baby_insured || '',
+    });
+  }, [customer, visible]);
+
+  async function handleSave() {
     setLoading(true);
-    try { setCustomers(await customerService.list({ status: filter, search })); }
-    catch(e) { console.error(e); }
+    try {
+      await customerService.update(customer.id, form);
+      onSave(); onClose();
+    } catch(e) { console.error(e); }
     finally { setLoading(false); }
-  }, [filter, search]);
-
-  useEffect(() => { load(); }, [load]);
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <Modal visible={visible} onClose={onClose} title="고객 정보 수정">
+      <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+        <span style={{ fontSize:13, color:COLORS.textGray }}>이름</span>
+        <Field icon="👤" placeholder="이름" value={form.name||''} onChange={e=>set('name',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>전화번호</span>
+        <Field icon="📞" placeholder="전화번호" value={form.phone||''} onChange={e=>set('phone',e.target.value)} type="tel" />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>상태</span>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 }}>
+          {CUSTOMER_STATUSES.map(s => (
+            <button key={s} onClick={()=>set('status',s)} style={{
+              padding:'6px 14px', borderRadius:20, border:'none', cursor:'pointer', fontSize:13,
+              background: form.status===s ? COLORS.primary : COLORS.primaryBg,
+              color: form.status===s ? '#fff' : COLORS.primary,
+              fontWeight: form.status===s ? 700 : 400,
+            }}>{s}</button>
+          ))}
+        </div>
+        <span style={{ fontSize:13, color:COLORS.textGray }}>생년월일</span>
+        <Field icon="🎂" placeholder="예: 1990.01.01" value={form.birth||''} onChange={e=>set('birth',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>이메일</span>
+        <Field icon="✉️" placeholder="이메일" value={form.email||''} onChange={e=>set('email',e.target.value)} type="email" />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>직업</span>
+        <Field icon="💼" placeholder="직업" value={form.job||''} onChange={e=>set('job',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>주소</span>
+        <Field icon="📍" placeholder="주소" value={form.address||''} onChange={e=>set('address',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>차량번호</span>
+        <Field icon="🚗" placeholder="차량번호" value={form.car_number||''} onChange={e=>set('car_number',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>자동차보험 만기일</span>
+        <Field icon="📅" placeholder="예: 2026.12.31" value={form.car_expire||''} onChange={e=>set('car_expire',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>반려동물명</span>
+        <Field icon="🐾" placeholder="반려동물명" value={form.pet_name||''} onChange={e=>set('pet_name',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>펫보험 가입여부</span>
+        <div style={{ display:'flex', gap:6, marginBottom:10 }}>
+          {['가입','미가입','만기'].map(s => (
+            <button key={s} onClick={()=>set('pet_insured',s)} style={{
+              padding:'6px 14px', borderRadius:20, border:'none', cursor:'pointer', fontSize:13,
+              background: form.pet_insured===s ? COLORS.primary : COLORS.primaryBg,
+              color: form.pet_insured===s ? '#fff' : COLORS.primary,
+              fontWeight: form.pet_insured===s ? 700 : 400,
+            }}>{s}</button>
+          ))}
+        </div>
+        <span style={{ fontSize:13, color:COLORS.textGray }}>태아/자녀명</span>
+        <Field icon="👶" placeholder="태아/자녀명" value={form.baby_name||''} onChange={e=>set('baby_name',e.target.value)} />
+        <span style={{ fontSize:13, color:COLORS.textGray }}>태아보험 가입여부</span>
+        <div style={{ display:'flex', gap:6, marginBottom:10 }}>
+          {['가입','미가입','만기'].map(s => (
+            <button key={s} onClick={()=>set('baby_insured',s)} style={{
+              padding:'6px 14px', borderRadius:20, border:'none', cursor:'pointer', fontSize:13,
+              background: form.baby_insured===s ? COLORS.primary : COLORS.primaryBg,
+              color: form.baby_insured===s ? '#fff' : COLORS.primary,
+              fontWeight: form.baby_insured===s ? 700 : 400,
+            }}>{s}</button>
+          ))}
+        </div>
+        <span style={{ fontSize:13, color:COLORS.textGray }}>메모</span>
+        <textarea value={form.memo||''} onChange={e=>set('memo',e.target.value)} rows={3} placeholder="메모"
+          style={{ width:'100%', border:`1.5px solid ${COLORS.border}`, borderRadius:12, padding:'12px 14px', fontSize:14, outline:'none', resize:'vertical', boxSizing:'border-box', color:COLORS.text, background:'#FAFAFA', fontFamily:'inherit', marginBottom:10 }} />
+      </div>
+      <button onClick={handleSave} disabled={loading} style={{
+        width:'100%', padding:'14px 0', borderRadius:12, border:'none',
+        background:COLORS.primary, color:'#fff', fontSize:16, fontWeight:700, cursor:'pointer', marginTop:8,
+      }}>
+        {loading ? '저장 중...' : '저장'}
+      </button>
+    </Modal>
+  );
+}
+
+// ── 메인 ─────────────────────────────────────
+export default function CustomerDetailPage({ customerId, onBack }) {
+  const [customer, setCustomer] = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [showEdit, setShowEdit] = useState(false);
+
+  useEffect(() => { load(); }, [customerId]);
+
+  async function load() {
+    setLoading(true);
+    try { setCustomer(await customerService.get(customerId)); }
+    catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('고객을 삭제하시겠습니까?')) return;
+    try { await customerService.remove(customerId); onBack(); }
+    catch(e) { console.error(e); }
+  }
+
+  if (loading) return <div style={{ display:'flex', flexDirection:'column', height:'100%' }}><LoadingSpinner /></div>;
+  if (!customer) return null;
+
+  const val = (v) => (!v || v === 'EMPTY' || v === '') ? null : v;
+
+  // 생년월일: birth 컬럼 우선, 없으면 주민번호에서 추출
+  const birthDisplay = val(customer.birth) || birthFromSsn(customer.ssn);
+  const ageDisplay   = calcAge(birthDisplay);
+
+  // 자동차보험 만기 (car_expire 또는 age_dat 컬럼)
+  const carExpire = val(customer.car_expire) || val(customer.age_dat);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
       {/* 헤더 */}
-      <div style={{ background: COLORS.white, padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
-        <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>고객 관리</span>
-        <span style={{ fontSize: 12, color: COLORS.textGray }}>{customers.length}명</span>
+      <div style={{ background:COLORS.white, padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:`1px solid ${COLORS.border}`, flexShrink:0 }}>
+        <button onClick={onBack} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:COLORS.textGray }}>←</button>
+        <span style={{ fontWeight:700, fontSize:17, color:COLORS.text }}>고객 상세</span>
+        <button onClick={()=>setShowEdit(true)} style={{ background:'none', border:'none', color:COLORS.primary, fontWeight:600, cursor:'pointer', fontSize:14 }}>편집</button>
       </div>
 
-      {/* 검색 + 추가 */}
-      <div style={{ padding: '12px 16px 0', background: COLORS.bg, flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: COLORS.white, borderRadius: 12, padding: '10px 14px', border: `1.5px solid ${COLORS.border}` }}>
-            <span style={{ color: COLORS.textGray }}>🔍</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="고객명, 전화번호 검색"
-              style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, flex: 1, color: COLORS.text, fontFamily: 'inherit' }} />
-          </div>
-          <button onClick={() => setShowForm(true)} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>+</button>
+      <div style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch' }}>
+        <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:14, paddingBottom:40 }}>
+
+          {/* 프로필 카드 */}
+          <Card>
+            <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom: val(customer.memo) ? 14 : 0 }}>
+              <Avatar name={customer.name} size={56} />
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:700, fontSize:20, color:COLORS.text }}>{customer.name}</div>
+                <div style={{ fontSize:14, color:COLORS.textGray, marginTop:4 }}>{customer.phone}</div>
+                {ageDisplay && (
+                  <div style={{ fontSize:13, color:COLORS.primary, marginTop:3, fontWeight:600 }}>
+                    {birthDisplay} · {ageDisplay}
+                  </div>
+                )}
+              </div>
+              <StatusBadge status={customer.status} />
+            </div>
+            {val(customer.memo) && (
+              <div style={{ background:COLORS.primaryBg, borderRadius:10, padding:'10px 14px', fontSize:13, color:COLORS.text, marginTop:12 }}>
+                💬 {customer.memo}
+              </div>
+            )}
+          </Card>
+
+          {/* 기본 정보 */}
+          <Section title="기본 정보" icon="👤" hasContent>
+            <InfoRow label="생년월일" value={birthDisplay} />
+            <InfoRow label="나이" value={ageDisplay} />
+            <InfoRow label="이메일" value={val(customer.email)} />
+            <InfoRow label="직업" value={val(customer.job)} />
+            <InfoRow label="주소" value={val(customer.address)} />
+            <InfoRow label="고객 유형" value={val(customer.customer_type)} />
+            <InfoRow label="관계" value={val(customer.relation_type)} />
+            <InfoRow label="이체일" value={val(customer.transfer_day)} />
+            <InfoRow label="등록일" value={formatDate(customer.created_at)} isLast />
+          </Section>
+
+          {/* 자동차 정보 */}
+          <Section title="자동차 정보" icon="🚗"
+            hasContent={!!(val(customer.car_number) || carExpire)}>
+            <InfoRow label="차량번호" value={val(customer.car_number)} />
+            <InfoRow label="보험 만기일" value={carExpire} isLast />
+          </Section>
+
+          {/* 반려동물 정보 */}
+          <Section title="반려동물 정보" icon="🐾"
+            hasContent={!!(val(customer.pet_name) || val(customer.pet_insured))}>
+            <InfoRow label="반려동물명" value={val(customer.pet_name)} />
+            <InfoRow label="펫보험" value={val(customer.pet_insured)} isLast />
+          </Section>
+
+          {/* 태아/자녀 정보 */}
+          <Section title="태아 / 자녀 정보" icon="👶"
+            hasContent={!!(val(customer.baby_name) || val(customer.baby_insured))}>
+            <InfoRow label="자녀명" value={val(customer.baby_name)} />
+            <InfoRow label="태아보험" value={val(customer.baby_insured)} isLast />
+          </Section>
+
+          {/* 계좌 정보 */}
+          <Section title="계좌 정보" icon="🏦"
+            hasContent={!!val(customer.bank_account)}>
+            <InfoRow label="계좌번호" value={val(customer.bank_account)} isLast />
+          </Section>
+
+          {/* 태그 */}
+          {customer.tags && customer.tags.length > 0 && (
+            <Card>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+                <span style={{ fontSize:18 }}>🏷️</span>
+                <span style={{ fontWeight:700, fontSize:15, color:COLORS.text }}>태그</span>
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                {customer.tags.map((tag, i) => (
+                  <span key={i} style={{ background:COLORS.primaryBg, color:COLORS.primary, padding:'4px 12px', borderRadius:20, fontSize:13, fontWeight:600 }}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* 삭제 버튼 */}
+          <button onClick={handleDelete} style={{
+            width:'100%', padding:'13px 0', borderRadius:12,
+            border:'1.5px solid #FCA5A5', background:'#FEF2F2',
+            color:'#DC2626', fontSize:15, fontWeight:600, cursor:'pointer',
+          }}>고객 삭제</button>
+
         </div>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10 }}>
-          {CUSTOMER_FILTERS.map(f => <FilterChip key={f} label={f} active={filter === f} onClick={() => setFilter(f)} />)}
-        </div>
       </div>
 
-      {/* 리스트 */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 24px' }}>
-        {loading ? <LoadingSpinner /> :
-         customers.length === 0
-           ? <EmptyState icon="👥" message="고객이 없습니다" sub="+ 버튼으로 추가하세요" action={() => setShowForm(true)} actionLabel="고객 추가" />
-           : <Card style={{ padding: 0, marginTop: 4 }}>
-               {customers.map((c, i) => (
-                 <CustomerCard key={c.id || i} customer={c} isLast={i === customers.length - 1}
-                   onClick={() => onNavigate('customerDetail', { id: c.id })} />
-               ))}
-             </Card>
-        }
-      </div>
-
-      <CustomerForm visible={showForm} onClose={() => setShowForm(false)} onSave={load} />
+      <EditModal visible={showEdit} onClose={()=>setShowEdit(false)} customer={customer} onSave={load} />
     </div>
   );
 }
