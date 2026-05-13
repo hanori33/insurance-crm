@@ -27,37 +27,6 @@ function useIsMobile() {
   return isMobile;
 }
 
-// ── 상태바 (모바일 앱 느낌) ───────────────────
-function StatusBar({ light }) {
-  const [time, setTime] = useState('');
-
-  useEffect(() => {
-    function updateTime() {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, '0');
-      const m = String(now.getMinutes()).padStart(2, '0');
-      setTime(`${h}:${m}`);
-    }
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div style={{
-      flexShrink: 0,
-      padding: '10px 24px 2px',
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      fontSize: 12, fontWeight: 600, color: COLORS.text,
-      background: light ? 'linear-gradient(160deg,#EDE9FF,#F3EEFF)' : COLORS.white,
-      borderBottom: light ? 'none' : `1px solid ${COLORS.border}`,
-    }}>
-      <span>{time}</span>
-      <span>📶 WiFi 🔋</span>
-    </div>
-  );
-}
-
 // ── 모바일 앱 래퍼 ────────────────────────────
 function MobileShell({ children }) {
   return (
@@ -156,8 +125,7 @@ export default function App() {
     const Shell = isMobile ? MobileShell : WebShell;
     return (
       <Shell>
-        {isMobile && <StatusBar light />}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
           <LoginScreen />
         </div>
       </Shell>
@@ -168,7 +136,7 @@ export default function App() {
   if (isMobile) {
     return (
       <MobileShell>
-        <StatusBar light={isDashboard} />
+        
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {/* 탭 페이지 */}
           <div style={{
