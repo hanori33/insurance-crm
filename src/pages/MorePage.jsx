@@ -117,6 +117,7 @@ export default function MorePage({ user, onNavigate }) {
     { icon: '🔔', label: '알림 설정',   onClick: () => {} },
     { icon: '📊', label: '통계',        onClick: () => onNavigate('sales') },
     { icon: '⚙️', label: '설정',        onClick: () => {} },
+  { icon: '📞', label: '보험사 고객센터', onClick: () => onNavigate('insuranceContact') },
   ];
 
   return (

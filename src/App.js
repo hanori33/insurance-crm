@@ -1,4 +1,5 @@
 // src/App.js
+import InsuranceContactPage from './pages/InsuranceContactPage';
 import React, { useState, useEffect } from 'react';
 import { COLORS } from './constants';
 import authService from './services/authService';
@@ -91,6 +92,7 @@ export default function App() {
       case 'customerDetail': return <CustomerDetailPage customerId={current.payload?.id} onBack={goBack} />;
       case 'sales':          return <SalesPage onBack={goBack} />;
       case 'notifications':  return <NotificationsPage onBack={goBack} />;
+      case 'insuranceContact': return <InsuranceContactPage onBack={goBack} />;
       default:               return null;
     }
   }
