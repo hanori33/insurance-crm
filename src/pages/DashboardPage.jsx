@@ -143,14 +143,14 @@ export default function DashboardPage({ user, onNavigate }) {
   const insuranceList = insuranceTab === 'damage' ? DAMAGE_INSURANCE : LIFE_INSURANCE;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
       {isMobile && (
         <Header user={user} notifCount={3}
           onNotif={() => onNavigate('notifications')}
           onProfile={() => onNavigate('more')} />
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: isMobile ? '16px 16px 24px' : '24px 0 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: 1, overflowY: 'scroll', WebkitOverflowScrolling: 'touch', padding: isMobile ? '16px 16px 24px' : '24px 0 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         <div style={{ paddingLeft: 2 }}>
           <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 800, color: COLORS.text }}>{greeting}</div>
