@@ -186,6 +186,28 @@ export default function SchedulePage() {
                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: COLORS.primary, display: 'inline-block', margin: '5px 4px 0', flexShrink: 0 }} />
                              <div style={{ flex: 1 }}>
                                <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text }}>{s.title}</div>
+                               {s.memo && (
+  <div style={{
+    fontSize: 12,
+    color: COLORS.textGray,
+    marginTop: 4,
+    lineHeight: 1.4,
+    whiteSpace: 'pre-wrap',
+  }}>
+    {s.memo}
+  </div>
+)}
+
+{s.next_action && (
+  <div style={{
+    marginTop: 6,
+    fontSize: 11,
+    color: COLORS.primary,
+    fontWeight: 600,
+  }}>
+    다음 액션: {s.next_action}
+  </div>
+)}
                                {customerName && <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>{customerName} 고객</div>}
                              </div>
                              <span style={{ color: COLORS.textLight }}>›</span>
@@ -214,6 +236,7 @@ export default function SchedulePage() {
       </div>
     );
   }
+
 
   // ── PC 레이아웃 ───────────────────────────────
   return (

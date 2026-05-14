@@ -93,6 +93,7 @@ export default function App() {
       case 'sales':          return <SalesPage onBack={goBack} />;
       case 'notifications':  return <NotificationsPage onBack={goBack} />;
       case 'insuranceContact': return <InsuranceContactPage onBack={goBack} />;
+      case 'schedule': return <SchedulePage onBack={goBack} />;
       default:               return null;
     }
   }
@@ -136,34 +137,25 @@ export default function App() {
 
   // ── 모바일 앱 레이아웃 ────────────────────────
   if (isMobile) {
-    return (
-      <MobileShell>
-        
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {/* 탭 페이지 */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', flexDirection: 'column',
-            visibility: hasStack ? 'hidden' : 'visible',
-          }}>
-            {renderTab()}
-          </div>
-          {/* 스택 페이지 */}
-          {hasStack && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: COLORS.bg,
-              display: 'flex', flexDirection: 'column',
-              zIndex: 10,
-            }}>
-              {renderStack()}
-            </div>
-          )}
-        </div>
-        {!hasStack && <BottomTabBar activeTab={activeTab} onChange={changeTab} />}
-      </MobileShell>
-    );
-  }
+  return (
+    <MobileShell>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: hasStack ? 0 : 80,
+          background: COLORS.bg,
+        }}
+      >
+        {hasStack ? renderStack() : renderTab()}
+      </div>
+
+      {!hasStack && <BottomTabBar activeTab={activeTab} onChange={changeTab} />}
+    </MobileShell>
+  );
+}
 
   // ── PC 웹 레이아웃 ────────────────────────────
   return (
