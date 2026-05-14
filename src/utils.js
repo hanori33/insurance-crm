@@ -53,3 +53,12 @@ export function calculateRetentionRate(counts = {}) {
   return total > 0 ? Math.round(active / total * 100) : 0;
 }
 export function getSilsonGeneration() { return 1; }
+
+export function birthFromFront6(front6) {
+  if (!front6 || front6.length < 6) return null;
+  const yy = front6.slice(0, 2);
+  const mm = front6.slice(2, 4);
+  const dd = front6.slice(4, 6);
+  const year = parseInt(yy) > 24 ? `19${yy}` : `20${yy}`;
+  return `${year}.${mm}.${dd}`;
+}
