@@ -37,7 +37,7 @@ const COLOR_OPTIONS = [
   { value: '#D8F3DC', label: '민트' },
   { value: '#D6EAF8', label: '하늘' },
   { value: '#E5D4FF', label: '라벤더' },
-  { value: '#ECECEC', label: '그레이' },
+  { value: '#ECECEC', label: '그레ㄹ' },
 ];
 
 export default function ScheduleForm({ visible, onClose, onSave, dateStr, initial = null }) {
@@ -144,6 +144,89 @@ const [selectedColor, setSelectedColor] = useState(
         </div>
       </div>
 
+      <div style={{ marginBottom: 18 }}>
+  <span style={{
+    fontSize: 13,
+    color: COLORS.textGray,
+    marginBottom: 8,
+    display: 'block'
+  }}>
+    이모티콘
+  </span>
+
+  <div style={{
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8
+  }}>
+    {EMOJI_OPTIONS.map(emoji => {
+      const active = selectedEmoji === emoji;
+
+      return (
+        <button
+          key={emoji}
+          type="button"
+          onClick={() => setSelectedEmoji(emoji)}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 14,
+            border: active
+              ? `2px solid ${COLORS.primary}`
+              : `1px solid ${COLORS.border}`,
+            background: active
+              ? COLORS.primaryBg
+              : '#fff',
+            fontSize: 20,
+            cursor: 'pointer',
+          }}
+        >
+          {emoji}
+        </button>
+      );
+    })}
+  </div>
+</div>
+
+<div style={{ marginBottom: 18 }}>
+  <span style={{
+    fontSize: 13,
+    color: COLORS.textGray,
+    marginBottom: 8,
+    display: 'block'
+  }}>
+    색상
+  </span>
+
+  <div style={{
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap'
+  }}>
+    {COLOR_OPTIONS.map(color => {
+      const active = selectedColor === color.value;
+
+      return (
+        <button
+          key={color.value}
+          type="button"
+          onClick={() => setSelectedColor(color.value)}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: '50%',
+            border: active
+              ? `3px solid ${COLORS.primary}`
+              : '2px solid #fff',
+            background: color.value,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          }}
+        />
+      );
+    })}
+  </div>
+</div>
       <Field
         icon="📝"
         placeholder="일정 제목"

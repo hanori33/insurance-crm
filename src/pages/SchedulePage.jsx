@@ -20,51 +20,205 @@ function useIsMobile() {
 }
 
 // ── 달력 컴포넌트 ─────────────────────────────
-function Calendar({ year, month, selDay, today, matrix, onPrev, onNext, onSelect }) {
+function Calendar({
+  year,
+  month,
+  selDay,
+  today,
+  matrix,
+  monthSchedules = [],
+  onPrev,
+  onNext,
+  onSelect
+}) {
   return (
     <Card style={{ padding: 20 }}>
       {/* 월 네비 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-        <button onClick={onPrev} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: COLORS.textGray, width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
-        <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>{year}년 {month + 1}월</span>
-        <button onClick={onNext} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: COLORS.textGray, width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 18
+      }}>
+        <button
+          onClick={onPrev}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: 20,
+            cursor: 'pointer',
+            color: COLORS.textGray,
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          ‹
+        </button>
+
+        <span style={{
+          fontWeight: 700,
+          fontSize: 17,
+          color: COLORS.text
+        }}>
+          {year}년 {month + 1}월
+        </span>
+
+        <button
+          onClick={onNext}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: 20,
+            cursor: 'pointer',
+            color: COLORS.textGray,
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          ›
+        </button>
       </div>
 
       {/* 요일 헤더 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 8 }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(7,1fr)',
+        marginBottom: 8
+      }}>
         {DAY_LABELS.map((d, i) => (
-          <div key={d} style={{
-            textAlign: 'center', fontSize: 13, fontWeight: 600, padding: '6px 0',
-            color: i === 0 ? '#EF4444' : i === 6 ? '#3B82F6' : COLORS.textGray,
-          }}>{d}</div>
+          <div
+            key={d}
+            style={{
+              textAlign: 'center',
+              fontSize: 13,
+              fontWeight: 600,
+              padding: '6px 0',
+              color:
+                i === 0
+                  ? '#EF4444'
+                  : i === 6
+                  ? '#3B82F6'
+                  : COLORS.textGray,
+            }}
+          >
+            {d}
+          </div>
         ))}
       </div>
 
       {/* 날짜 */}
       {matrix.map((week, wi) => (
-        <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 2 }}>
+        <div
+          key={wi}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7,1fr)',
+            gap: 2,
+            marginBottom: 2
+          }}
+        >
           {week.map((day, di) => {
-            const isSel   = day === selDay;
-            const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-            const isSun   = di === 0;
-            const isSat   = di === 6;
+            const isSel = day === selDay;
+
+            const isToday =
+              day === today.getDate() &&
+              month === today.getMonth() &&
+              year === today.getFullYear();
+
+            const isSun = di === 0;
+            const isSat = di === 6;
+
+            const dateKey = day
+              ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+              : null;
+
+            const daySchedules = dateKey
+              ? monthSchedules.filter(
+                  s => (s.scheduled_at || '').slice(0, 10) === dateKey
+                )
+              : [];
+
             return (
-              <button key={di} disabled={!day} onClick={() => day && onSelect(day)}
+              <button
+                key={di}
+                disabled={!day}
+                onClick={() => day && onSelect(day)}
                 style={{
-                  padding: '10px 0', borderRadius: 10, border: 'none',
+                  minHeight: 82,
+                  padding: '6px 4px',
+                  borderRadius: 12,
+                  border: isSel
+                    ? `2px solid ${COLORS.primary}`
+                    : '1px solid transparent',
                   cursor: day ? 'pointer' : 'default',
-                  background: isSel ? COLORS.primary : isToday ? COLORS.primaryBg : 'none',
-                  color: !day ? 'transparent'
-                    : isSel ? '#fff'
-                    : isToday ? COLORS.primary
-                    : isSun ? '#EF4444'
-                    : isSat ? '#3B82F6'
+                  background: isSel
+                    ? COLORS.primaryBg
+                    : isToday
+                    ? '#F7F3FF'
+                    : '#fff',
+                  color: !day
+                    ? 'transparent'
+                    : isToday
+                    ? COLORS.primary
+                    : isSun
+                    ? '#EF4444'
+                    : isSat
+                    ? '#3B82F6'
                     : COLORS.text,
                   fontWeight: (isSel || isToday) ? 700 : 400,
-                  fontSize: 14, lineHeight: 1,
+                  fontSize: 13,
+                  lineHeight: 1.2,
                   transition: 'all 0.15s',
+                  textAlign: 'left',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* 날짜 숫자 */}
+                <div style={{
+                  marginBottom: 4,
+                  textAlign: 'center'
                 }}>
-                {day || ''}
+                  {day || ''}
+                </div>
+
+                {/* 일정 */}
+                {daySchedules.slice(0, 2).map((s, idx) => (
+                  <div
+                    key={s.id || idx}
+                    style={{
+                      background: s.color || '#E5D4FF',
+                      color: '#333',
+                      borderRadius: 6,
+                      padding: '2px 4px',
+                      fontSize: 10,
+                      marginTop: 2,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {s.title}
+                  </div>
+                ))}
+
+                {/* +더보기 */}
+                {daySchedules.length > 2 && (
+                  <div style={{
+                    fontSize: 10,
+                    color: COLORS.textGray,
+                    marginTop: 2
+                  }}>
+                    +{daySchedules.length - 2}
+                  </div>
+                )}
               </button>
             );
           })}
@@ -128,6 +282,7 @@ export default function SchedulePage() {
   const [month, setMonth]   = useState(today.getMonth());
   const [selDay, setSelDay] = useState(today.getDate());
   const [schedules, setSchedules] = useState([]);
+  const [monthSchedules, setMonthSchedules] = useState([]);
   const [loading, setLoading]     = useState(false);
   const [showForm, setShowForm]   = useState(false);
   const [editItem, setEditItem]   = useState(null);
@@ -137,9 +292,30 @@ export default function SchedulePage() {
   const DAY_KR  = ['일', '월', '화', '수', '목', '금', '토'];
   const dayLabel = `${month + 1}월 ${selDay}일 (${DAY_KR[new Date(year, month, selDay).getDay()]})`;
 
-  useEffect(() => { loadDay(); }, [dateStr]);
+  useEffect(() => {
+  loadDay();
+  loadMonth();
+}, [dateStr, month, year]);
 
-  async function loadDay() {
+async function loadMonth() {
+  try {
+    const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+
+    const endDate = new Date(year, month + 1, 0).getDate();
+
+    const end = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate).padStart(2, '0')}`;
+
+    const { data, error } = await scheduleService.getMonthSchedules(start, end);
+
+    if (error) throw error;
+
+    setMonthSchedules(data || []);
+  } catch (e) {
+    console.error(e);
+  }
+}
+  
+async function loadDay() {
     setLoading(true);
     try { setSchedules(await scheduleService.listByDate(dateStr)); }
     catch(e) { setSchedules([]); }
@@ -166,7 +342,7 @@ export default function SchedulePage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 32px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Calendar year={year} month={month} selDay={selDay} today={today} matrix={matrix} onPrev={prevMonth} onNext={nextMonth} onSelect={setSelDay} />
+          <Calendar year={year} month={month} selDay={selDay} today={today} matrix={matrix} onPrev={prevMonth} onNext={nextMonth} onSelect={setSelDay} monthSchedules={monthSchedules}/>
 
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -247,7 +423,7 @@ export default function SchedulePage() {
         <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: 24, alignItems: 'start' }}>
           {/* 왼쪽: 달력 */}
           <Calendar
-            year={year} month={month} selDay={selDay} today={today} matrix={matrix}
+            year={year} month={month} selDay={selDay} today={today} matrix={matrix} monthSchedules={monthSchedules}
             onPrev={prevMonth} onNext={nextMonth} onSelect={setSelDay}
           />
 
