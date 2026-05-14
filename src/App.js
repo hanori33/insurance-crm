@@ -37,7 +37,7 @@ function MobileShell({ children }) {
     }}>
       <div style={{
         width: '100%', maxWidth: 430,
-        height: '100dvh', maxHeight: 900,
+        height: '100dvh', 
         background: COLORS.bg,
         overflow: 'hidden',
         display: 'flex', flexDirection: 'column',
