@@ -152,7 +152,7 @@ function Calendar({
                 disabled={!day}
                 onClick={() => day && onSelect(day)}
                 style={{
-                  minHeight: 82,
+                  minHeight: 100,
                   padding: '6px 4px',
                   borderRadius: 12,
                   border: isSel
@@ -196,16 +196,16 @@ function Calendar({
                     style={{
                       background: s.color || '#E5D4FF',
                       color: '#333',
-                      borderRadius: 6,
-                      padding: '2px 4px',
-                      fontSize: 10,
+                      borderRadius: 8,
+                      padding: '3px 5px',
+                      fontSize: 11,
                       marginTop: 2,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
+                      lineHeight: 1.2,
+minHeight: 18,
+                      
                     }}
                   >
-                    {s.title}
+                    {s.schedule_icon || '📌'} {s.title.replace(/^[^\s]+\s/, '')}
                   </div>
                 ))}
 
@@ -229,46 +229,184 @@ function Calendar({
 }
 
 // ── 일정 목록 컴포넌트 ────────────────────────
-function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit }) {
+function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: COLORS.text }}>{dayLabel} 일정</span>
-        <button onClick={onAdd} style={{
-          background: COLORS.primary, color: '#fff', border: 'none',
-          borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-        }}>+ 일정 추가</button>
+        <span style={{ fontWeight: 700, fontSize: 16, color: COLORS.text }}>
+          {dayLabel} 일정
+        </span>
+
+        <button
+          onClick={onAdd}
+          style={{
+            background: COLORS.primary,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 10,
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          + 일정 추가
+        </button>
       </div>
 
       <Card style={{ padding: 0 }}>
-        {loading ? <LoadingSpinner /> :
-         schedules.length === 0
-           ? <EmptyState icon="📅" message="일정이 없습니다" sub="+ 일정 추가 버튼을 눌러보세요" />
-           : schedules.map((s, i) => {
-               const customerName = s.customers?.name || s.customer_name || '';
-               return (
-                 <React.Fragment key={s.id || i}>
-                   <div onClick={() => onEdit(s)} style={{ padding: '14px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
-                     {/* 시간 */}
-                     <div style={{
-                       background: COLORS.primaryBg, borderRadius: 10,
-                       padding: '8px 12px', flexShrink: 0,
-                       textAlign: 'center', minWidth: 56,
-                     }}>
-                       <div style={{ fontWeight: 700, color: COLORS.primary, fontSize: 14 }}>{toTimeStr(s.scheduled_at)}</div>
-                     </div>
-                     {/* 내용 */}
-                     <div style={{ flex: 1 }}>
-                       <div style={{ fontWeight: 600, fontSize: 15, color: COLORS.text }}>{s.title}</div>
-                       {customerName && <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 3 }}>{customerName} 고객</div>}
-                     </div>
-                     <span style={{ color: COLORS.textLight }}>›</span>
-                   </div>
-                   {i < schedules.length - 1 && <Divider style={{ margin: '0 20px' }} />}
-                 </React.Fragment>
-               );
-             })
-        }
+        {loading ? (
+          <LoadingSpinner />
+        ) : schedules.length === 0 ? (
+          <EmptyState
+            icon="📅"
+            message="일정이 없습니다"
+            sub="+ 일정 추가 버튼을 눌러보세요"
+          />
+        ) : (
+          schedules.map((s, i) => {
+            const customerName = s.customers?.name || s.customer_name || '';
+            const cleanTitle = (s.title || '').replace(/^[^\s]+\s/, '');
+            const icon = s.schedule_icon || '📌';
+
+            return (
+              <React.Fragment key={s.id || i}>
+                <div
+                  onClick={() => onEdit(s)}
+                  style={{
+                    padding: '14px 20px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  {/* 시간 */}
+                  <div
+                    style={{
+                      background: s.color || COLORS.primaryBg,
+                      borderRadius: 12,
+                      padding: '8px 12px',
+                      flexShrink: 0,
+                      textAlign: 'center',
+                      minWidth: 60,
+                    }}
+                  >
+                    <div style={{
+                      fontWeight: 800,
+                      color: COLORS.primary,
+                      fontSize: 14,
+                    }}>
+                      {toTimeStr(s.scheduled_at)}
+                    </div>
+                  </div>
+
+                  {/* 내용 */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontWeight: 700,
+                      fontSize: 15,
+                      color: COLORS.text,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}>
+                      {icon} {cleanTitle}
+                    </div>
+
+                    {customerName && (
+                      <div style={{
+                        fontSize: 12,
+                        color: COLORS.textGray,
+                        marginTop: 3,
+                      }}>
+                        {customerName} 고객
+                      </div>
+                    )}
+
+                    {s.memo && (
+                      <div style={{
+                        fontSize: 12,
+                        color: COLORS.textGray,
+                        marginTop: 5,
+                        lineHeight: 1.4,
+                        whiteSpace: 'pre-wrap',
+                      }}>
+                        {s.memo}
+                      </div>
+                    )}
+
+                    {s.next_action && (
+                      <div style={{
+                        marginTop: 6,
+                        fontSize: 11,
+                        color: COLORS.primary,
+                        fontWeight: 700,
+                      }}>
+                        다음 액션: {s.next_action}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 수정/삭제 */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    alignItems: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(s);
+                      }}
+                      style={{
+                        border: 'none',
+                        background: COLORS.primaryBg,
+                        color: COLORS.primary,
+                        borderRadius: 8,
+                        width: 32,
+                        height: 28,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 800,
+                      }}
+                    >
+                      수정
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(s);
+                      }}
+                      style={{
+                        border: 'none',
+                        background: '#FEE2E2',
+                        color: '#DC2626',
+                        borderRadius: 8,
+                        width: 32,
+                        height: 28,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 800,
+                      }}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+
+                {i < schedules.length - 1 && (
+                  <Divider style={{ margin: '0 20px' }} />
+                )}
+              </React.Fragment>
+            );
+          })
+        )}
       </Card>
     </div>
   );

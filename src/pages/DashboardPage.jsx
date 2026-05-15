@@ -22,7 +22,7 @@ const DAMAGE_INSURANCE = [
   { name: '농협손해보험', phone: '1544-2000', fax: '0505-100-2000', logo: '/logos/nonghyup.png' },
   { name: '흥국화재',     phone: '1688-1688', fax: '0505-008-0800', logo: '/logos/Heungkuk.png' },
   { name: '캐롯손해보험', phone: '1600-0880', fax: '',              logo: '/logos/carrot.png' },
-  { name: '하나손해보험', phone: '1566-3000', fax: '',              logo: '/logos/hana.png' },
+  { name: '하나손해보험', phone: '1566-3000', fax: '0505-774-6060',              logo: '/logos/hana.png' },
 ];
 
 const LIFE_INSURANCE = [
@@ -32,14 +32,14 @@ const LIFE_INSURANCE = [
   { name: '한화생명',     phone: '1588-6363', fax: '', logo: '/logos/hanwha.png' },
   { name: '흥국생명',     phone: '1588-2288', fax: '', logo: '/logos/heungkuklife.png' },
   { name: 'DB생명',       phone: '1588-3131', fax: '', logo: '/logos/DBlife.png' },
-  { name: '동양생명',     phone: '1577-1004', fax: '', logo: '/logos/dongyanglife.png' },
-  { name: 'AIA생명',      phone: '1588-9898', fax: '', logo: '/logos/AIA.png' },
-  { name: '농협생명',     phone: '1544-4000', fax: '', logo: '/logos/nonghyup.png' },
+  { name: '동양생명',     phone: '1577-1004', fax: '02-3289-4517', logo: '/logos/dongyanglife.png' },
+  { name: 'AIA생명',      phone: '1588-9898', fax: '02-2021-4540', logo: '/logos/AIA.png' },
+  { name: '농협생명',     phone: '1544-4000', fax: '02-6971-6040', logo: '/logos/nonghyup.png' },
   { name: '하나생명',     phone: '1577-1112', fax: '', logo: '/logos/hana.png' },
   { name: 'MetLife',      phone: '1588-9600', fax: '', logo: '/logos/metlife.png' },
   { name: '미래에셋생명', phone: '1588-0220', fax: '', logo: '/logos/miraeasset.png' },
   { name: '라이나생명',   phone: '1588-0058', fax: '', logo: '/logos/linalife.png' },
-  { name: 'iM라이프',     phone: '1588-4770', fax: '', logo: '/logos/imlife.png' },
+  { name: 'iM라이프',     phone: '1588-4770', fax: '02-3469-9428', logo: '/logos/imlife.png' },
 ];
 
 function CompanyLogo({ logo, name, size = 40 }) {
@@ -143,22 +143,14 @@ export default function DashboardPage({ user, onNavigate }) {
   const insuranceList = insuranceTab === 'damage' ? DAMAGE_INSURANCE : LIFE_INSURANCE;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', overflow: 'visible' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
       {isMobile && (
         <Header user={user} notifCount={3}
           onNotif={() => onNavigate('notifications')}
           onProfile={() => onNavigate('more')} />
       )}
 
-      <div style={{
-  flex: 'none',
-  overflow: 'visible',
-  WebkitOverflowScrolling: 'touch',
-  padding: isMobile ? '16px 16px 120px' : '24px 0 40px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 16
-}}>
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: isMobile ? '16px 16px 24px' : '24px 0 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         <div style={{ paddingLeft: 2 }}>
           <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 800, color: COLORS.text }}>{greeting}</div>
