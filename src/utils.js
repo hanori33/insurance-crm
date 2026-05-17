@@ -40,9 +40,15 @@ export function buildCalendarMatrix(year, month) {
 export function getInitial(name = '') { return name.charAt(0) || '?'; }
 export function isEmpty(v) { return v === null || v === undefined || v === ''; }
 
-export function toTimeStr(isoStr) {
-  if (!isoStr) return '--:--';
-  return new Date(isoStr).toTimeString().slice(0, 5);
+export function toTimeStr(value) {
+  if (!value) return '';
+
+  const str = String(value);
+
+  const match = str.match(/(\d{2}):(\d{2})/);
+  if (match) return `${match[1]}:${match[2]}`;
+
+  return '';
 }
 
 // ── 기존 파일 호환용 alias ──────────────────────

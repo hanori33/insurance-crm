@@ -3,6 +3,7 @@ import InsuranceContactPage from './pages/InsuranceContactPage';
 import React, { useState, useEffect } from 'react';
 import { COLORS } from './constants';
 import authService from './services/authService';
+import scheduleService from './services/scheduleService';
 
 import LoginScreen     from './components/LoginScreen';
 import BottomTabBar    from './components/BottomTabBar';
@@ -68,6 +69,7 @@ export default function App() {
   const [session, setSession]     = useState(undefined);
   const [activeTab, setActiveTab] = useState('home');
   const [stack, setStack]         = useState([]);
+  const [notifiedIds, setNotifiedIds] = useState([]);
 
   useEffect(() => {
     authService.getSession().then(s => setSession(s));
@@ -77,7 +79,88 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+useEffect(() => {
+  if (!session) return;
 
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  const interval = setInterval(async () => {
+    try {
+      const schedules = await scheduleService.today();
+      console.log('알림 체크 schedules:', schedules);
+
+      const now = new Date();
+
+      schedules.forEach((schedule) => {
+        if (
+          !schedule.reminder_minutes ||
+          schedule.reminder_minutes === 'none'
+        ) {
+          return;
+        }
+
+        const id = schedule.id;
+
+        if (notifiedIds.includes(id)) return;
+
+        const raw =
+          schedule.scheduled_at ||
+          `${schedule.date}T${schedule.time}`;
+
+        const match = String(raw).match(
+          /(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/
+        );
+
+        if (!match) return;
+
+        const scheduleTime = new Date(
+          Number(match[1]),
+          Number(match[2]) - 1,
+          Number(match[3]),
+          Number(match[4]),
+          Number(match[5]),
+          0
+        );
+
+        const reminderTime = new Date(
+          scheduleTime.getTime() -
+            Number(schedule.reminder_minutes) * 60 * 1000
+        );
+
+        console.log('알림 시간 비교:', {
+          title: schedule.title,
+          now,
+          reminderTime,
+          scheduleTime,
+          reminder_minutes: schedule.reminder_minutes,
+        });
+
+        const fiveMinutesAfterSchedule = new Date(
+          scheduleTime.getTime() + 5 * 60 * 1000
+        );
+
+        if (now >= reminderTime && now <= fiveMinutesAfterSchedule) {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('📅 일정 알림', {
+              body: `${schedule.title}\n${schedule.customer_name || ''}`,
+              icon: '/boplan192.png',
+            });
+          } else {
+            alert(`📅 일정 알림\n${schedule.title}`);
+          }
+
+          setNotifiedIds((prev) => [...prev, id]);
+        }
+      });
+    } catch (e) {
+      console.error('알림 체크 실패', e);
+    }
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, [session, notifiedIds]);
   function navigate(page, payload) { setStack(prev => [...prev, { page, payload }]); }
   function goBack()                { setStack(prev => prev.slice(0, -1)); }
   function changeTab(tab)          { setStack([]); setActiveTab(tab); }
@@ -145,7 +228,7 @@ export default function App() {
           minHeight: 0,
           overflowY: 'auto',
           WebkitOverflowScrolling: 'touch',
-          paddingBottom: hasStack ? 0 : 80,
+          paddingBottom: hasStack ? 0 : 0,
           background: COLORS.bg,
         }}
       >

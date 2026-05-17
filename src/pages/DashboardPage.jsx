@@ -1,220 +1,741 @@
 // src/pages/DashboardPage.jsx
+import babyImg from '../assets/baby.png';
+import dogImg from '../assets/dog.png';
+import carImg from '../assets/car.png';
+import cakeImg from '../assets/cake.png';
 import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
 import Header from '../components/Header';
-import StatCard from '../components/StatCard';
-import CustomerCard from '../components/CustomerCard';
-import { Card, SectionHeader, Divider, LoadingSpinner } from '../components/Common';
+import { Card, Divider, LoadingSpinner } from '../components/Common';
 import EmptyState from '../components/EmptyState';
 import ScheduleForm from '../components/ScheduleForm';
 import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
 import { formatDateKorean, toTimeStr, todayStr } from '../utils';
 
-const DAMAGE_INSURANCE = [
-  { name: 'DB손해보험',   phone: '1588-0100', fax: '0505-181-4862', logo: '/logos/db.png' },
-  { name: '삼성화재',     phone: '1588-5114', fax: '0505-162-0872', logo: '/logos/samsung.png' },
-  { name: '한화손해보험', phone: '1566-8000', fax: '0505-779-1004', logo: '/logos/hanwha.png' },
-  { name: '현대해상',     phone: '1588-5656', fax: '0507-162-0872', logo: '/logos/hyundai.png' },
-  { name: '메리츠화재',   phone: '1566-7711', fax: '0505-021-3400', logo: '/logos/meritz.png' },
-  { name: '롯데손해보험', phone: '1588-3344', fax: '0504-800-0700', logo: '/logos/lotte.png' },
-  { name: 'KB손해보험',   phone: '1544-0114', fax: '0505-100-0114', logo: '/logos/kb.png' },
-  { name: '농협손해보험', phone: '1544-2000', fax: '0505-100-2000', logo: '/logos/nonghyup.png' },
-  { name: '흥국화재',     phone: '1688-1688', fax: '0505-008-0800', logo: '/logos/Heungkuk.png' },
-  { name: '캐롯손해보험', phone: '1600-0880', fax: '',              logo: '/logos/carrot.png' },
-  { name: '하나손해보험', phone: '1566-3000', fax: '0505-774-6060',              logo: '/logos/hana.png' },
-];
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-const LIFE_INSURANCE = [
-  { name: '교보생명',     phone: '1588-1001', fax: '', logo: '/logos/kyobo.png' },
-  { name: '신한라이프',   phone: '1588-5580', fax: '', logo: '/logos/shinhan.png' },
-  { name: '삼성생명',     phone: '1588-3114', fax: '', logo: '/logos/samsunglife.png' },
-  { name: '한화생명',     phone: '1588-6363', fax: '', logo: '/logos/hanwha.png' },
-  { name: '흥국생명',     phone: '1588-2288', fax: '', logo: '/logos/heungkuklife.png' },
-  { name: 'DB생명',       phone: '1588-3131', fax: '', logo: '/logos/DBlife.png' },
-  { name: '동양생명',     phone: '1577-1004', fax: '02-3289-4517', logo: '/logos/dongyanglife.png' },
-  { name: 'AIA생명',      phone: '1588-9898', fax: '02-2021-4540', logo: '/logos/AIA.png' },
-  { name: '농협생명',     phone: '1544-4000', fax: '02-6971-6040', logo: '/logos/nonghyup.png' },
-  { name: '하나생명',     phone: '1577-1112', fax: '', logo: '/logos/hana.png' },
-  { name: 'MetLife',      phone: '1588-9600', fax: '', logo: '/logos/metlife.png' },
-  { name: '미래에셋생명', phone: '1588-0220', fax: '', logo: '/logos/miraeasset.png' },
-  { name: '라이나생명',   phone: '1588-0058', fax: '', logo: '/logos/linalife.png' },
-  { name: 'iM라이프',     phone: '1588-4770', fax: '02-3469-9428', logo: '/logos/imlife.png' },
-];
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
-function CompanyLogo({ logo, name, size = 40 }) {
-  const [err, setErr] = useState(false);
+  return isMobile;
+}
+
+function MiniStatCard({ icon, title, value, sub, bg = '#fff', color = COLORS.primary, onClick }) {
+  const isImageIcon = typeof icon === 'string' && (
+    icon.includes('/static/') ||
+    icon.includes('/assets/') ||
+    icon.includes('data:') ||
+    icon.endsWith('.png') ||
+    icon.endsWith('.jpg') ||
+    icon.endsWith('.jpeg') ||
+    icon.endsWith('.webp') ||
+    icon.startsWith('blob:')
+  );
+
+  const isWideImage = icon === carImg || icon === dogImg;
+
   return (
-    <div style={{ width: size, height: size, borderRadius: 10, background: '#F8F8F8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', border: `1px solid ${COLORS.border}` }}>
-      {!err ? (
-        <img src={logo} alt={name} onError={() => setErr(true)}
-          style={{ width: size - 6, height: size - 6, objectFit: 'contain' }} />
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: 'none',
+        textAlign: 'left',
+        background: bg,
+        borderRadius: 22,
+        padding: '18px 16px',
+        minHeight: 132,
+        cursor: onClick ? 'pointer' : 'default',
+        boxShadow: '0 8px 24px rgba(124,92,252,0.08)',
+        border: `1px solid ${COLORS.border}`,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          width: '58%',
+          minWidth: 0,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 900,
+            color: COLORS.text,
+            marginBottom: 10,
+            lineHeight: 1.25,
+            wordBreak: 'keep-all',
+          }}
+        >
+          {title}
+        </div>
+
+        <div
+          style={{
+            fontSize: 30,
+            fontWeight: 950,
+            color: COLORS.text,
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {value}
+        </div>
+
+        {sub && (
+          <div
+            style={{
+              fontSize: 12,
+              color: COLORS.textGray,
+              marginTop: 10,
+              lineHeight: 1.35,
+              wordBreak: 'keep-all',
+            }}
+          >
+            {sub}
+          </div>
+        )}
+      </div>
+
+      {isImageIcon ? (
+        <img
+          src={icon}
+          alt=""
+          style={{
+            position: 'absolute',
+            right: isWideImage ? 4 : 12,
+            bottom: isWideImage ? 10 : 16,
+            width: isWideImage ? 112 : 88,
+            height: isWideImage ? 112 : 88,
+            objectFit: 'contain',
+            mixBlendMode: 'multiply',
+            zIndex: 1,
+            pointerEvents: 'none',
+          }}
+        />
       ) : (
-        <span style={{ fontWeight: 700, fontSize: 14, color: COLORS.primary }}>{name.charAt(0)}</span>
+        <div
+          style={{
+            position: 'absolute',
+            right: 18,
+            bottom: 18,
+            width: 70,
+            height: 70,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 34,
+            color,
+            zIndex: 1,
+          }}
+        >
+          {icon}
+        </div>
       )}
-    </div>
+    </button>
   );
 }
 
-function InsuranceRow({ company, isLast }) {
-  function handleCall() {
-    window.location.href = `tel:${company.phone.replace(/-/g, '')}`;
-  }
+function DashboardSection({ title, icon, right, children }) {
   return (
-    <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-          <CompanyLogo logo={company.logo} name={company.name} />
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text }}>{company.name}</div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: COLORS.primary, marginTop: 2 }}>{company.phone}</div>
-            {company.fax && <div style={{ fontSize: 11, color: COLORS.textGray, marginTop: 1 }}>팩스 {company.fax}</div>}
-          </div>
+    <Card>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>{icon}</span>
+          <span style={{ fontWeight: 900, fontSize: 16, color: COLORS.text }}>{title}</span>
         </div>
-        <button onClick={handleCall} style={{
-          background: COLORS.primary, color: '#fff', border: 'none',
-          borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600,
-          cursor: 'pointer', flexShrink: 0,
-        }}>📞 전화</button>
+        {right}
       </div>
-      {!isLast && <Divider style={{ margin: '0 16px' }} />}
-    </>
+      {children}
+    </Card>
   );
 }
 
 function ScheduleRow({ item, isLast }) {
   const customerName = item.customers?.name || item.customer_name || '';
+  const title = (item.title || '').replace(/^[^\s]+\s/, '');
+  const icon = item.schedule_icon || '📌';
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontWeight: 700, color: COLORS.primary, fontSize: 13, width: 44, flexShrink: 0 }}>{toTimeStr(item.scheduled_at)}</span>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: COLORS.primary, display: 'inline-block', margin: '0 8px', flexShrink: 0 }} />
-          <div>
-            <div style={{ fontWeight: 500, fontSize: 14, color: COLORS.text }}>{item.title}</div>
-            {customerName && <div style={{ fontSize: 11, color: COLORS.textGray, marginTop: 1 }}>{customerName} 고객</div>}
-          </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
+        <div style={{
+          width: 58,
+          flexShrink: 0,
+          color: COLORS.primary,
+          fontWeight: 900,
+          fontSize: 14,
+        }}>
+          {toTimeStr(item.scheduled_at)}
         </div>
-        <span style={{ color: COLORS.textLight, fontSize: 14 }}>›</span>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: COLORS.text }}>
+            {icon} {title}
+          </div>
+          {customerName && (
+            <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 3 }}>
+              {customerName} 고객
+            </div>
+          )}
+        </div>
+
+        {item.reminder_minutes && (
+          <span style={{
+            background: COLORS.primaryBg,
+            color: COLORS.primary,
+            borderRadius: 999,
+            padding: '4px 8px',
+            fontSize: 11,
+            fontWeight: 800,
+          }}>
+            알림
+          </span>
+        )}
       </div>
       {!isLast && <Divider />}
     </>
   );
 }
 
-export default function DashboardPage({ user, onNavigate }) {
-  const [stats, setStats]         = useState({ scheduleCount: 0, customerCount: 0 });
-  const [schedules, setSchedules] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [insuranceTab, setInsuranceTab] = useState('damage');
+function CustomerMiniRow({ customer, isLast, onClick }) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          padding: '8px 0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <div style={{
+          width: 40,
+          height: 40,
+          borderRadius: 14,
+          background: 'linear-gradient(135deg,#C4B5FD,#8B5CF6)',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 900,
+          flexShrink: 0,
+        }}>
+          {(customer.name || '?').charAt(0)}
+        </div>
 
-  const isMobile = window.innerWidth <= 768;
-  const meta     = user?.user_metadata || {};
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, color: COLORS.text, fontSize: 14 }}>
+            {customer.name}
+          </div>
+          <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>
+            {customer.phone || '-'}
+          </div>
+        </div>
+
+        <span style={{
+          background: COLORS.primaryBg,
+          color: COLORS.primary,
+          borderRadius: 999,
+          padding: '4px 9px',
+          fontSize: 11,
+          fontWeight: 800,
+        }}>
+          {customer.status || '상담중'}
+        </span>
+      </button>
+      {!isLast && <Divider />}
+    </>
+  );
+}
+
+function QuickButton({ icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        borderRadius: 16,
+        padding: '14px 10px',
+        cursor: 'pointer',
+        boxShadow: '0 8px 18px rgba(124,92,252,0.06)',
+      }}
+    >
+      <div style={{ fontSize: 24, marginBottom: 7 }}>{icon}</div>
+      <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.text }}>{label}</div>
+    </button>
+  );
+}
+
+function getMonthDay(value) {
+  if (!value) return '';
+  const s = String(value).trim();
+
+  if (/^\d{6}$/.test(s)) return `${s.slice(2, 4)}-${s.slice(4, 6)}`;
+  if (/^\d{8}$/.test(s)) return `${s.slice(4, 6)}-${s.slice(6, 8)}`;
+
+  const match = s.match(/(\d{2})[-./](\d{2})$/);
+  if (match) return `${match[1]}-${match[2]}`;
+
+  const iso = s.match(/\d{4}[-./](\d{2})[-./](\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+
+  return '';
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+
+  const target = new Date(dateStr);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+
+  return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+}
+
+export default function DashboardPage({ user, onNavigate }) {
+  const isMobile = useIsMobile();
+
+  const [loading, setLoading] = useState(true);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+
+  const [todaySchedules, setTodaySchedules] = useState([]);
+  const [recentCustomers, setRecentCustomers] = useState([]);
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [statusCounts, setStatusCounts] = useState({});
+
+  const meta = user?.user_metadata || {};
   const userName = meta.display_name || user?.email?.split('@')[0] || '사용자';
   const position = meta.position || '';
-  const greeting = position ? `${userName} ${position}님 안녕하세요! 👋` : `${userName}님 안녕하세요! 👋`;
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function load() {
     setLoading(true);
+
     try {
-      const [todaySched, recent, statusCounts] = await Promise.all([
+      const [todaySched, recent, counts, all] = await Promise.all([
         scheduleService.today().catch(() => []),
-        customerService.recent(3).catch(() => []),
+        customerService.recent(4).catch(() => []),
         customerService.statusCounts().catch(() => ({})),
+        customerService.list({ status: '전체', search: '' }).catch(() => []),
       ]);
-      const total = Object.values(statusCounts).reduce((a, b) => a + b, 0);
-      setStats({ scheduleCount: todaySched.length, customerCount: total });
-      setSchedules(todaySched.slice(0, 3));
-      setCustomers(recent);
-    } finally { setLoading(false); }
+
+      setTodaySchedules(todaySched || []);
+      setRecentCustomers(recent || []);
+      setStatusCounts(counts || {});
+      setAllCustomers(all || []);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const statItems = [
-    { icon: '📅', label: '오늘 일정', value: `${stats.scheduleCount}건` },
-    { icon: '👥', label: '고객 수',   value: `${stats.customerCount}명` },
-    { icon: '📊', label: '유지율',    value: '88%' },
-    { icon: '💰', label: '월 매출',   value: '24,580천원' },
-  ];
+  const totalCustomers = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  const todayMMDD = getMonthDay(todayStr());
 
-  const insuranceList = insuranceTab === 'damage' ? DAMAGE_INSURANCE : LIFE_INSURANCE;
+  const birthdayCustomers = allCustomers.filter((c) => getMonthDay(c.birth) === todayMMDD);
+
+  const carExpiringCustomers = allCustomers.filter((c) => {
+    const d = daysUntil(c.car_expiry || c.car_expiry_date || c.car_expiry_at);
+    return d !== null && d >= 0 && d <= 30;
+  });
+
+  const babyCustomers = allCustomers.filter((c) =>
+    c.customer_type === '태아' || c.baby_name
+  );
+
+  const petCustomers = allCustomers.filter((c) =>
+    c.customer_type === '펫' || c.pet_name
+  );
+
+  const taskCount =
+    todaySchedules.length +
+    birthdayCustomers.length +
+    carExpiringCustomers.length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
       {isMobile && (
-        <Header user={user} notifCount={3}
+        <Header
+          user={user}
+          notifCount={3}
           onNotif={() => onNavigate('notifications')}
-          onProfile={() => onNavigate('more')} />
+          onProfile={() => onNavigate('more')}
+        />
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: isMobile ? '16px 16px 24px' : '24px 0 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        <div style={{ paddingLeft: 2 }}>
-          <div style={{ fontSize: isMobile ? 18 : 24, fontWeight: 800, color: COLORS.text }}>{greeting}</div>
-          <div style={{ fontSize: 13, color: COLORS.textGray, marginTop: 4 }}>{formatDateKorean()}</div>
-        </div>
-
-        <Card>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: isMobile ? 15 : 17, color: COLORS.text }}>오늘의 한눈에 보기</div>
-            <button onClick={() => setShowScheduleForm(true)} style={{ background: COLORS.primary, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              📅 일정 등록
-            </button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: isMobile ? 8 : 16 }}>
-            {statItems.map((s, i) => <StatCard key={i} {...s} />)}
-          </div>
-        </Card>
-
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, alignItems: 'start' }}>
-          <Card>
-            <SectionHeader title="오늘의 일정" onViewAll={() => onNavigate('schedule')} />
-            {loading ? <LoadingSpinner /> :
-             schedules.length === 0 ? <EmptyState icon="📅" message="오늘 일정이 없습니다" /> :
-             schedules.map((s, i) => <ScheduleRow key={s.id||i} item={s} isLast={i===schedules.length-1} />)}
-          </Card>
-          <Card style={{ padding: 0 }}>
-            <div style={{ padding: '16px 16px 0' }}>
-              <SectionHeader title="최근 고객" onViewAll={() => onNavigate('customers')} />
-            </div>
-            {loading ? <LoadingSpinner /> :
-             customers.length === 0 ? <EmptyState icon="👥" message="고객이 없습니다" /> :
-             customers.map((c, i) => (
-               <CustomerCard key={c.id||i} customer={c} showDate={false} isLast={i===customers.length-1}
-                 onClick={() => onNavigate('customerDetail', { id: c.db_id || c.id })} />
-             ))}
-            <div style={{ height: 8 }} />
-          </Card>
-        </div>
-
-        {/* 보험사 고객센터 */}
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '16px 16px 0' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 12 }}>보험사 고객센터</div>
-          </div>
-          <div style={{ display: 'flex', borderBottom: `1px solid ${COLORS.border}`, marginBottom: 4 }}>
-            {[{ id: 'damage', label: '손해보험' }, { id: 'life', label: '생명보험' }].map(t => (
-              <button key={t.id} onClick={() => setInsuranceTab(t.id)} style={{
-                flex: 1, padding: '12px 0', background: 'none', border: 'none', cursor: 'pointer',
-                fontWeight: insuranceTab === t.id ? 700 : 400, fontSize: 14,
-                color: insuranceTab === t.id ? COLORS.primary : COLORS.textGray,
-                borderBottom: insuranceTab === t.id ? `2px solid ${COLORS.primary}` : '2px solid transparent',
-              }}>{t.label}</button>
-            ))}
-          </div>
-          {insuranceList.map((company, i) => (
-            <InsuranceRow key={i} company={company} isLast={i === insuranceList.length - 1} />
-          ))}
-          <div style={{ height: 8 }} />
-        </Card>
-
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          padding: isMobile ? '16px 16px 72px' : '28px 0 44px',
+        }}
+      >
+        {isMobile ? (
+          <MobileDashboard
+            userName={userName}
+            position={position}
+            loading={loading}
+            todaySchedules={todaySchedules}
+            recentCustomers={recentCustomers}
+            totalCustomers={totalCustomers}
+            taskCount={taskCount}
+            birthdayCustomers={birthdayCustomers}
+            carExpiringCustomers={carExpiringCustomers}
+            babyCustomers={babyCustomers}
+            petCustomers={petCustomers}
+            setShowScheduleForm={setShowScheduleForm}
+            onNavigate={onNavigate}
+          />
+        ) : (
+          <PcDashboard
+            userName={userName}
+            position={position}
+            loading={loading}
+            todaySchedules={todaySchedules}
+            recentCustomers={recentCustomers}
+            totalCustomers={totalCustomers}
+            taskCount={taskCount}
+            birthdayCustomers={birthdayCustomers}
+            carExpiringCustomers={carExpiringCustomers}
+            babyCustomers={babyCustomers}
+            petCustomers={petCustomers}
+            setShowScheduleForm={setShowScheduleForm}
+            onNavigate={onNavigate}
+          />
+        )}
       </div>
 
-      <ScheduleForm visible={showScheduleForm} onClose={() => setShowScheduleForm(false)}
-        onSave={() => { load(); setShowScheduleForm(false); }} dateStr={todayStr()} initial={null} />
+      <ScheduleForm
+        visible={showScheduleForm}
+        onClose={() => setShowScheduleForm(false)}
+        onSave={() => {
+          load();
+          setShowScheduleForm(false);
+        }}
+        dateStr={todayStr()}
+        initial={null}
+      />
+    </div>
+  );
+}
+
+function MobileDashboard({
+  userName,
+  position,
+  loading,
+  todaySchedules,
+  recentCustomers,
+  totalCustomers,
+  taskCount,
+  birthdayCustomers,
+  carExpiringCustomers,
+  babyCustomers,
+  petCustomers,
+  setShowScheduleForm,
+  onNavigate,
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 0 }}>
+      <div
+        style={{
+          background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
+          borderRadius: 24,
+          padding: '24px 20px',
+          color: '#fff',
+          boxShadow: '0 14px 34px rgba(124,58,237,0.28)',
+        }}
+      >
+        <div style={{ fontSize: 20, fontWeight: 900 }}>
+          👋 {userName}{position ? ` ${position}` : ''}님
+        </div>
+        <div style={{ fontSize: 13, opacity: 0.9, marginTop: 5 }}>
+          오늘도 좋은 하루 보내세요!
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 20 }}>
+          <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 18, padding: 16, color: COLORS.text }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.primary }}>오늘 일정</div>
+            <div style={{ fontSize: 24, fontWeight: 900, marginTop: 8 }}>{todaySchedules.length}건</div>
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 18, padding: 16, color: COLORS.text }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.primary }}>할 일</div>
+            <div style={{ fontSize: 24, fontWeight: 900, marginTop: 8 }}>{taskCount}건</div>
+          </div>
+        </div>
+      </div>
+
+      <DashboardSection
+        title="오늘의 주요 일정"
+        icon="📅"
+        right={
+          <button
+            onClick={() => setShowScheduleForm(true)}
+            style={{
+              border: 'none',
+              background: COLORS.primary,
+              color: '#fff',
+              borderRadius: 999,
+              padding: '7px 12px',
+              fontSize: 12,
+              fontWeight: 800,
+            }}
+          >
+            + 추가
+          </button>
+        }
+      >
+        {loading ? (
+          <LoadingSpinner />
+        ) : todaySchedules.length === 0 ? (
+          <EmptyState icon="📅" message="오늘 일정이 없습니다" />
+        ) : (
+          todaySchedules.slice(0, 4).map((s, i) => (
+            <ScheduleRow
+              key={s.id || i}
+              item={s}
+              isLast={i === Math.min(todaySchedules.length, 4) - 1}
+            />
+          ))
+        )}
+      </DashboardSection>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <MiniStatCard
+          icon={cakeImg}
+          title="오늘 생일"
+          value={`${birthdayCustomers.length}명`}
+          sub="고객 생일 확인"
+          bg="#FFF1F2"
+        />
+
+        <MiniStatCard
+          icon={carImg}
+          title="자동차 만기"
+          value={`${carExpiringCustomers.length}건`}
+          sub="30일 이내"
+          bg="#EFF6FF"
+        />
+
+        <MiniStatCard
+          icon={babyImg}
+          title="태아 D-day"
+          value={`${babyCustomers.length}명`}
+          sub="출산 예정 고객"
+          bg="#FFF7ED"
+        />
+
+        <MiniStatCard
+          icon={dogImg}
+          title="펫보험 고객"
+          value={`${petCustomers.length}명`}
+          sub="반려동물 고객 관리"
+          bg="#ECFDF5"
+        />
+      </div>
+
+      <DashboardSection title="최근 등록 고객" icon="👥">
+        {loading ? (
+          <LoadingSpinner />
+        ) : recentCustomers.length === 0 ? (
+          <EmptyState icon="👥" message="고객이 없습니다" />
+        ) : (
+          recentCustomers.map((c, i) => (
+            <CustomerMiniRow
+              key={c.id || i}
+              customer={c}
+              isLast={i === recentCustomers.length - 1}
+              onClick={() =>
+                onNavigate('customerDetail', {
+                  id: c.db_id || c.id,
+                })
+              }
+            />
+          ))
+        )}
+      </DashboardSection>
+
+      <div style={{ position: 'fixed', right: 22, bottom: 74, zIndex: 10 }}>
+        <button
+          onClick={() => setShowScheduleForm(true)}
+          style={{
+            width: 58,
+            height: 58,
+            borderRadius: '50%',
+            border: 'none',
+            background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)',
+            color: '#fff',
+            fontSize: 30,
+            boxShadow: '0 12px 28px rgba(124,58,237,0.38)',
+            cursor: 'pointer',
+          }}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PcDashboard({
+  userName,
+  position,
+  loading,
+  todaySchedules,
+  recentCustomers,
+  totalCustomers,
+  taskCount,
+  birthdayCustomers,
+  carExpiringCustomers,
+  babyCustomers,
+  petCustomers,
+  setShowScheduleForm,
+  onNavigate,
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>
+            👋 {userName}{position ? ` ${position}` : ''}님, 좋은 하루 보내세요!
+          </div>
+          <div style={{ fontSize: 14, color: COLORS.textGray, marginTop: 8 }}>
+            {formatDateKorean()}
+          </div>
+        </div>
+
+        <button
+          onClick={() => setShowScheduleForm(true)}
+          style={{
+            border: 'none',
+            background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)',
+            color: '#fff',
+            borderRadius: 14,
+            padding: '13px 18px',
+            fontSize: 14,
+            fontWeight: 900,
+            cursor: 'pointer',
+            boxShadow: '0 10px 26px rgba(124,58,237,0.25)',
+          }}
+        >
+          + 새 일정 등록
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        <MiniStatCard icon="📅" title="오늘 일정" value={`${todaySchedules.length}건`} sub="오늘 예정된 일정" bg="#F5F3FF" />
+        <MiniStatCard icon="✅" title="할 일" value={`${taskCount}건`} sub="오늘 처리할 업무" bg="#FFF1F2" />
+        <MiniStatCard icon="👥" title="전체 고객" value={`${totalCustomers}명`} sub="등록 고객 수" bg="#FFFBEB" />
+        <MiniStatCard icon="📈" title="유지율" value="92.1%" sub="전체 유지율" bg="#ECFDF5" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 1fr', gap: 18, alignItems: 'start' }}>
+        <DashboardSection title="오늘의 일정" icon="📅">
+          {loading ? (
+            <LoadingSpinner />
+          ) : todaySchedules.length === 0 ? (
+            <EmptyState icon="📅" message="오늘 일정이 없습니다" />
+          ) : (
+            todaySchedules.slice(0, 5).map((s, i) => (
+              <ScheduleRow
+                key={s.id || i}
+                item={s}
+                isLast={i === Math.min(todaySchedules.length, 5) - 1}
+              />
+            ))
+          )}
+        </DashboardSection>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <MiniStatCard
+            icon={cakeImg}
+            title="오늘 생일 고객"
+            value={`${birthdayCustomers.length}명`}
+            sub="생일 고객 리스트"
+            bg="#FFF1F2"
+          />
+
+          <MiniStatCard
+            icon={carImg}
+            title="자동차 만기 고객"
+            value={`${carExpiringCustomers.length}건`}
+            sub="30일 이내 만기"
+            bg="#EFF6FF"
+          />
+
+          <MiniStatCard
+            icon={babyImg}
+            title="태아 D-day"
+            value={`${babyCustomers.length}명`}
+            sub="출산 예정 고객"
+            bg="#FFF7ED"
+          />
+
+          <MiniStatCard
+            icon={dogImg}
+            title="펫보험 고객"
+            value={`${petCustomers.length}명`}
+            sub="반려동물 고객 관리"
+            bg="#ECFDF5"
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        <DashboardSection title="최근 등록 고객" icon="👥">
+          {loading ? (
+            <LoadingSpinner />
+          ) : recentCustomers.length === 0 ? (
+            <EmptyState icon="👥" message="고객이 없습니다" />
+          ) : (
+            recentCustomers.map((c, i) => (
+              <CustomerMiniRow
+                key={c.id || i}
+                customer={c}
+                isLast={i === recentCustomers.length - 1}
+                onClick={() =>
+                  onNavigate('customerDetail', {
+                    id: c.db_id || c.id,
+                  })
+                }
+              />
+            ))
+          )}
+        </DashboardSection>
+
+        <DashboardSection title="빠른 메뉴" icon="⚡">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <QuickButton icon="👤" label="고객 등록" onClick={() => onNavigate('customers')} />
+            <QuickButton icon="📅" label="일정 등록" onClick={() => setShowScheduleForm(true)} />
+            <QuickButton icon="🌳" label="소개트리" onClick={() => onNavigate('tree')} />
+            <QuickButton icon="📞" label="보험사 연락처" onClick={() => onNavigate('insuranceContact')} />
+          </div>
+        </DashboardSection>
+      </div>
     </div>
   );
 }

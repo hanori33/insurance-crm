@@ -25,45 +25,83 @@ function Calendar({
   month,
   selDay,
   today,
-  matrix,
   monthSchedules = [],
   onPrev,
   onNext,
-  onSelect
+  onSelect,
+  compact = false
 }) {
+  const firstDay = new Date(year, month, 1);
+  const startDay = firstDay.getDay();
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  const prevLastDate = new Date(year, month, 0).getDate();
+
+  const days = [];
+
+  for (let i = startDay - 1; i >= 0; i--) {
+    days.push({
+      day: prevLastDate - i,
+      current: false,
+    });
+  }
+
+  for (let d = 1; d <= lastDate; d++) {
+    days.push({
+      day: d,
+      current: true,
+    });
+  }
+
+  while (days.length % 7 !== 0) {
+    days.push({
+      day: days.length - startDay - lastDate + 1,
+      current: false,
+    });
+  }
+
+  const weeks = [];
+  for (let i = 0; i < days.length; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
+
   return (
-    <Card style={{ padding: 20 }}>
-      {/* 월 네비 */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 18
-      }}>
+    <Card
+      style={{
+        padding: compact ? '12x 4px' : '18px 14px',
+        marginLeft: compact ? -8 : 0,
+        marginRight: compact ? -8 : 0,
+      }}
+    >
+      {/* 헤더 */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 18,
+          padding: '0 8px',
+        }}
+      >
         <button
           onClick={onPrev}
           style={{
             background: 'none',
             border: 'none',
-            fontSize: 20,
+            fontSize: 22,
             cursor: 'pointer',
             color: COLORS.textGray,
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
           }}
         >
           ‹
         </button>
 
-        <span style={{
-          fontWeight: 700,
-          fontSize: 17,
-          color: COLORS.text
-        }}>
+        <span
+          style={{
+            fontWeight: 800,
+            fontSize: 20,
+            color: COLORS.text,
+          }}
+        >
           {year}년 {month + 1}월
         </span>
 
@@ -72,41 +110,37 @@ function Calendar({
           style={{
             background: 'none',
             border: 'none',
-            fontSize: 20,
+            fontSize: 22,
             cursor: 'pointer',
             color: COLORS.textGray,
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
           }}
         >
           ›
         </button>
       </div>
 
-      {/* 요일 헤더 */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(7,1fr)',
-        marginBottom: 8
-      }}>
+      {/* 요일 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          marginBottom: 8,
+        }}
+      >
         {DAY_LABELS.map((d, i) => (
           <div
             key={d}
             style={{
               textAlign: 'center',
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: 700,
               padding: '6px 0',
               color:
                 i === 0
-                  ? '#EF4444'
+                  ? '#FCA5A5'
                   : i === 6
-                  ? '#3B82F6'
-                  : COLORS.textGray,
+                  ? '#93C5FD'
+                  : '#9CA3AF',
             }}
           >
             {d}
@@ -115,20 +149,23 @@ function Calendar({
       </div>
 
       {/* 날짜 */}
-      {matrix.map((week, wi) => (
+      {weeks.map((week, wi) => (
         <div
           key={wi}
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(7,1fr)',
-            gap: 2,
-            marginBottom: 2
+            gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+            gap: 0,
           }}
         >
-          {week.map((day, di) => {
-            const isSel = day === selDay;
+          {week.map((cell, di) => {
+            const day = cell.day;
+            const isCurrent = cell.current;
+
+            const isSel = isCurrent && day === selDay;
 
             const isToday =
+              isCurrent &&
               day === today.getDate() &&
               month === today.getMonth() &&
               year === today.getFullYear();
@@ -136,86 +173,137 @@ function Calendar({
             const isSun = di === 0;
             const isSat = di === 6;
 
-            const dateKey = day
+            const dateKey = isCurrent
               ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
               : null;
 
             const daySchedules = dateKey
               ? monthSchedules.filter(
-                  s => (s.scheduled_at || '').slice(0, 10) === dateKey
+                  (s) =>
+                    (s.scheduled_at || '').slice(0, 10) === dateKey
                 )
               : [];
 
             return (
               <button
-                key={di}
-                disabled={!day}
-                onClick={() => day && onSelect(day)}
+                key={`${wi}-${di}`}
+                disabled={!isCurrent}
+                onClick={() => isCurrent && onSelect(day)}
                 style={{
-                  minHeight: 100,
-                  padding: '6px 4px',
-                  borderRadius: 12,
+                  minHeight: compact ? 56 : 88,
+                  padding: '5px 3px',
+                  borderRadius: 10,
                   border: isSel
                     ? `2px solid ${COLORS.primary}`
                     : '1px solid transparent',
-                  cursor: day ? 'pointer' : 'default',
                   background: isSel
                     ? COLORS.primaryBg
-                    : isToday
-                    ? '#F7F3FF'
                     : '#fff',
-                  color: !day
-                    ? 'transparent'
-                    : isToday
-                    ? COLORS.primary
-                    : isSun
-                    ? '#EF4444'
-                    : isSat
-                    ? '#3B82F6'
-                    : COLORS.text,
-                  fontWeight: (isSel || isToday) ? 700 : 400,
-                  fontSize: 13,
-                  lineHeight: 1.2,
-                  transition: 'all 0.15s',
-                  textAlign: 'left',
+                  cursor: isCurrent ? 'pointer' : 'default',
+
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  justifyContent: 'flex-start',
+
+                  gap: 3,
                   overflow: 'hidden',
                 }}
               >
                 {/* 날짜 숫자 */}
-                <div style={{
-                  marginBottom: 4,
-                  textAlign: 'center'
-                }}>
-                  {day || ''}
+                <div
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    paddingLeft: 2,
+                    fontSize: 13,
+                    fontWeight:
+                      isSel || isToday ? 800 : 500,
+
+                    color: !isCurrent
+                      ? isSun
+                        ? '#FECACA'
+                        : isSat
+                        ? '#BFDBFE'
+                        : '#D1D5DB'
+                      : isToday
+                      ? COLORS.primary
+                      : isSun
+                      ? '#F87171'
+                      : isSat
+                      ? '#60A5FA'
+                      : COLORS.text,
+                  }}
+                >
+                  {day}
                 </div>
 
                 {/* 일정 */}
-                {daySchedules.slice(0, 2).map((s, idx) => (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: 3,
+                    width: '100%',
+                  }}
+                >
+                  {daySchedules.slice(0, 2).map((s, idx) => {
+                    const cleanTitle = (
+                      s.title || ''
+                    ).replace(/^[^\s]+\s/, '');
+
+                    const icon =
+                      s.schedule_icon || '📌';
+
+                    return (
+                      <div
+                        key={s.id || idx}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          width: 'fit-content',
+                          maxWidth: '100%',
+
+                          background:
+                            s.color || '#E5D4FF',
+
+                          color: '#333',
+                          borderRadius: 999,
+                          padding: '2px 5px',
+                          fontSize: 10,
+                          lineHeight: 1.2,
+
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        <span style={{ marginRight: 2 }}>
+                          {icon}
+                        </span>
+
+                        <span
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {cleanTitle}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {daySchedules.length > 2 && (
                   <div
-                    key={s.id || idx}
                     style={{
-                      background: s.color || '#E5D4FF',
-                      color: '#333',
-                      borderRadius: 8,
-                      padding: '3px 5px',
-                      fontSize: 11,
-                      marginTop: 2,
-                      lineHeight: 1.2,
-minHeight: 18,
-                      
+                      fontSize: 10,
+                      color: COLORS.textGray,
+                      paddingLeft: 2,
                     }}
                   >
-                    {s.schedule_icon || '📌'} {s.title.replace(/^[^\s]+\s/, '')}
-                  </div>
-                ))}
-
-                {/* +더보기 */}
-                {daySchedules.length > 2 && (
-                  <div style={{
-                    fontSize: 10,
-                    color: COLORS.textGray,
-                    marginTop: 2
-                  }}>
                     +{daySchedules.length - 2}
                   </div>
                 )}
@@ -363,16 +451,17 @@ function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete })
                         onEdit(s);
                       }}
                       style={{
-                        border: 'none',
-                        background: COLORS.primaryBg,
-                        color: COLORS.primary,
-                        borderRadius: 8,
-                        width: 32,
-                        height: 28,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 800,
-                      }}
+  border: 'none',
+  background: '#EEF2FF',
+  color: COLORS.primary,
+  borderRadius: 999,
+  padding: '6px 12px',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+  minWidth: 52,
+}}
                     >
                       수정
                     </button>
@@ -384,16 +473,17 @@ function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete })
                         onDelete(s);
                       }}
                       style={{
-                        border: 'none',
-                        background: '#FEE2E2',
-                        color: '#DC2626',
-                        borderRadius: 8,
-                        width: 32,
-                        height: 28,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 800,
-                      }}
+  border: 'none',
+  background: '#FEE2E2',
+  color: '#DC2626',
+  borderRadius: 999,
+  padding: '6px 12px',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+  minWidth: 52,
+}}
                     >
                       삭제
                     </button>
@@ -473,83 +563,276 @@ async function loadDay() {
 
   // ── 모바일 레이아웃 ───────────────────────────
   if (isMobile) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <div style={{ background: COLORS.white, padding: '14px 20px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0, textAlign: 'center' }}>
-          <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>일정 관리</span>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 32px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Calendar year={year} month={month} selDay={selDay} today={today} matrix={matrix} onPrev={prevMonth} onNext={nextMonth} onSelect={setSelDay} monthSchedules={monthSchedules}/>
-
-          <div style={{ position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>{dayLabel} 일정</span>
-            </div>
-            <Card style={{ padding: 0 }}>
-              {loading ? <LoadingSpinner /> :
-               schedules.length === 0
-                 ? <EmptyState icon="📅" message="일정이 없습니다" sub="+ 버튼으로 추가하세요" />
-                 : schedules.map((s, i) => {
-                     const customerName = s.customers?.name || s.customer_name || '';
-                     return (
-                       <React.Fragment key={s.id || i}>
-                         <div onClick={() => { setEditItem(s); setShowForm(true); }} style={{ padding: '13px 16px', cursor: 'pointer' }}>
-                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                             <span style={{ fontWeight: 700, color: COLORS.primary, fontSize: 13, width: 44, flexShrink: 0 }}>{toTimeStr(s.scheduled_at)}</span>
-                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: COLORS.primary, display: 'inline-block', margin: '5px 4px 0', flexShrink: 0 }} />
-                             <div style={{ flex: 1 }}>
-                               <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text }}>{s.title}</div>
-                               {s.memo && (
-  <div style={{
-    fontSize: 12,
-    color: COLORS.textGray,
-    marginTop: 4,
-    lineHeight: 1.4,
-    whiteSpace: 'pre-wrap',
-  }}>
-    {s.memo}
-  </div>
-)}
-
-{s.next_action && (
-  <div style={{
-    marginTop: 6,
-    fontSize: 11,
-    color: COLORS.primary,
-    fontWeight: 600,
-  }}>
-    다음 액션: {s.next_action}
-  </div>
-)}
-                               {customerName && <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>{customerName} 고객</div>}
-                             </div>
-                             <span style={{ color: COLORS.textLight }}>›</span>
-                           </div>
-                         </div>
-                         {i < schedules.length - 1 && <Divider style={{ margin: '0 16px' }} />}
-                       </React.Fragment>
-                     );
-                   })
-              }
-              {/* FAB */}
-              <button onClick={() => { setEditItem(null); setShowForm(true); }} style={{
-                position: 'absolute', bottom: -26, right: 0,
-                width: 52, height: 52, borderRadius: '50%',
-                background: COLORS.primary, color: '#fff', border: 'none',
-                fontSize: 28, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 18px rgba(124,92,252,0.45)',
-              }}>+</button>
-            </Card>
-          </div>
-          <div style={{ height: 40 }} />
-        </div>
-
-        <ScheduleForm visible={showForm} onClose={() => { setShowForm(false); setEditItem(null); }} onSave={loadDay} dateStr={dateStr} initial={editItem} />
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100%',
+        overflow: 'visible',
+      }}
+    >
+      <div
+        style={{
+          background: COLORS.white,
+          padding: '14px 20px',
+          borderBottom: `1px solid ${COLORS.border}`,
+          flexShrink: 0,
+          textAlign: 'center',
+        }}
+      >
+        <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>
+          일정 관리
+        </span>
       </div>
-    );
-  }
+
+      <div
+        style={{
+          flex: 'none',
+          overflow: 'visible',
+          padding: '14px 16px 0',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <Calendar
+          year={year}
+          month={month}
+          selDay={selDay}
+          today={today}
+          onPrev={prevMonth}
+          onNext={nextMonth}
+          onSelect={setSelDay}
+          monthSchedules={monthSchedules}
+          compact={true}
+        />
+
+        <div style={{ position: 'relative' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>
+              {dayLabel} 일정
+            </span>
+
+            <button
+              onClick={() => {
+                setEditItem(null);
+                setShowForm(true);
+              }}
+              style={{
+                border: 'none',
+                background: COLORS.primary,
+                color: '#fff',
+                borderRadius: 999,
+                padding: '8px 12px',
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              + 추가
+            </button>
+          </div>
+
+          <Card style={{ padding: 0 }}>
+            {loading ? (
+              <LoadingSpinner />
+            ) : schedules.length === 0 ? (
+              <EmptyState
+                icon="📅"
+                message="일정이 없습니다"
+                sub="+ 추가 버튼으로 일정을 등록하세요"
+              />
+            ) : (
+              schedules.map((s, i) => {
+                const customerName = s.customers?.name || s.customer_name || '';
+                const cleanTitle = (s.title || '').replace(/^[^\s]+\s/, '');
+                const icon = s.schedule_icon || '📌';
+
+                return (
+                  <React.Fragment key={s.id || i}>
+                    <div
+                      onClick={() => {
+                        setEditItem(s);
+                        setShowForm(true);
+                      }}
+                      style={{
+                        padding: '13px 16px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                        }}
+                      >
+                        <div
+                          style={{
+                            background: s.color || COLORS.primaryBg,
+                            color: COLORS.primary,
+                            borderRadius: 12,
+                            padding: '8px 10px',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            minWidth: 52,
+                            textAlign: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {toTimeStr(s.scheduled_at)}
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: 14,
+                              color: COLORS.text,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {icon} {cleanTitle}
+                          </div>
+
+                          {customerName && (
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: COLORS.textGray,
+                                marginTop: 2,
+                              }}
+                            >
+                              {customerName} 고객
+                            </div>
+                          )}
+
+                          {s.memo && (
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: COLORS.textGray,
+                                marginTop: 4,
+                                lineHeight: 1.4,
+                                whiteSpace: 'pre-wrap',
+                              }}
+                            >
+                              {s.memo}
+                            </div>
+                          )}
+
+                          {s.next_action && (
+                            <div
+                              style={{
+                                marginTop: 6,
+                                fontSize: 11,
+                                color: COLORS.primary,
+                                fontWeight: 700,
+                              }}
+                            >
+                              다음 액션: {s.next_action}
+                            </div>
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 6,
+                            alignItems: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditItem(s);
+                              setShowForm(true);
+                            }}
+                            style={{
+                              border: 'none',
+                              background: '#EEF2FF',
+                              color: COLORS.primary,
+                              borderRadius: 999,
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            수정
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+
+                              if (window.confirm('일정을 삭제할까요?')) {
+                                await scheduleService.remove(s.id);
+                                loadDay();
+                                loadMonth();
+                              }
+                            }}
+                            style={{
+                              border: 'none',
+                              background: '#FEE2E2',
+                              color: '#DC2626',
+                              borderRadius: 999,
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {i < schedules.length - 1 && (
+                      <Divider style={{ margin: '0 16px' }} />
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </Card>
+        </div>
+      </div>
+
+      <ScheduleForm
+        visible={showForm}
+        onClose={() => {
+          setShowForm(false);
+          setEditItem(null);
+        }}
+        onSave={() => {
+          loadDay();
+          loadMonth();
+          setShowForm(false);
+          setEditItem(null);
+        }}
+        dateStr={dateStr}
+        initial={editItem}
+      />
+    </div>
+  );
+}
 
 
   // ── PC 레이아웃 ───────────────────────────────
@@ -558,20 +841,49 @@ async function loadDay() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0 40px' }}>
 
         {/* PC: 좌우 2컬럼 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: 24, alignItems: 'start' }}>
-          {/* 왼쪽: 달력 */}
-          <Calendar
-            year={year} month={month} selDay={selDay} today={today} matrix={matrix} monthSchedules={monthSchedules}
-            onPrev={prevMonth} onNext={nextMonth} onSelect={setSelDay}
-          />
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: '580px 1fr',
+    gap: 24,
+    alignItems: 'start',
+  }}
+>
+  {/* 왼쪽: 달력 */}
+  <Calendar
+    year={year}
+    month={month}
+    selDay={selDay}
+    today={today}
+    monthSchedules={monthSchedules}
+    onPrev={prevMonth}
+    onNext={nextMonth}
+    onSelect={setSelDay}
+    compact={false}
+  />
 
-          {/* 오른쪽: 일정 목록 */}
-          <ScheduleList
-            schedules={schedules} loading={loading} dayLabel={dayLabel}
-            onAdd={() => { setEditItem(null); setShowForm(true); }}
-            onEdit={(s) => { setEditItem(s); setShowForm(true); }}
-          />
-        </div>
+  {/* 오른쪽: 일정 목록 */}
+  <ScheduleList
+    schedules={schedules}
+    loading={loading}
+    dayLabel={dayLabel}
+    onAdd={() => {
+      setEditItem(null);
+      setShowForm(true);
+    }}
+    onEdit={(s) => {
+      setEditItem(s);
+      setShowForm(true);
+    }}
+    onDelete={async (s) => {
+      if (window.confirm('일정을 삭제할까요?')) {
+        await scheduleService.remove(s.id);
+        loadDay();
+        loadMonth();
+      }
+    }}
+  />
+</div>
       </div>
 
       <ScheduleForm visible={showForm} onClose={() => { setShowForm(false); setEditItem(null); }} onSave={loadDay} dateStr={dateStr} initial={editItem} />

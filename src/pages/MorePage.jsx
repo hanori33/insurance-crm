@@ -111,12 +111,10 @@ export default function MorePage({ user, onNavigate }) {
   }
 
   const menuItems = [
-    { icon: '✏️', label: '메모 관리',   onClick: () => setShowNote(true) },
-    { icon: '📋', label: '보험 이력',   onClick: () => {} },
-    { icon: '☁️', label: '백업 / 복원', onClick: () => {} },
-    { icon: '🔔', label: '알림 설정',   onClick: () => {} },
-    { icon: '📊', label: '통계',        onClick: () => onNavigate('sales') },
-    { icon: '⚙️', label: '설정',        onClick: () => {} },
+  { icon: '✏️', label: '메모 관리', onClick: () => setShowNote(true) },
+  { icon: '☁️', label: '백업 / 복원', onClick: () => alert('백업/복원 기능은 준비 중입니다.') },
+  { icon: '📊', label: '통계', onClick: () => onNavigate('sales') },
+  { icon: '⚙️', label: '설정', onClick: () => alert('설정 기능은 준비 중입니다.') },
   { icon: '📞', label: '보험사 고객센터', onClick: () => onNavigate('insuranceContact') },
   ];
 

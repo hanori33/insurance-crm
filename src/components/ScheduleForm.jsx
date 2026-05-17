@@ -18,6 +18,8 @@ const SCHEDULE_TYPES = [
 
 const REMINDER_OPTIONS = [
   { value: 'none', label: '알림 없음' },
+  { value: '1', label: '1분 전' },
+  { value: '5', label: '5분 전' },
   { value: '10', label: '10분 전' },
   { value: '30', label: '30분 전' },
   { value: '60', label: '1시간 전' },
@@ -84,7 +86,7 @@ const [selectedColor, setSelectedColor] = useState(
         title: `${selectedEmoji} ${title.trim()}`,
         color: selectedColor,
         customer_name: customer.trim(),
-        scheduled_at: `${dateStr}T${time}:00`,
+        scheduled_at: `${dateStr} ${time}:00`,
 
         schedule_type: scheduleType,
         schedule_icon: selectedEmoji,

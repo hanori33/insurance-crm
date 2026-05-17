@@ -7,7 +7,17 @@ function dbToCustomer(c) {
     app_customer_id: c.app_customer_id,
     name: c.name || "",
     phone: c.phone || "",
-    birth: c.birth || "",
+    birth:
+  c.birth ||
+  c.birth_date ||
+  c.birthday ||
+  c.birthDate ||
+  (c.ssn ? c.ssn.substring(0, 6) : "") ||
+  "",
+
+ssn_masked: c.ssn
+  ? `${c.ssn.substring(0, 6)}-${c.ssn.substring(7, 8)}******`
+  : "",
     email: c.email || "",
     memo: c.memo || "",
     status: c.status || "가망",
@@ -24,6 +34,7 @@ function dbToCustomer(c) {
     referrer_app_id: c.referrer_app_id || "",
     tags: c.tags || [],
     relation_type: c.relation_type || "",
+    policies: Array.isArray(c.policies) ? c.policies : [],
     created_at: c.created_at || "",
   };
 }
@@ -34,7 +45,7 @@ function customerToDb(userId, customer) {
     app_customer_id: customer.app_customer_id || customer.id || Date.now(),
     name: customer.name || "",
     phone: customer.phone || "",
-    birth: customer.birth || "",
+    birth: customer.birth || customer.birth_date || customer.birthday || customer.birthDate || "",
     email: customer.email || "",
     memo: customer.memo || "",
     status: customer.status || "가망",
@@ -48,9 +59,12 @@ function customerToDb(userId, customer) {
     age_date: customer.age_date || "",
     car_number: customer.car_number || "",
     car_expiry: customer.car_expiry || "",
-    referrer_app_id: customer.referrer_app_id ? Number(customer.referrer_app_id) : null,
+    referrer_app_id: customer.referrer_app_id || null,
     tags: Array.isArray(customer.tags) ? customer.tags : [],
     relation_type: customer.relation_type || "",
+    policies: Array.isArray(customer.policies)
+  ? customer.policies
+  : [],
   };
 }
 
@@ -59,7 +73,7 @@ export async function getCustomers(userId) {
     .from("customers")
     .select("*")
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("name", { ascending: true });
 
   if (error) throw error;
   return (data || []).map(dbToCustomer);
@@ -154,29 +168,155 @@ export async function upsertCustomersFromExcel(userId, parsedCustomers, currentC
 }
 
 const customerService = {
-  list: ({ status, search } = {}) => getCustomers(null).then(data => {
-    let result = data || [];
-    if (status && status !== '전체') result = result.filter(c => c.status === status);
-    if (search) result = result.filter(c => c.name?.includes(search) || c.phone?.includes(search));
+  list: async ({ status, search } = {}) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return [];
+
+    let result = await getCustomers(user.id);
+
+    if (status && status !== '전체') {
+      result = result.filter(c => c.status === status);
+    }
+
+    if (search) {
+      result = result.filter(
+        c =>
+          c.name?.includes(search) ||
+          c.phone?.includes(search)
+      );
+    }
+
     return result;
-  }),
-  get: async (id) => {
-    const { data, error } = await supabase.from('customers').select('*').eq('id', id).single();
-    if (error) throw error;
-    return data;
   },
-  update: (id, payload) => updateCustomer({ ...payload, id }),
-  remove: (id) => deleteCustomer(id),
+
+ get: async (id) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('로그인이 필요합니다.');
+
+  let query = supabase
+    .from('customers')
+    .select('*')
+    .eq('user_id', user.id);
+
+  if (String(id).includes('-')) {
+    query = query.eq('id', id);
+  } else {
+    query = query.eq('app_customer_id', Number(id));
+  }
+
+  const { data, error } = await query.single();
+
+  if (error) throw error;
+
+  return dbToCustomer(data);
+},
+
+  bulkCreate: async (customers) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error('로그인이 필요합니다.');
+
+    const current = await getCustomers(user.id);
+
+    return await upsertCustomersFromExcel(
+      user.id,
+      customers,
+      current
+    );
+  },
+
+update: async (id, payload) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('로그인이 필요합니다.');
+
+  const updatePayload = customerToDb(user.id, payload);
+
+  // app_customer_id는 기존 고객 고유번호라 수정 때 건드리면 안 됨
+  delete updatePayload.app_customer_id;
+
+  let query = supabase
+    .from('customers')
+    .update(updatePayload)
+    .eq('user_id', user.id);
+
+  if (String(id).includes('-')) {
+    query = query.eq('id', id);
+  } else {
+    query = query.eq('app_customer_id', Number(id));
+  }
+
+  const { data, error } = await query
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return dbToCustomer(data);
+},
+
+  remove: async (id) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error('로그인이 필요합니다.');
+
+    return await deleteCustomer(id, user.id);
+  },
+
   recent: async (limit = 3) => {
-    const { data, error } = await supabase.from('customers').select('id, name, phone, status, birth, updated_at, created_at').order('updated_at', { ascending: false, nullsFirst: false }).limit(limit);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, phone, status, birth, updated_at, created_at')
+      .eq('user_id', user.id)
+      .order('updated_at', {
+        ascending: false,
+        nullsFirst: false,
+      })
+      .limit(limit);
+
     if (error) throw error;
+
     return data || [];
   },
+
   statusCounts: async () => {
-    const { data, error } = await supabase.from('customers').select('status');
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return {};
+
+    const { data, error } = await supabase
+      .from('customers')
+      .select('status')
+      .eq('user_id', user.id);
+
     if (error) throw error;
+
     const counts = {};
-    (data || []).forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+
+    (data || []).forEach(r => {
+      counts[r.status] = (counts[r.status] || 0) + 1;
+    });
+
     return counts;
   },
 };

@@ -49,13 +49,34 @@ export function SectionHeader({ title, onViewAll }) {
 
 export function FilterChip({ label, active, onClick }) {
   return (
-    <button onClick={onClick} style={{
-      padding: '7px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-      background: active ? COLORS.primary : COLORS.white,
-      color: active ? '#fff' : COLORS.textGray,
-      fontWeight: active ? 700 : 400, fontSize: 13,
-      boxShadow: active ? 'none' : `inset 0 0 0 1px ${COLORS.border}`,
-    }}>{label}</button>
+    <button
+      onClick={onClick}
+      style={{
+        padding: '6px 11px',
+        borderRadius: 16,
+        border: 'none',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+
+        background: active
+          ? COLORS.primary
+          : COLORS.white,
+
+        color: active
+          ? '#fff'
+          : COLORS.textGray,
+
+        fontWeight: active ? 700 : 500,
+        fontSize: 12,
+
+        boxShadow: active
+          ? 'none'
+          : `inset 0 0 0 1px ${COLORS.border}`,
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
