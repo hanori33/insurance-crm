@@ -469,12 +469,73 @@ function MobileDashboard({
           boxShadow: '0 14px 34px rgba(124,58,237,0.28)',
         }}
       >
-        <div style={{ fontSize: 20, fontWeight: 900 }}>
-          👋 {userName}{position ? ` ${position}` : ''}님
-        </div>
-        <div style={{ fontSize: 13, opacity: 0.9, marginTop: 5 }}>
-          오늘도 좋은 하루 보내세요!
-        </div>
+        <div
+  style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  }}
+>
+  <div>
+    <div
+      style={{
+        fontSize: 23,
+        fontWeight: 600,
+        lineHeight: 1.05,
+      }}
+    >
+      👋 {userName}{position ? ` ${position}` : ''}님
+    </div>
+
+    <div
+      style={{
+        fontSize: 15,
+        opacity: 0.92,
+        marginTop: 9,
+      }}
+    >
+      오늘도 좋은 하루 보내세요~!
+    </div>
+  </div>
+
+  <div
+  
+  style={{
+    textAlign: 'right',
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingTop: 0,
+    minWidth: 108,
+  }}
+>
+    <div
+      style={{
+        fontSize: 14,
+        fontWeight: 500,
+        lineHeight: 1.1,
+        opacity: 0.95,
+      }}
+    >
+      {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 {new Date().getDate()}일
+    </div>
+
+    <div
+      style={{
+        fontSize: 18,
+        fontWeight: 400,
+        marginTop: 5,
+        letterSpacing: -0.3,
+        lineHeight: 1,
+      }}
+    >
+      {['일','월','화','수','목','금','토'][new Date().getDay()]}요일
+    </div>
+  </div>
+</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 20 }}>
           <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 18, padding: 16, color: COLORS.text }}>
@@ -553,7 +614,8 @@ function MobileDashboard({
           icon={dogImg}
           title="펫보험 고객"
           value={`${petCustomers.length}명`}
-          sub="반려동물 고객 관리"
+          sub="반려동물 
+          고객관리"
           bg="#ECFDF5"
         />
       </div>
