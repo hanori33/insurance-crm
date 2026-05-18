@@ -43,45 +43,48 @@ function ProfileEditModal({ visible, onClose, profile, onSave }) {
     reader.readAsDataURL(f);
   }
 
-  async function handleSave() {
-    if (!name.trim()) return;
-    setLoading(true);
-    try {
-      let uploadedUrl = photoUrl;
+   async function handleSave() {
+  if (!name.trim()) return;
+  setLoading(true);
+  try {
+    let uploadedUrl = photoUrl;
 
-      // ✅ 새 파일이 있으면 Storage에 업로드
-      if (file) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const ext = file.name.split('.').pop();
-        const path = `avatars/${user.id}.${ext}`;
+    if (file) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const ext = file.name.split('.').pop();
+      const path = `avatars/${user.id}.${ext}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('profiles')
-          .upload(path, file, { upsert: true });
+      const { error: uploadError } = await supabase.storage
+        .from('profiles')
+        .upload(path, file, { upsert: true });
 
-        if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage
-          .from('profiles')
-          .getPublicUrl(path);
+      const { data: urlData } = supabase.storage
+        .from('profiles')
+        .getPublicUrl(path);
 
-        uploadedUrl = urlData.publicUrl;
-      }
-
-      const { error } = await supabase.auth.updateUser({
-        data: { display_name: name, position, photo_url: uploadedUrl },
-      });
-
-      if (error) throw error;
-      onSave({ name, position, photoUrl: uploadedUrl });
-      onClose();
-    } catch(e) {
-      console.error(e);
-      alert('저장 중 오류가 발생했습니다: ' + e.message);
-    } finally {
-      setLoading(false);
+      uploadedUrl = urlData.publicUrl;
     }
+
+    const { error } = await supabase.auth.updateUser({
+      data: { display_name: name, position, photo_url: uploadedUrl },
+    });
+
+    if (error) throw error;
+
+    // ✅ 세션 강제 갱신 - 헤더/사이드바에 즉시 반영
+    await supabase.auth.refreshSession();
+
+    onSave({ name, position, photoUrl: uploadedUrl });
+    onClose();
+  } catch(e) {
+    console.error(e);
+    alert('저장 중 오류가 발생했습니다: ' + e.message);
+  } finally {
+    setLoading(false);
   }
+} 
 
   return (
     <Modal visible={visible} onClose={onClose} title="프로필 수정">

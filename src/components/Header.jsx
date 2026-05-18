@@ -5,6 +5,8 @@ import { Avatar } from './Common';
 
 export default function Header({ user, notifCount = 0, onNotif, onProfile }) {
   const name = user?.user_metadata?.display_name || user?.email || '?';
+  const photoUrl = user?.user_metadata?.photo_url || '';
+
   return (
     <div style={{
       background: 'linear-gradient(160deg,#EDE9FF,#F3EEFF)',
@@ -20,29 +22,21 @@ export default function Header({ user, notifCount = 0, onNotif, onProfile }) {
           <img
             src="/boplan192.png"
             alt="보플랜"
-            style={{
-              width: 32, height: 32,
-              borderRadius: 8,
-              objectFit: 'cover',
-            }}
+            style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }}
             onError={e => {
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'flex';
             }}
           />
-          {/* fallback */}
           <div style={{
-            display: 'none',
-            width: 32, height: 32, borderRadius: 8,
+            display: 'none', width: 32, height: 32, borderRadius: 8,
             background: 'linear-gradient(135deg,#8B5CF6,#7C3AED)',
             alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 900, fontSize: 16,
           }}>b</div>
-
-          <span style={{
-            fontWeight: 800, fontSize: 18,
-            color: COLORS.primary, letterSpacing: -0.3,
-          }}>보플랜</span>
+          <span style={{ fontWeight: 800, fontSize: 18, color: COLORS.primary, letterSpacing: -0.3 }}>
+            보플랜
+          </span>
         </div>
 
         {/* 알림 + 프로필 */}
@@ -61,8 +55,18 @@ export default function Header({ user, notifCount = 0, onNotif, onProfile }) {
               }}>{notifCount}</span>
             )}
           </button>
+
+          {/* ✅ 프로필 사진 or 이니셜 */}
           <button onClick={onProfile} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-            <Avatar name={name} size={32} />
+            {photoUrl ? (
+              <img
+                src={photoUrl}
+                alt={name}
+                style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <Avatar name={name} size={42} />
+            )}
           </button>
         </div>
       </div>

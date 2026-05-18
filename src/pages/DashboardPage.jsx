@@ -473,18 +473,7 @@ function PcDashboard({
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>
-            👋 {userName}{position ? ` ${position}` : ''}님, 좋은 하루 보내세요!
-          </div>
-          <div style={{ fontSize: 14, color: COLORS.textGray, marginTop: 8 }}>
-            {formatDateKorean()}
-          </div>
-        </div>
-        
-      </div>
-
+      
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         <MiniStatCard icon="📅" title="오늘 일정" value={`${todaySchedules.length}건`} sub="오늘 예정된 일정" bg="#F5F3FF"
   onClick={() => onNavigate('schedule')}

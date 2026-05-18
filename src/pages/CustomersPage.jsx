@@ -61,14 +61,19 @@ function parseCsv(text) {
   }).filter(c => c.name || c.phone);
 }
 
-export default function CustomersPage({ onNavigate, initialFilter }) {
+export default function CustomersPage({ onNavigate, initialFilter, initialSearch }) {
   const [filter, setFilter] = useState(initialFilter || '전체');
+  const [search, setSearch] = useState(initialSearch || ''); // ✅ initialSearch로 초기화
+
   useEffect(() => {
-  if (initialFilter) {
-    setFilter(initialFilter);
-  }
-}, [initialFilter]);
-  const [search, setSearch] = useState('');
+    if (initialFilter) setFilter(initialFilter);
+  }, [initialFilter]);
+
+  // ✅ 추가
+  useEffect(() => {
+  if (initialSearch !== undefined) setSearch(initialSearch);
+}, [initialSearch]);
+  
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
