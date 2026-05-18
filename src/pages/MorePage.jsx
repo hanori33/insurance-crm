@@ -23,6 +23,7 @@ function ProfileEditModal({ visible, onClose, profile, onSave }) {
   const [photoUrl, setPhotoUrl] = useState(profile.photoUrl || '');
   const [preview, setPreview]   = useState(profile.photoUrl || '');
   const [loading, setLoading]   = useState(false);
+  const [file, setFile]         = useState(null); // ✅ 추가
   const fileRef = useRef();
 
   useEffect(() => {
@@ -30,28 +31,56 @@ function ProfileEditModal({ visible, onClose, profile, onSave }) {
     setPosition(profile.position || '');
     setPhotoUrl(profile.photoUrl || '');
     setPreview(profile.photoUrl || '');
+    setFile(null); // ✅ 추가
   }, [profile, visible]);
 
   function handleFileChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const f = e.target.files[0];
+    if (!f) return;
+    setFile(f); // ✅ 파일 객체 저장
     const reader = new FileReader();
-    reader.onload = ev => { setPreview(ev.target.result); setPhotoUrl(ev.target.result); };
-    reader.readAsDataURL(file);
+    reader.onload = ev => setPreview(ev.target.result); // 미리보기만 base64
+    reader.readAsDataURL(f);
   }
 
   async function handleSave() {
     if (!name.trim()) return;
     setLoading(true);
     try {
+      let uploadedUrl = photoUrl;
+
+      // ✅ 새 파일이 있으면 Storage에 업로드
+      if (file) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const ext = file.name.split('.').pop();
+        const path = `avatars/${user.id}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('profiles')
+          .upload(path, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('profiles')
+          .getPublicUrl(path);
+
+        uploadedUrl = urlData.publicUrl;
+      }
+
       const { error } = await supabase.auth.updateUser({
-        data: { display_name: name, position, photo_url: photoUrl },
+        data: { display_name: name, position, photo_url: uploadedUrl },
       });
+
       if (error) throw error;
-      onSave({ name, position, photoUrl });
+      onSave({ name, position, photoUrl: uploadedUrl });
       onClose();
-    } catch(e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch(e) {
+      console.error(e);
+      alert('저장 중 오류가 발생했습니다: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

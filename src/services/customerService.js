@@ -7,6 +7,7 @@ function dbToCustomer(c) {
     app_customer_id: c.app_customer_id,
     name: c.name || "",
     phone: c.phone || "",
+    ssn: c.ssn || "",
     birth:
   c.birth ||
   c.birth_date ||
