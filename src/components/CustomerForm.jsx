@@ -39,8 +39,9 @@ export default function CustomerForm({
 
       pet_name: '',
       baby_name: '',
-
+due_date: '',  // ✅ 추가
       car_number: '',
+car_expiry: '',  // ✅ 추가
 
       relation_type: '',
       referrer_app_id: '',
@@ -251,7 +252,13 @@ export default function CustomerForm({
           set('car_number', e.target.value)
         }
       />
-
+{/* ✅ 추가 */}
+<Field
+  icon="📅"
+  placeholder="자동차 만기일 (예: 2026-05-15)"
+  value={form.car_expiry}
+  onChange={(e) => set('car_expiry', e.target.value)}
+/>
       <Field
         icon="🐾"
         placeholder="반려동물명"
@@ -269,6 +276,15 @@ export default function CustomerForm({
           set('baby_name', e.target.value)
         }
       />
+      {/* ✅ 추가 */}
+{(form.customer_type === '태아' || form.baby_name) && (
+  <Field
+    icon="📅"
+    placeholder="출산예정일 (예: 2026-08-15)"
+    value={form.due_date || ''}
+    onChange={(e) => set('due_date', e.target.value)}
+  />
+)}
 
       {/* 관계 */}
       <div style={{ marginBottom: 14 }}>

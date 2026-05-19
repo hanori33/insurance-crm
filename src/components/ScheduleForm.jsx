@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
 import Modal from './Modal';
 import Field from './Field';
@@ -44,35 +44,47 @@ const COLOR_OPTIONS = [
 
 export default function ScheduleForm({ visible, onClose, onSave, dateStr, initial = null }) {
   const isEdit = !!initial;
-
   const defaultTime = initial?.scheduled_at
     ? new Date(initial.scheduled_at).toTimeString().slice(0, 5)
     : '09:00';
-
   const [title, setTitle] = useState(initial?.title || '');
   const [customer, setCustomer] = useState(initial?.customer_name || '');
   const [time, setTime] = useState(defaultTime);
-
   const [scheduleType, setScheduleType] = useState(initial?.schedule_type || 'phone');
-  const [selectedEmoji, setSelectedEmoji] = useState(
-  initial?.schedule_icon || '📞'
-);
-
-const [selectedColor, setSelectedColor] = useState(
-  initial?.color || '#E5D4FF'
-);
+  const [selectedEmoji, setSelectedEmoji] = useState(initial?.schedule_icon || '📞');
+  const [selectedColor, setSelectedColor] = useState(initial?.color || '#E5D4FF');
   const [memo, setMemo] = useState(initial?.memo || '');
   const [nextAction, setNextAction] = useState(initial?.next_action || '');
   const [reminderMinutes, setReminderMinutes] = useState(
     initial?.reminder_minutes ? String(initial.reminder_minutes) : 'none'
   );
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // ✅ 추가
+  useEffect(() => {
+    if (visible) {
+      const t = initial?.scheduled_at
+        ? new Date(initial.scheduled_at).toTimeString().slice(0, 5)
+        : '09:00';
+      const rawTitle = initial?.title || '';
+      const cleanTitle = rawTitle.replace(/^[\p{Emoji}\s]+/u, '').trim();
+      setTitle(cleanTitle);
+      setCustomer(initial?.customer_name || '');
+      setTime(t);
+      setScheduleType(initial?.schedule_type || 'phone');
+      setSelectedEmoji(initial?.schedule_icon || '📞');
+      setSelectedColor(initial?.color || '#E5D4FF');
+      setMemo(initial?.memo || '');
+      setNextAction(initial?.next_action || '');
+      setReminderMinutes(initial?.reminder_minutes ? String(initial.reminder_minutes) : 'none');
+      setError('');
+    }
+  }, [visible, initial]);
+
   const selectedType = SCHEDULE_TYPES.find(t => t.value === scheduleType) || SCHEDULE_TYPES[0];
 
-  async function handleSave() {
+    async function handleSave() {
     if (!title.trim()) {
       setError('일정 제목을 입력하세요');
       return;

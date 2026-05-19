@@ -117,23 +117,25 @@ function EditModal({ visible, onClose, customer, onSave }) {
   useEffect(() => {
     if (customer) {
       setForm({
-        name: customer.name || '',
-        phone: customer.phone || '',
-        status: customer.status || '상담중',
-        birth: customer.birth || '',
-        email: customer.email || '',
-        memo: customer.memo || '',
-        job: customer.job || '',
-        address: customer.address || '',
-        customer_type: customer.customer_type || '일반',
-        pet_name: customer.pet_name || '',
-        baby_name: customer.baby_name || '',
-        transfer_day: customer.transfer_day || '',
-        car_number: customer.car_number || '',
-        relation_type: customer.relation_type || '',
-        referrer_app_id: customer.referrer_app_id || '',
-        policies: Array.isArray(customer.policies) ? customer.policies : [],
-      });
+  name: customer.name || '',
+  phone: customer.phone || '',
+  status: customer.status || '상담중',
+  birth: customer.birth || '',
+  email: customer.email || '',
+  memo: customer.memo || '',
+  job: customer.job || '',
+  address: customer.address || '',
+  customer_type: customer.customer_type || '일반',
+  pet_name: customer.pet_name || '',
+  baby_name: customer.baby_name || '',
+  due_date: customer.due_date || '',   // ✅ 추가
+  transfer_day: customer.transfer_day || '',
+  car_number: customer.car_number || '',
+  car_expiry: customer.car_expiry || '',  // ✅ 추가
+  relation_type: customer.relation_type || '',
+  referrer_app_id: customer.referrer_app_id || '',
+  policies: Array.isArray(customer.policies) ? customer.policies : [],
+});
 
       setNewPolicy({
         company: '',
@@ -420,12 +422,18 @@ function EditModal({ visible, onClose, customer, onSave }) {
         <span style={{ fontSize: 13, color: COLORS.textGray }}>차량번호</span>
         <Field icon="🚗" placeholder="차량번호" value={form.car_number || ''} onChange={(e) => set('car_number', e.target.value)} />
 
+<span style={{ fontSize: 13, color: COLORS.textGray }}>자동차 만기일</span>
+<Field icon="📅" placeholder="자동차 만기일 (예: 2026-05-15)" value={form.car_expiry || ''} onChange={(e) => set('car_expiry', e.target.value)} />
+
         <span style={{ fontSize: 13, color: COLORS.textGray }}>반려동물명</span>
         <Field icon="🐶" placeholder="반려동물명" value={form.pet_name || ''} onChange={(e) => set('pet_name', e.target.value)} />
 
         <span style={{ fontSize: 13, color: COLORS.textGray }}>태아/자녀명</span>
         <Field icon="👶" placeholder="태아/자녀명" value={form.baby_name || ''} onChange={(e) => set('baby_name', e.target.value)} />
 
+<span style={{ fontSize: 13, color: COLORS.textGray }}>출산예정일</span>
+<Field icon="🍼" placeholder="출산예정일 (예: 2026-08-15)" value={form.due_date || ''} onChange={(e) => set('due_date', e.target.value)} />
+       
         <span style={{ fontSize: 13, color: COLORS.textGray, marginTop: 8 }}>보험 이력</span>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
@@ -656,9 +664,11 @@ export default function CustomerDetailPage({ customerId, onBack }) {
           {(val(customer.pet_name) || val(customer.baby_name) || val(customer.car_number) || val(customer.transfer_day)) && (
             <Section title="추가 정보" icon="📋">
               {val(customer.pet_name) && <InfoRow label="🐶 반려동물" value={customer.pet_name} />}
-              {val(customer.baby_name) && <InfoRow label="👶 태아/자녀" value={customer.baby_name} />}
-              {val(customer.car_number) && <InfoRow label="🚗 차량번호" value={customer.car_number} />}
-              {val(customer.transfer_day) && <InfoRow label="💳 이체일" value={customer.transfer_day} isLast />}
+{val(customer.baby_name) && <InfoRow label="👶 태아/자녀" value={customer.baby_name} />}
+{val(customer.due_date) && <InfoRow label="🍼 출산예정일" value={customer.due_date} />}  {/* ✅ 추가 */}
+{val(customer.car_number) && <InfoRow label="🚗 차량번호" value={customer.car_number} />}
+{val(customer.car_expiry) && <InfoRow label="📅 자동차만기" value={customer.car_expiry} />}  {/* ✅ 추가 */}
+{val(customer.transfer_day) && <InfoRow label="💳 이체일" value={customer.transfer_day} isLast />}
             </Section>
           )}
 

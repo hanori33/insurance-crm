@@ -32,6 +32,7 @@ ssn_masked: c.ssn
     age_date: c.age_date || "",
     car_number: c.car_number || "",
     car_expiry: c.car_expiry || "",
+   due_date: c.due_date || '',  // ✅ 추가
     referrer_app_id: c.referrer_app_id || "",
     tags: c.tags || [],
     relation_type: c.relation_type || "",
@@ -60,6 +61,7 @@ function customerToDb(userId, customer) {
     age_date: customer.age_date || "",
     car_number: customer.car_number || "",
     car_expiry: customer.car_expiry || "",
+    due_date: customer.due_date || '',  // ✅ 추가
     referrer_app_id: customer.referrer_app_id || null,
     tags: Array.isArray(customer.tags) ? customer.tags : [],
     relation_type: customer.relation_type || "",
@@ -169,6 +171,27 @@ export async function upsertCustomersFromExcel(userId, parsedCustomers, currentC
 }
 
 const customerService = {
+  create: async (customer) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error('로그인이 필요합니다.');
+
+    const payload = customerToDb(user.id, {
+      ...customer,
+      app_customer_id: customer.app_customer_id || Date.now(),
+    });
+
+    const { data, error } = await supabase
+      .from('customers')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return dbToCustomer(data);
+  },
   list: async ({ status, search } = {}) => {
     const {
       data: { user },

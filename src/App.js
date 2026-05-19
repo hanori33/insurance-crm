@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { COLORS } from './constants';
 import authService from './services/authService';
 import scheduleService from './services/scheduleService';
+import customerService from './services/customerService'; // ✅ 추가
 import { formatDateKorean } from './utils';
 import LoginScreen from './components/LoginScreen';
 import BottomTabBar from './components/BottomTabBar';
@@ -70,6 +71,7 @@ export default function App() {
   const [customersFilter, setCustomersFilter] = useState('전체');
 const [headerSearch, setHeaderSearch] = useState('');
 const [customersSearch, setCustomersSearch] = useState(''); // ✅ 추가 
+const [notifCount, setNotifCount] = useState(0); // ✅ 추가
 useEffect(() => {
     authService.getSession().then(s => setSession(s));
     const { data: { subscription } } = authService.onAuthStateChange((_e, s) => {
@@ -119,6 +121,45 @@ useEffect(() => {
     }, 5000);
     return () => clearInterval(interval);
   }, [session, notifiedIds]);
+
+  useEffect(() => {
+  if (!session) return;
+  loadNotifCount();
+}, [session]);
+
+async function loadNotifCount() {
+  try {
+    const [schedules, customers] = await Promise.all([
+      scheduleService.today().catch(() => []),
+      customerService.list({ status: '전체', search: '' }).catch(() => []),
+    ]);
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1;
+    const todayDate = today.getDate();
+    const todayMMDD = `${String(todayMonth).padStart(2, '0')}-${String(todayDate).padStart(2, '0')}`;
+    let count = 0;
+    count += schedules.length;
+    customers.forEach(c => {
+      const raw = String(c.ssn || c.birth || '').trim();
+      const ssnMatch = raw.match(/^(\d{2})(\d{2})(\d{2})/);
+      if (ssnMatch && `${ssnMatch[2]}-${ssnMatch[3]}` === todayMMDD) count++;
+      const isoMatch = raw.match(/\d{4}[-./](\d{2})[-./](\d{2})/);
+      if (isoMatch && `${isoMatch[1]}-${isoMatch[2]}` === todayMMDD) count++;
+    });
+    customers.forEach(c => {
+      if (!c.car_expiry) return;
+      const target = new Date(c.car_expiry);
+      if (isNaN(target.getTime())) return;
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+      const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      if (d >= 0 && d <= 30) count++;
+    });
+    setNotifCount(count);
+  } catch (e) {
+    console.error(e);
+  }
+}
 
   function navigate(page, payload) {
     if (page === 'customers') {
@@ -227,19 +268,25 @@ useEffect(() => {
           boxShadow: '2px 0 12px rgba(124,92,252,0.06)',
         }}>
           {/* 로고 */}
-          <div style={{ padding: '24px 20px 16px', borderBottom: `1px solid ${COLORS.border}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src="/boplan192.png" alt="보플랜"
-                style={{ width: 36, height: 36, borderRadius: 10 }}
-                onError={e => { e.target.style.display = 'none'; }}
-              />
-              <div>
-                <div style={{ fontWeight: 900, fontSize: 18, color: COLORS.primary }}>보플랜</div>
-                <div style={{ fontSize: 11, color: COLORS.textGray }}>보험설계사 CRM</div>
-              </div>
-            </div>
-          </div>
-
+<div
+  onClick={() => changeTab('home')}
+  style={{
+    padding: '24px 20px 16px',
+    borderBottom: `1px solid ${COLORS.border}`,
+    cursor: 'pointer',
+  }}
+>
+  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <img src="/boplan192.png" alt="보플랜"
+      style={{ width: 36, height: 36, borderRadius: 10 }}
+      onError={e => { e.target.style.display = 'none'; }}
+    />
+    <div>
+      <div style={{ fontWeight: 900, fontSize: 18, color: COLORS.primary }}>보플랜</div>
+      <div style={{ fontSize: 11, color: COLORS.textGray }}>보험설계사 CRM</div>
+    </div>
+  </div>
+</div>
           {/* 메뉴 */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px' }}>
             {[
@@ -266,15 +313,15 @@ useEffect(() => {
                 }}
               >
                 <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{tab.icon}</span>
-                {tab.label}
-                {tab.id === 'notifications' && (
-                  <span style={{
-                    marginLeft: 'auto', background: COLORS.primary,
-                    color: '#fff', borderRadius: 999, padding: '2px 7px',
-                    fontSize: 11, fontWeight: 800,
-                  }}>3</span>
-                )}
-              </button>
+{tab.label}
+{tab.id === 'notifications' && notifCount > 0 && (
+  <span style={{
+    marginLeft: 'auto', background: COLORS.primary,
+    color: '#fff', borderRadius: 999, padding: '2px 7px',
+    fontSize: 11, fontWeight: 800,
+  }}>{notifCount}</span>
+)}
+                              </button>
             ))}
           </div>
 
@@ -368,18 +415,44 @@ useEffect(() => {
   <input
     placeholder="고객명, 전화번호를 검색"
     value={headerSearch}
-    onChange={e => setHeaderSearch(e.target.value)}
-   onKeyDown={e => {
-  if (e.key === 'Enter' && headerSearch.trim()) {
-    navigate('customers', { search: headerSearch });
-    setHeaderSearch('');
-  }
-}}
+    onChange={e => {
+      const val = e.target.value;
+      setHeaderSearch(val);
+      // ✅ 입력하는 즉시 고객 페이지로 이동하며 검색
+      if (val.trim()) {
+        setStack([]);
+        setActiveTab('customers');
+        setCustomersFilter('전체');
+        setCustomersSearch(val);
+      }
+    }}
+    onKeyDown={e => {
+      if (e.key === 'Enter' && headerSearch.trim()) {
+        navigate('customers', { search: headerSearch });
+        setHeaderSearch('');
+      }
+    }}
     style={{
       border: 'none', background: 'none', outline: 'none',
       fontSize: 13, flex: 1, color: COLORS.text, fontFamily: 'inherit',
     }}
   />
+  {/* ✅ 검색어 지우기 버튼 */}
+  {headerSearch && (
+    <button
+      onClick={() => {
+        setHeaderSearch('');
+        setCustomersSearch('');
+      }}
+      style={{
+        background: 'none', border: 'none',
+        cursor: 'pointer', color: COLORS.textGray,
+        fontSize: 16, padding: 0,
+      }}
+    >
+      ✕
+    </button>
+  )}
 </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 16 }}>

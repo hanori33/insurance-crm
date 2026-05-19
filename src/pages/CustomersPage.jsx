@@ -257,6 +257,16 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
           </Card>
         )}
       </div>
+
+      {/* ✅ 추가 */}
+      <CustomerForm
+        visible={showForm}
+        onClose={() => setShowForm(false)}
+        onSave={() => {
+          load();
+          setShowForm(false);
+        }}
+      />
     </div>
   );
 }
