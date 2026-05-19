@@ -260,6 +260,11 @@ const [showNoticeForm, setShowNoticeForm] = useState(false);
     setRecentCustomers(recent || []);
     setStatusCounts(counts || {});
     setAllCustomers(all || []);
+    console.log('allCustomers 개수:', (all || []).length);
+console.log('car_expiry 있는 고객:', (all || []).filter(c => c.car_expiry).map(c => ({
+  name: c.name,
+  car_expiry: c.car_expiry,
+})));
     setNotices(noticeList || []);      // ✅ 추가
     setReadIds(readIdList || []);      // ✅ 추가
     setMyRole(role || 'agent');        // ✅ 추가

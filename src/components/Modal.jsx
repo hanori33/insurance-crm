@@ -5,7 +5,12 @@ import { COLORS } from '../constants';
 export default function Modal({ visible, onClose, title, children }) {
   if (!visible) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+    <div style={{
+      position: 'fixed', inset: 0,
+      zIndex: 99999,  // ✅ 9999 → 99999로 올리기
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.45)',
+    }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
         background: COLORS.white, borderRadius: '24px 24px 0 0',
         width: '100%', maxWidth: 480, padding: '24px 20px 48px',
