@@ -12,6 +12,9 @@ import ScheduleForm from '../components/ScheduleForm';
 import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
 import { formatDateKorean, toTimeStr, todayStr } from '../utils';
+import noticeService from '../services/noticeService';
+import NoticeForm from '../components/NoticeForm';
+
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -221,7 +224,7 @@ function daysUntil(dateStr) {
   return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
 }
 
-export default function DashboardPage({ user, onNavigate }) {
+export default function DashboardPage({ user, onNavigate, notifCount: externalNotifCount, onClearNotif }) {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
@@ -229,6 +232,10 @@ export default function DashboardPage({ user, onNavigate }) {
   const [recentCustomers, setRecentCustomers] = useState([]);
   const [allCustomers, setAllCustomers] = useState([]);
   const [statusCounts, setStatusCounts] = useState({});
+const [notices, setNotices] = useState([]);        // ✅ 추가
+const [readIds, setReadIds] = useState([]);         // ✅ 추가
+const [myRole, setMyRole] = useState('agent');      // ✅ 추가
+const [showNoticeForm, setShowNoticeForm] = useState(false);
 
   const meta = user?.user_metadata || {};
   const userName = meta.display_name || user?.email?.split('@')[0] || '사용자';
@@ -237,22 +244,29 @@ export default function DashboardPage({ user, onNavigate }) {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    setLoading(true);
-    try {
-      const [todaySched, recent, counts, all] = await Promise.all([
-        scheduleService.today().catch(() => []),
-        customerService.recent(4).catch(() => []),
-        customerService.statusCounts().catch(() => ({})),
-        customerService.list({ status: '전체', search: '' }).catch(() => []),
-      ]);
-      setTodaySchedules(todaySched || []);
-      setRecentCustomers(recent || []);
-      setStatusCounts(counts || {});
-      setAllCustomers(all || []);
-    } finally {
-      setLoading(false);
-    }
+  setLoading(true);
+  try {
+    const [todaySched, recent, counts, all, noticeList, readIdList, role] = await Promise.all([
+      scheduleService.today().catch(() => []),
+      customerService.recent(4).catch(() => []),
+      customerService.statusCounts().catch(() => ({})),
+      customerService.list({ status: '전체', search: '' }).catch(() => []),
+      noticeService.list().catch(() => []),          // ✅ 추가
+      noticeService.getReadIds().catch(() => []),    // ✅ 추가
+      noticeService.getMyRole().catch(() => 'agent'), // ✅ 추가
+    ]);
+
+    setTodaySchedules(todaySched || []);
+    setRecentCustomers(recent || []);
+    setStatusCounts(counts || {});
+    setAllCustomers(all || []);
+    setNotices(noticeList || []);      // ✅ 추가
+    setReadIds(readIdList || []);      // ✅ 추가
+    setMyRole(role || 'agent');        // ✅ 추가
+  } finally {
+    setLoading(false);
   }
+}
 
   const totalCustomers = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const todayMMDD = getMonthDay(todayStr());
@@ -288,15 +302,8 @@ export default function DashboardPage({ user, onNavigate }) {
   const taskCount = todaySchedules.length + birthdayCustomers.length + carExpiringCustomers.length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
-      {isMobile && (
-        <Header
-          user={user}
-          notifCount={3}
-          onNotif={() => onNavigate('notifications')}
-          onProfile={() => onNavigate('more')}
-        />
-      )}
+  <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
+    
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: isMobile ? '16px 16px 72px' : '28px 0 44px' }}>
         {isMobile ? (
           <MobileDashboard
@@ -315,7 +322,12 @@ export default function DashboardPage({ user, onNavigate }) {
   birthdayCustomers={birthdayCustomers} carExpiringCustomers={carExpiringCustomers}
   babyCustomers={babyCustomers} petCustomers={petCustomers}
   setShowScheduleForm={setShowScheduleForm} onNavigate={onNavigate}
-  statusCounts={statusCounts} // ✅ 추가
+  statusCounts={statusCounts}
+  notices={notices}
+  readIds={readIds}
+  myRole={myRole}
+  setReadIds={setReadIds}
+  setShowNoticeForm={setShowNoticeForm}
 />
         )}
       </div>
@@ -326,6 +338,24 @@ export default function DashboardPage({ user, onNavigate }) {
         dateStr={todayStr()}
         initial={null}
       />
+      {/* ✅ 여기에 추가 */}
+{showNoticeForm && (
+  <NoticeForm
+    visible={showNoticeForm}
+    onClose={() => setShowNoticeForm(false)}
+    myRole={myRole}
+    userName={userName}
+    onSave={async () => {
+      const [noticeList, readIdList] = await Promise.all([
+        noticeService.list().catch(() => []),
+        noticeService.getReadIds().catch(() => []),
+      ]);
+  setNotices(noticeList);
+      setReadIds(readIdList);
+      setShowNoticeForm(false);
+    }}
+  />
+)}
     </div>
   );
 }
@@ -469,7 +499,8 @@ function PcDashboard({
   userName, position, loading, todaySchedules, recentCustomers,
   totalCustomers, taskCount, birthdayCustomers, carExpiringCustomers,
   babyCustomers, petCustomers, setShowScheduleForm, onNavigate,
-  statusCounts, // ✅ 추가
+  statusCounts,
+  notices, readIds, myRole, setReadIds, setShowNoticeForm, // ✅ 추가
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -557,6 +588,69 @@ function PcDashboard({
           </div>
         </DashboardSection>
       </div>
+
+      {/* ✅ 여기에 공지사항 추가 */}
+      <DashboardSection title="공지사항" icon="📢"
+        right={
+          (myRole === 'superadmin' || myRole === 'division_head' || myRole === 'branch_head' || myRole === 'office_head' || myRole === 'team_leader') && (
+            <button
+              onClick={() => setShowNoticeForm(true)}
+              style={{
+                border: 'none', background: COLORS.primary, color: '#fff',
+                borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+              }}
+            >
+              + 공지 작성
+            </button>
+          )
+        }
+      >
+        {notices.length === 0 ? (
+          <EmptyState icon="📢" message="공지사항이 없습니다" />
+        ) : (
+          notices.map((n, i) => {
+            const isRead = readIds.includes(n.id);
+            return (
+              <React.Fragment key={n.id}>
+                <div
+                  onClick={async () => {
+  if (!isRead) {
+    await noticeService.markAsRead(n.id);
+    setReadIds(prev => [...prev, n.id]);
+  }
+  onNavigate('notices'); // ✅ 추가
+}}
+                  style={{
+                    padding: '12px 0', cursor: 'pointer',
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>{n.title}</span>
+                      {!isRead && (
+                        <span style={{
+                          background: '#EF4444', color: '#fff',
+                          borderRadius: 999, padding: '2px 7px',
+                          fontSize: 10, fontWeight: 800,
+                        }}>NEW</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 4 }}>
+  {n.content.split('\n')[0].slice(0, 60)}{n.content.split('\n')[0].length > 60 ? '...' : ''}
+</div>
+<div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
+ {n.author_name} ({n.author_role}) · {new Date(n.created_at).toLocaleDateString('ko-KR')}  
+                       </div>
+                  </div>
+                </div>
+                {i < notices.length - 1 && <Divider />}
+              </React.Fragment>
+            );
+          })
+        )}
+      </DashboardSection>
+
     </div>
   );
 }

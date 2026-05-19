@@ -1,15 +1,16 @@
-/// src/App.js
+// src/App.js
 import InsuranceContactPage from './pages/InsuranceContactPage';
 import React, { useState, useEffect } from 'react';
 import { COLORS } from './constants';
 import authService from './services/authService';
 import scheduleService from './services/scheduleService';
-import customerService from './services/customerService'; // ✅ 추가
+import customerService from './services/customerService';
 import { formatDateKorean } from './utils';
+import { supabase } from './supabaseClient';
 import LoginScreen from './components/LoginScreen';
 import BottomTabBar from './components/BottomTabBar';
 import { LoadingSpinner } from './components/Common';
-
+import NoticesPage from './pages/NoticesPage';
 import DashboardPage from './pages/DashboardPage';
 import CustomersPage from './pages/CustomersPage';
 import CustomerDetailPage from './pages/CustomerDetailPage';
@@ -18,6 +19,9 @@ import TeamPage from './pages/TeamPage';
 import MorePage from './pages/MorePage';
 import SalesPage from './pages/SalesPage';
 import NotificationsPage from './pages/NotificationsPage';
+import RoleRequestPage from './pages/RoleRequestPage';
+import Header from './components/Header';
+import NotificationSettingsPage from './pages/NotificationSettingsPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -69,10 +73,11 @@ export default function App() {
   const [stack, setStack] = useState([]);
   const [notifiedIds, setNotifiedIds] = useState([]);
   const [customersFilter, setCustomersFilter] = useState('전체');
-const [headerSearch, setHeaderSearch] = useState('');
-const [customersSearch, setCustomersSearch] = useState(''); // ✅ 추가 
-const [notifCount, setNotifCount] = useState(0); // ✅ 추가
-useEffect(() => {
+  const [headerSearch, setHeaderSearch] = useState('');
+  const [customersSearch, setCustomersSearch] = useState('');
+  const [notifCount, setNotifCount] = useState(0);
+
+  useEffect(() => {
     authService.getSession().then(s => setSession(s));
     const { data: { subscription } } = authService.onAuthStateChange((_e, s) => {
       setSession(s);
@@ -123,52 +128,124 @@ useEffect(() => {
   }, [session, notifiedIds]);
 
   useEffect(() => {
-  if (!session) return;
-  loadNotifCount();
-}, [session]);
+    if (!session) return;
+    loadNotifCount();
+    const interval = setInterval(loadNotifCount, 30 * 1000);
+    return () => clearInterval(interval);
+  }, [session]);
 
-async function loadNotifCount() {
-  try {
-    const [schedules, customers] = await Promise.all([
-      scheduleService.today().catch(() => []),
-      customerService.list({ status: '전체', search: '' }).catch(() => []),
-    ]);
-    const today = new Date();
-    const todayMonth = today.getMonth() + 1;
-    const todayDate = today.getDate();
-    const todayMMDD = `${String(todayMonth).padStart(2, '0')}-${String(todayDate).padStart(2, '0')}`;
-    let count = 0;
-    count += schedules.length;
-    customers.forEach(c => {
-      const raw = String(c.ssn || c.birth || '').trim();
-      const ssnMatch = raw.match(/^(\d{2})(\d{2})(\d{2})/);
-      if (ssnMatch && `${ssnMatch[2]}-${ssnMatch[3]}` === todayMMDD) count++;
-      const isoMatch = raw.match(/\d{4}[-./](\d{2})[-./](\d{2})/);
-      if (isoMatch && `${isoMatch[1]}-${isoMatch[2]}` === todayMMDD) count++;
-    });
-    customers.forEach(c => {
-      if (!c.car_expiry) return;
-      const target = new Date(c.car_expiry);
-      if (isNaN(target.getTime())) return;
-      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-      const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-      if (d >= 0 && d <= 30) count++;
-    });
-    setNotifCount(count);
-  } catch (e) {
-    console.error(e);
+  function clearNotifCount() {
+    setNotifCount(0);
+    localStorage.setItem('notif_read_date', new Date().toDateString());
   }
-}
+
+  function decreaseNotifCount() {
+    setNotifCount(prev => Math.max(0, prev - 1));
+  }
+
+  async function loadNotifCount() {
+    const readIds = JSON.parse(localStorage.getItem('read_notif_ids') || '[]');
+    const notifSettings = JSON.parse(localStorage.getItem('notif_settings') || '{}');
+    const carEnabled = notifSettings.carExpiry?.enabled !== false;
+    const carDays = notifSettings.carExpiry?.days || 30;
+    const saleEnabled = notifSettings.saleExpiry?.enabled !== false;
+    const saleDays = notifSettings.saleExpiry?.days || 30;
+    const birthdayEnabled = notifSettings.birthday?.enabled !== false;
+
+    try {
+      const [schedules, customers] = await Promise.all([
+        scheduleService.today().catch(() => []),
+        customerService.list({ status: '전체', search: '' }).catch(() => []),
+      ]);
+
+      const today = new Date();
+      const todayMonth = today.getMonth() + 1;
+      const todayDate = today.getDate();
+      const todayMMDD = `${String(todayMonth).padStart(2, '0')}-${String(todayDate).padStart(2, '0')}`;
+
+      let count = 0;
+
+      // 오늘 일정
+      schedules.forEach(s => {
+        if (!readIds.includes(`schedule-${s.id}`)) count++;
+      });
+
+      // 생일
+      if (birthdayEnabled) {
+        customers.forEach(c => {
+          const raw = String(c.ssn || c.birth || '').trim();
+          const ssnMatch = raw.match(/^(\d{2})(\d{2})(\d{2})/);
+          if (ssnMatch && `${ssnMatch[2]}-${ssnMatch[3]}` === todayMMDD && !readIds.includes(`birthday-${c.id}`)) count++;
+          const isoMatch = raw.match(/\d{4}[-./](\d{2})[-./](\d{2})/);
+          if (isoMatch && `${isoMatch[1]}-${isoMatch[2]}` === todayMMDD && !readIds.includes(`birthday-${c.id}`)) count++;
+        });
+      }
+
+      // 자동차 만기
+      if (carEnabled) {
+        customers.forEach(c => {
+          if (!c.car_expiry) return;
+          const target = new Date(c.car_expiry);
+          if (isNaN(target.getTime())) return;
+          const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+          const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+          if (d >= 0 && d <= carDays && !readIds.includes(`car-${c.id}`)) count++;
+        });
+      }
+
+      if (session?.user?.email === 'gksmf629@naver.com') {
+        const { data: requests } = await supabase
+          .from('role_requests')
+          .select('id')
+          .eq('status', 'pending');
+        count += (requests || []).length;
+      }
+
+      // 보험 만기
+      if (saleEnabled) {
+        const { data: salesData } = await supabase
+          .from('sales')
+          .select('id, expiry_date')
+          .eq('user_id', session?.user?.id);
+
+        (salesData || []).forEach(s => {
+          if (!s.expiry_date) return;
+          const target = new Date(s.expiry_date);
+          if (isNaN(target.getTime())) return;
+          const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+          const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+          if (d >= 0 && d <= saleDays && !readIds.includes(`sale-expiry-${s.id}`)) count++;
+        });
+      }
+
+      setNotifCount(count);
+    } catch(e) {
+      console.error(e);
+    }
+  }
 
   function navigate(page, payload) {
     if (page === 'customers') {
       setStack([]);
       setActiveTab('customers');
       setCustomersFilter(payload?.filter || '전체');
-     setCustomersSearch(payload?.search || ''); // ✅ search도 payload로 받기
+      setCustomersSearch(payload?.search || '');
       return;
     }
+    if (page === 'schedule') { setStack([]); setActiveTab('schedule'); return; }
+    if (page === 'notices') { setStack([]); setActiveTab('notices'); return; }
+    if (page === 'notifications') { setStack([]); setActiveTab('notifications'); return; }
+    if (page === 'sales') { setStack([]); setActiveTab('sales'); return; }
+    if (page === 'tree') { setStack([]); setActiveTab('tree'); return; }
+    if (page === 'consulting') { setStack([]); setActiveTab('consulting'); return; }
+    if (page === 'team') { setStack([]); setActiveTab('team'); return; }
+    if (page === 'fax') { setStack([]); setActiveTab('fax'); return; }
+    if (page === 'insuranceContact') { setStack([]); setActiveTab('insuranceContact'); return; }
+    if (page === 'roleRequest') { setStack([]); setActiveTab('roleRequest'); return; }
+    if (page === 'more') { setStack([]); setActiveTab('more'); return; }
+    if (page === 'notifSettings') { setStack([]); setActiveTab('notifSettings'); return; }
     setStack(prev => [...prev, { page, payload }]);
   }
 
@@ -189,30 +266,30 @@ async function loadNotifCount() {
     switch (current.page) {
       case 'customerDetail': return <CustomerDetailPage customerId={current.payload?.id} onBack={goBack} />;
       case 'sales':          return <SalesPage onBack={goBack} />;
-      case 'notifications':  return <NotificationsPage onBack={goBack} />;
+      case 'notifications':  return <NotificationsPage onBack={goBack} onRead={clearNotifCount} onReadOne={decreaseNotifCount} />;
       case 'insuranceContact': return <InsuranceContactPage onBack={goBack} />;
       case 'schedule':       return <SchedulePage onBack={goBack} />;
+      case 'notifSettings':  return <NotificationSettingsPage onBack={goBack} />;
       default:               return null;
     }
   }
 
   function renderTab() {
     switch (activeTab) {
-      case 'home':             return <DashboardPage user={user} onNavigate={navigate} />;
-      case 'customers': return (
-  <CustomersPage
-    key={`${customersFilter}-${customersSearch}`}
-    onNavigate={navigate}
-    initialFilter={customersFilter}
-    initialSearch={customersSearch}
-  />
-);
-      case 'schedule':         return <SchedulePage />;
+      case 'home':             return <DashboardPage user={user} onNavigate={navigate} notifCount={notifCount} onClearNotif={clearNotifCount} />;
+      case 'customers':        return <CustomersPage key={`${customersFilter}-${customersSearch}`} onNavigate={navigate} initialFilter={customersFilter} initialSearch={customersSearch} />;
+      case 'schedule':         return <SchedulePage onBack={() => setActiveTab('home')} />;
       case 'tree':             return <TeamPage />;
       case 'more':             return <MorePage user={user} onNavigate={navigate} />;
       case 'sales':            return <SalesPage onBack={() => setActiveTab('home')} />;
-      case 'notifications':    return <NotificationsPage onBack={() => setActiveTab('home')} />;
+      case 'notifications':    return <NotificationsPage onBack={() => setActiveTab('home')} onRead={clearNotifCount} onReadOne={decreaseNotifCount} />;
       case 'insuranceContact': return <InsuranceContactPage onBack={() => setActiveTab('home')} />;
+      case 'notices':          return <NoticesPage user={user} />;
+      case 'consulting':       return <div style={{padding:40, color: COLORS.text, fontSize:16}}>상담 기록 준비 중입니다.</div>;
+      case 'team':             return <div style={{padding:40, color: COLORS.text, fontSize:16}}>팀 관리 준비 중입니다.</div>;
+      case 'fax':              return <div style={{padding:40, color: COLORS.text, fontSize:16}}>보험팩스청구 준비 중입니다.</div>;
+      case 'roleRequest':      return <RoleRequestPage user={user} />;
+      case 'notifSettings':    return <NotificationSettingsPage onBack={() => setActiveTab('more')} />;
       default:                 return <DashboardPage user={user} onNavigate={navigate} />;
     }
   }
@@ -242,6 +319,17 @@ async function loadNotifCount() {
   if (isMobile) {
     return (
       <MobileShell>
+        <Header
+          user={user}
+          notifCount={notifCount}
+          onNotif={() => { setStack([]); setActiveTab('notifications'); }}
+          onProfile={() => { setStack([]); setActiveTab('more'); }}
+          onNavigate={(page, payload) => {
+            setStack([]);
+            setActiveTab(page);
+            if (page === 'customers') setCustomersFilter(payload?.filter || '전체');
+          }}
+        />
         <div style={{
           flex: 1, minHeight: 0, overflowY: 'auto',
           WebkitOverflowScrolling: 'touch', background: COLORS.bg,
@@ -253,12 +341,9 @@ async function loadNotifCount() {
     );
   }
 
-  // ── PC 웹 레이아웃 ────────────────────────────
   return (
     <WebShell>
       <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-
-        {/* 사이드바 */}
         <div style={{
           width: 240, flexShrink: 0, background: '#fff',
           borderRight: `1px solid ${COLORS.border}`,
@@ -267,36 +352,36 @@ async function loadNotifCount() {
           left: 0, top: 0, zIndex: 100,
           boxShadow: '2px 0 12px rgba(124,92,252,0.06)',
         }}>
-          {/* 로고 */}
-<div
-  onClick={() => changeTab('home')}
-  style={{
-    padding: '24px 20px 16px',
-    borderBottom: `1px solid ${COLORS.border}`,
-    cursor: 'pointer',
-  }}
->
-  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-    <img src="/boplan192.png" alt="보플랜"
-      style={{ width: 36, height: 36, borderRadius: 10 }}
-      onError={e => { e.target.style.display = 'none'; }}
-    />
-    <div>
-      <div style={{ fontWeight: 900, fontSize: 18, color: COLORS.primary }}>보플랜</div>
-      <div style={{ fontSize: 11, color: COLORS.textGray }}>보험설계사 CRM</div>
-    </div>
-  </div>
-</div>
-          {/* 메뉴 */}
+          <div
+            onClick={() => changeTab('home')}
+            style={{ padding: '24px 20px 16px', borderBottom: `1px solid ${COLORS.border}`, cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <img src="/boplan192.png" alt="보플랜"
+                style={{ width: 36, height: 36, borderRadius: 10 }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 18, color: COLORS.primary }}>보플랜</div>
+                <div style={{ fontSize: 11, color: COLORS.textGray }}>보험설계사 CRM</div>
+              </div>
+            </div>
+          </div>
+
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px' }}>
             {[
               { id: 'home',             icon: '🏠', label: '홈'           },
+              { id: 'notices',          icon: '📢', label: '공지사항'     },
+              { id: 'notifications',    icon: '🔔', label: '알림 센터'    },
               { id: 'customers',        icon: '👥', label: '고객 관리'    },
               { id: 'schedule',         icon: '📅', label: '일정 관리'    },
-              { id: 'sales',            icon: '📊', label: '보험 이력'    },
+              { id: 'sales',            icon: '📊', label: '통계 / 분석'  },
+              { id: 'consulting',       icon: '📝', label: '상담 기록'    },
               { id: 'tree',             icon: '🌳', label: '소개 트리'    },
-              { id: 'notifications',    icon: '🔔', label: '알림 센터'    },
+              { id: 'team',             icon: '👨‍👩‍👧', label: '팀 관리'     },
+              { id: 'fax',              icon: '📠', label: '보험팩스청구'  },
               { id: 'insuranceContact', icon: '📞', label: '보험사 연락처' },
+              { id: 'roleRequest',      icon: '🔑', label: '권한 신청'    },
               { id: 'more',             icon: '⚙️', label: '설정'         },
             ].map(tab => (
               <button
@@ -313,38 +398,36 @@ async function loadNotifCount() {
                 }}
               >
                 <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{tab.icon}</span>
-{tab.label}
-{tab.id === 'notifications' && notifCount > 0 && (
-  <span style={{
-    marginLeft: 'auto', background: COLORS.primary,
-    color: '#fff', borderRadius: 999, padding: '2px 7px',
-    fontSize: 11, fontWeight: 800,
-  }}>{notifCount}</span>
-)}
-                              </button>
+                {tab.label}
+                {tab.id === 'notifications' && notifCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto', background: COLORS.primary,
+                    color: '#fff', borderRadius: 999, padding: '2px 7px',
+                    fontSize: 11, fontWeight: 800,
+                  }}>{notifCount}</span>
+                )}
+              </button>
             ))}
           </div>
 
-          {/* 보플랜 PRO */}
           <div style={{
             margin: '0 12px 12px',
             background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
-            borderRadius: 16, padding: '16px', color: '#fff',
+            borderRadius: 12, padding: '10px 14px', color: '#fff',
           }}>
-            <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 4 }}>보플랜 PRO</div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 12, lineHeight: 1.4 }}>
+            <div style={{ fontWeight: 900, fontSize: 12, marginBottom: 2 }}>보플랜 PRO</div>
+            <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 8, lineHeight: 1.3 }}>
               팀 협업 기능을<br />사용해보세요!
             </div>
             <button style={{
               background: '#fff', color: COLORS.primary, border: 'none',
-              borderRadius: 8, padding: '7px 12px', fontSize: 12,
+              borderRadius: 6, padding: '5px 10px', fontSize: 11,
               fontWeight: 800, cursor: 'pointer', width: '100%',
             }}>
               자세히 보기 &gt;
             </button>
           </div>
 
-          {/* 프로필 */}
           <div style={{
             padding: '14px 16px', borderTop: `1px solid ${COLORS.border}`,
             display: 'flex', alignItems: 'center', gap: 10,
@@ -381,19 +464,16 @@ async function loadNotifCount() {
           </div>
         </div>
 
-        {/* 메인 콘텐츠 */}
         <div style={{
           marginLeft: 240, flex: 1, display: 'flex',
           flexDirection: 'column', height: '100vh', overflow: 'hidden',
         }}>
-          {/* 상단 헤더 */}
           <div style={{
             background: '#fff', borderBottom: `1px solid ${COLORS.border}`,
             padding: '0 32px', height: 64, display: 'flex',
             alignItems: 'center', justifyContent: 'space-between',
             flexShrink: 0, boxShadow: '0 2px 12px rgba(124,92,252,0.06)',
           }}>
-            {/* 인사말 */}
             <div style={{ flexShrink: 0, marginRight: 24 }}>
               <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.text }}>
                 👋 {user?.user_metadata?.display_name || user?.email?.split('@')[0]}
@@ -404,56 +484,48 @@ async function loadNotifCount() {
               </div>
             </div>
 
-            {/* 검색창 */}
-<div style={{
-  display: 'flex', alignItems: 'center', gap: 10,
-  flex: 1, maxWidth: 360, background: COLORS.bg,
-  borderRadius: 12, padding: '10px 16px',
-  border: `1.5px solid ${COLORS.border}`,
-}}>
-  <span style={{ color: COLORS.textGray }}>🔍</span>
-  <input
-    placeholder="고객명, 전화번호를 검색"
-    value={headerSearch}
-    onChange={e => {
-      const val = e.target.value;
-      setHeaderSearch(val);
-      // ✅ 입력하는 즉시 고객 페이지로 이동하며 검색
-      if (val.trim()) {
-        setStack([]);
-        setActiveTab('customers');
-        setCustomersFilter('전체');
-        setCustomersSearch(val);
-      }
-    }}
-    onKeyDown={e => {
-      if (e.key === 'Enter' && headerSearch.trim()) {
-        navigate('customers', { search: headerSearch });
-        setHeaderSearch('');
-      }
-    }}
-    style={{
-      border: 'none', background: 'none', outline: 'none',
-      fontSize: 13, flex: 1, color: COLORS.text, fontFamily: 'inherit',
-    }}
-  />
-  {/* ✅ 검색어 지우기 버튼 */}
-  {headerSearch && (
-    <button
-      onClick={() => {
-        setHeaderSearch('');
-        setCustomersSearch('');
-      }}
-      style={{
-        background: 'none', border: 'none',
-        cursor: 'pointer', color: COLORS.textGray,
-        fontSize: 16, padding: 0,
-      }}
-    >
-      ✕
-    </button>
-  )}
-</div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              flex: 1, maxWidth: 360, background: COLORS.bg,
+              borderRadius: 12, padding: '10px 16px',
+              border: `1.5px solid ${COLORS.border}`,
+            }}>
+              <span style={{ color: COLORS.textGray }}>🔍</span>
+              <input
+                placeholder="고객명, 전화번호를 검색"
+                value={headerSearch}
+                onChange={e => {
+                  const val = e.target.value;
+                  setHeaderSearch(val);
+                  if (val.trim()) {
+                    setStack([]);
+                    setActiveTab('customers');
+                    setCustomersFilter('전체');
+                    setCustomersSearch(val);
+                  }
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && headerSearch.trim()) {
+                    navigate('customers', { search: headerSearch });
+                    setHeaderSearch('');
+                  }
+                }}
+                style={{
+                  border: 'none', background: 'none', outline: 'none',
+                  fontSize: 13, flex: 1, color: COLORS.text, fontFamily: 'inherit',
+                }}
+              />
+              {headerSearch && (
+                <button
+                  onClick={() => { setHeaderSearch(''); setCustomersSearch(''); }}
+                  style={{
+                    background: 'none', border: 'none',
+                    cursor: 'pointer', color: COLORS.textGray,
+                    fontSize: 16, padding: 0,
+                  }}
+                >✕</button>
+              )}
+            </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 16 }}>
               <button
@@ -490,7 +562,6 @@ async function loadNotifCount() {
             </div>
           </div>
 
-          {/* 콘텐츠 */}
           <div style={{
             flex: 1, overflowY: 'auto',
             padding: '10px 7px 44px 20px',

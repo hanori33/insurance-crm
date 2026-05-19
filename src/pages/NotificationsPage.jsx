@@ -3,6 +3,7 @@ import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
+import { supabase } from '../supabaseClient';
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -33,9 +34,13 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}일 전`;
 }
 
-export default function NotificationsPage({ onBack }) {
+export default function NotificationsPage({ onBack, onRead, onReadOne }) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
+  const [readNotifIds, setReadNotifIds] = useState(() => {
+  const saved = localStorage.getItem('read_notif_ids');
+  return saved ? JSON.parse(saved) : [];
+});
 
   useEffect(() => {
     load();
@@ -136,6 +141,45 @@ export default function NotificationsPage({ onBack }) {
           });
         });
 
+        // ✅ 관리자면 권한 신청 대기 건수 추가
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.email === 'gksmf629@naver.com') {
+      const { data: requests } = await supabase
+        .from('role_requests')
+        .select('*')
+        .eq('status', 'pending');
+
+      (requests || []).forEach(req => {
+        notifs.push({
+          id: `role-${req.id}`,
+          icon: '🔑',
+          title: '권한 신청',
+          body: `${req.user_name}님이 ${req.requested_role === 'division_head' ? '사업단장' : req.requested_role === 'branch_head' ? '본부장' : req.requested_role === 'office_head' ? '지점장' : '팀장'} 권한을 신청했습니다`,
+          time: new Date(req.created_at).toLocaleDateString('ko-KR'),
+          color: '#FFF7ED',
+        });
+      });
+    }
+// ✅ 보험 만기 알림 (30일 이내)
+const { data: salesData } = await supabase
+  .from('sales')
+  .select('*')
+  .eq('user_id', (await supabase.auth.getUser()).data.user.id);
+
+(salesData || []).forEach(s => {
+  if (!s.expiry_date) return;
+  const d = daysUntil(s.expiry_date);
+  if (d !== null && d >= 0 && d <= 30) {
+    notifs.push({
+      id: `sale-expiry-${s.id}`,
+      icon: '📋',
+      title: '보험 만기 임박',
+      body: `${s.customer_name} 고객 ${s.product_name || '보험'} 만기 ${d === 0 ? '오늘' : `${d}일 후`}`,
+      time: d === 0 ? '오늘' : `${d}일 후`,
+      color: '#FFF7ED',
+    });
+  }
+});
       setNotifications(notifs);
     } catch (e) {
       console.error(e);
@@ -154,11 +198,17 @@ export default function NotificationsPage({ onBack }) {
         {onBack && (
           <button onClick={onBack} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.textGray }}>←</button>
         )}
-        <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>알림</span>
         <span style={{ fontSize: 13, color: COLORS.primary, cursor: 'pointer', fontWeight: 600 }}
-          onClick={() => setNotifications([])}>
-          모두 읽음
-        </span>
+  
+  onClick={() => {
+  const allIds = notifications.map(n => n.id);
+  setReadNotifIds(allIds);
+  localStorage.setItem('read_notif_ids', JSON.stringify(allIds));
+  if (onRead) onRead();
+}}>
+모두 읽음
+
+</span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -169,23 +219,46 @@ export default function NotificationsPage({ onBack }) {
             새로운 알림이 없습니다
           </div>
         ) : (
-          notifications.map(n => (
-            <Card key={n.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: n.color || COLORS.primaryBg,
-                display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: 20, flexShrink: 0,
-              }}>
-                {n.icon}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text }}>{n.title}</div>
-                <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 3 }}>{n.body}</div>
-                <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>{n.time}</div>
-              </div>
-            </Card>
-          ))
+        notifications.map(n => {
+  const isRead = readNotifIds.includes(n.id);
+  return (
+    <Card key={n.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', opacity: isRead ? 0.6 : 1 }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 12,
+        background: n.color || COLORS.primaryBg,
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'center', fontSize: 20, flexShrink: 0,
+      }}>
+        {n.icon}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text }}>{n.title}</div>
+        <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 3 }}>{n.body}</div>
+        <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>{n.time}</div>
+      </div>
+      {!isRead && (
+  <button
+    onClick={() => {
+      const newIds = [...readNotifIds, n.id];
+      setReadNotifIds(newIds);
+      localStorage.setItem('read_notif_ids', JSON.stringify(newIds));
+      if (onReadOne) onReadOne();
+    }}
+    style={{
+      border: 'none', background: COLORS.primaryBg,
+      color: COLORS.primary, borderRadius: 999,
+      padding: '4px 10px', fontSize: 11,
+      fontWeight: 700, cursor: 'pointer',
+      flexShrink: 0, whiteSpace: 'nowrap',
+    }}
+  >
+    읽음
+  </button>
+)}
+          
+    </Card>
+  );
+})
         )}
       </div>
     </div>

@@ -4,9 +4,9 @@ import { COLORS } from '../constants';
 import { Divider } from '../components/Common';
 import Modal from '../components/Modal';
 import Field from '../components/Field';
-import NoteForm from '../components/NoteForm';
 import authService from '../services/authService';
 import { supabase } from '../supabaseClient';
+import NotificationSettingsPage from './NotificationSettingsPage';
 
 function ProfileAvatar({ src, name, size = 60 }) {
   if (src) return <img src={src} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />;
@@ -130,8 +130,7 @@ export default function MorePage({ user, onNavigate }) {
     position: meta.position     || '',
     photoUrl: meta.photo_url    || '',
   });
-  const [showEdit, setShowEdit]     = useState(false);
-  const [showNote, setShowNote]     = useState(false);
+ 
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
@@ -143,10 +142,9 @@ export default function MorePage({ user, onNavigate }) {
   }
 
   const menuItems = [
-  { icon: '✏️', label: '메모 관리', onClick: () => setShowNote(true) },
-  { icon: '☁️', label: '백업 / 복원', onClick: () => alert('백업/복원 기능은 준비 중입니다.') },
-  { icon: '📊', label: '통계', onClick: () => onNavigate('sales') },
-  { icon: '⚙️', label: '설정', onClick: () => alert('설정 기능은 준비 중입니다.') },
+    { icon: '🔔', label: '알림 설정', onClick: () => onNavigate('notifSettings') },
+    { icon: '☁️', label: '백업 / 복원', onClick: () => alert('백업/복원 기능은 준비 중입니다.') },
+   { icon: '⚙️', label: '설정', onClick: () => alert('설정 기능은 준비 중입니다.') },
   { icon: '📞', label: '보험사 고객센터', onClick: () => onNavigate('insuranceContact') },
   ];
 
@@ -194,8 +192,7 @@ export default function MorePage({ user, onNavigate }) {
         </div>
       </div>
 
-      <ProfileEditModal visible={showEdit} onClose={() => setShowEdit(false)} profile={profile} onSave={setProfile} />
-      <NoteForm visible={showNote} onClose={() => setShowNote(false)} onSave={() => {}} />
+      
     </>
   );
 }

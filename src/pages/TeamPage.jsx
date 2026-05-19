@@ -122,6 +122,7 @@ export default function TeamPage() {
   const familyCount = allPeople.filter(p => p.customer_type === '가족').length;
   const petCount = allPeople.filter(p => p.customer_type === '펫').length;
   const babyCount = allPeople.filter(p => p.customer_type === '태아').length;
+const customerCount = allPeople.filter(p => p.customer_type === '일반' || !p.customer_type).length; // ✅ 추가
 
   return (
     <div style={{
@@ -158,9 +159,10 @@ export default function TeamPage() {
                 소개 현황
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
                 {[
                   ['전체', allPeople.length],
+                  ['고객', customerCount],  // ✅ 추가
                   ['가족', familyCount],
                   ['펫', petCount],
                   ['태아', babyCount],
