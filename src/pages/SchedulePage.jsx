@@ -564,38 +564,34 @@ async function loadDay() {
   // ── 모바일 레이아웃 ───────────────────────────
   if (isMobile) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100%',
-        overflow: 'visible',
-      }}
-    >
-      <div
-        style={{
-          background: COLORS.white,
-          padding: '14px 20px',
-          borderBottom: `1px solid ${COLORS.border}`,
-          flexShrink: 0,
-          textAlign: 'center',
-        }}
-      >
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',        // ✅ minHeight → height
+      overflow: 'hidden',    // ✅ visible → hidden
+    }}>
+      <div style={{
+        background: COLORS.white,
+        padding: '14px 20px',
+        borderBottom: `1px solid ${COLORS.border}`,
+        flexShrink: 0,
+        textAlign: 'center',
+      }}>
         <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>
           일정 관리
         </span>
       </div>
 
-      <div
-        style={{
-          flex: 'none',
-          overflow: 'visible',
-          padding: '14px 16px 0',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-        }}
-      >
+      {/* 전체 스크롤 영역 */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',           // ✅ 여기서 스크롤
+        WebkitOverflowScrolling: 'touch',
+        padding: '14px 16px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}>
         <Calendar
           year={year}
           month={month}
@@ -608,33 +604,23 @@ async function loadDay() {
           compact={true}
         />
 
-        <div style={{ position: 'relative' }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 8,
-            }}
-          >
+        <div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 8,
+          }}>
             <span style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>
               {dayLabel} 일정
             </span>
-
             <button
-              onClick={() => {
-                setEditItem(null);
-                setShowForm(true);
-              }}
+              onClick={() => { setEditItem(null); setShowForm(true); }}
               style={{
-                border: 'none',
-                background: COLORS.primary,
-                color: '#fff',
-                borderRadius: 999,
-                padding: '8px 12px',
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: 'pointer',
+                border: 'none', background: COLORS.primary,
+                color: '#fff', borderRadius: 999,
+                padding: '8px 12px', fontSize: 12,
+                fontWeight: 800, cursor: 'pointer',
               }}
             >
               + 추가
@@ -655,158 +641,79 @@ async function loadDay() {
                 const customerName = s.customers?.name || s.customer_name || '';
                 const cleanTitle = (s.title || '').replace(/^[^\s]+\s/, '');
                 const icon = s.schedule_icon || '📌';
-
                 return (
                   <React.Fragment key={s.id || i}>
                     <div
-                      onClick={() => {
-                        setEditItem(s);
-                        setShowForm(true);
-                      }}
-                      style={{
-                        padding: '13px 16px',
-                        cursor: 'pointer',
-                      }}
+                      onClick={() => { setEditItem(s); setShowForm(true); }}
+                      style={{ padding: '13px 16px', cursor: 'pointer' }}
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            background: s.color || COLORS.primaryBg,
-                            color: COLORS.primary,
-                            borderRadius: 12,
-                            padding: '8px 10px',
-                            fontWeight: 800,
-                            fontSize: 13,
-                            minWidth: 52,
-                            textAlign: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{
+                          background: s.color || COLORS.primaryBg,
+                          color: COLORS.primary, borderRadius: 12,
+                          padding: '8px 10px', fontWeight: 800,
+                          fontSize: 13, minWidth: 52,
+                          textAlign: 'center', flexShrink: 0,
+                        }}>
                           {toTimeStr(s.scheduled_at)}
                         </div>
-
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: 14,
-                              color: COLORS.text,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
+                          <div style={{
+                            fontWeight: 700, fontSize: 14, color: COLORS.text,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>
                             {icon} {cleanTitle}
                           </div>
-
                           {customerName && (
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: COLORS.textGray,
-                                marginTop: 2,
-                              }}
-                            >
+                            <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>
                               {customerName} 고객
                             </div>
                           )}
-
                           {s.memo && (
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: COLORS.textGray,
-                                marginTop: 4,
-                                lineHeight: 1.4,
-                                whiteSpace: 'pre-wrap',
-                              }}
-                            >
+                            <div style={{
+                              fontSize: 12, color: COLORS.textGray,
+                              marginTop: 4, lineHeight: 1.4, whiteSpace: 'pre-wrap',
+                            }}>
                               {s.memo}
                             </div>
                           )}
-
                           {s.next_action && (
-                            <div
-                              style={{
-                                marginTop: 6,
-                                fontSize: 11,
-                                color: COLORS.primary,
-                                fontWeight: 700,
-                              }}
-                            >
+                            <div style={{ marginTop: 6, fontSize: 11, color: COLORS.primary, fontWeight: 700 }}>
                               다음 액션: {s.next_action}
                             </div>
                           )}
                         </div>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            gap: 6,
-                            alignItems: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditItem(s);
-                              setShowForm(true);
-                            }}
+                            onClick={e => { e.stopPropagation(); setEditItem(s); setShowForm(true); }}
                             style={{
-                              border: 'none',
-                              background: '#EEF2FF',
-                              color: COLORS.primary,
-                              borderRadius: 999,
-                              padding: '6px 10px',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 800,
-                              whiteSpace: 'nowrap',
+                              border: 'none', background: '#EEF2FF',
+                              color: COLORS.primary, borderRadius: 999,
+                              padding: '6px 10px', cursor: 'pointer',
+                              fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
                             }}
-                          >
-                            수정
-                          </button>
-
+                          >수정</button>
                           <button
                             type="button"
-                            onClick={async (e) => {
+                            onClick={async e => {
                               e.stopPropagation();
-
                               if (window.confirm('일정을 삭제할까요?')) {
                                 await scheduleService.remove(s.id);
-                                loadDay();
-                                loadMonth();
+                                loadDay(); loadMonth();
                               }
                             }}
                             style={{
-                              border: 'none',
-                              background: '#FEE2E2',
-                              color: '#DC2626',
-                              borderRadius: 999,
-                              padding: '6px 10px',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 800,
-                              whiteSpace: 'nowrap',
+                              border: 'none', background: '#FEE2E2',
+                              color: '#DC2626', borderRadius: 999,
+                              padding: '6px 10px', cursor: 'pointer',
+                              fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
                             }}
-                          >
-                            삭제
-                          </button>
+                          >삭제</button>
                         </div>
                       </div>
                     </div>
-
-                    {i < schedules.length - 1 && (
-                      <Divider style={{ margin: '0 16px' }} />
-                    )}
+                    {i < schedules.length - 1 && <Divider style={{ margin: '0 16px' }} />}
                   </React.Fragment>
                 );
               })
@@ -817,23 +724,14 @@ async function loadDay() {
 
       <ScheduleForm
         visible={showForm}
-        onClose={() => {
-          setShowForm(false);
-          setEditItem(null);
-        }}
-        onSave={() => {
-          loadDay();
-          loadMonth();
-          setShowForm(false);
-          setEditItem(null);
-        }}
+        onClose={() => { setShowForm(false); setEditItem(null); }}
+        onSave={() => { loadDay(); loadMonth(); setShowForm(false); setEditItem(null); }}
         dateStr={dateStr}
         initial={editItem}
       />
     </div>
   );
 }
-
 
   // ── PC 레이아웃 ───────────────────────────────
   return (

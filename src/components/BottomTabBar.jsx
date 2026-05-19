@@ -4,7 +4,15 @@ import { COLORS, TAB_LIST } from '../constants';
 
 export default function BottomTabBar({ activeTab, onChange }) {
   return (
-    <div style={{ display: 'flex', borderTop: `1px solid ${COLORS.border}`, background: COLORS.white, paddingBottom: 'env(safe-area-inset-bottom,6px)', flexShrink: 0 }}>
+    <div style={{
+      display: 'flex',
+      borderTop: `1px solid ${COLORS.border}`,
+      background: COLORS.white,
+      paddingBottom: 'env(safe-area-inset-bottom,6px)',
+      flexShrink: 0,
+      position: 'relative',
+      zIndex: 10,
+    }}>
       {TAB_LIST.map(tab => {
         const active = activeTab === tab.id;
         return (
