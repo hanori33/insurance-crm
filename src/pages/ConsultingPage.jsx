@@ -375,14 +375,14 @@ function stopVoiceRecord() {
             </div>
 
             <select
-              value={form.category}
-              onChange={e => setField('category', e.target.value)}
-              style={inputStyle}
-            >
-              {CATEGORY_OPTIONS.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+  value={form.category}
+  onChange={e => setField('category', e.target.value)}
+  style={inputStyle}
+>
+  {CATEGORY_OPTIONS.map(c => (
+    <option key={c} value={c}>{c}</option>
+  ))}
+</select>
 
 <div
   style={{
@@ -409,6 +409,8 @@ function stopVoiceRecord() {
       fontSize: 12,
       fontWeight: 900,
       cursor: 'pointer',
+      WebkitUserSelect: 'none',
+      touchAction: 'manipulation',
     }}
   >
     🎤 음성 입력
@@ -426,13 +428,13 @@ function stopVoiceRecord() {
   </span>
 </div>
 
-            <textarea
-              value={form.content}
-              onChange={e => setField('content', e.target.value)}
-              placeholder="상담내용을 입력하세요&#10;예: 기존 보험료 부담으로 리모델링 상담, 암/뇌/심장 보장 비교 필요"
-              rows={5}
-              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
-            />
+<textarea
+  value={form.content}
+  onChange={e => setField('content', e.target.value)}
+  placeholder="상담내용을 입력하세요&#10;예: 기존 보험료 부담으로 리모델링 상담, 암/뇌/심장 보장 비교 필요"
+  rows={5}
+  style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+/>
 
             <input
               value={form.next_action}
