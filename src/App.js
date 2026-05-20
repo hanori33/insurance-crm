@@ -8,7 +8,6 @@ import customerService from './services/customerService';
 import { formatDateKorean } from './utils';
 import { supabase } from './supabaseClient';
 import LoginScreen from './components/LoginScreen';
-import BottomTabBar from './components/BottomTabBar';
 import { LoadingSpinner } from './components/Common';
 import NoticesPage from './pages/NoticesPage';
 import DashboardPage from './pages/DashboardPage';
