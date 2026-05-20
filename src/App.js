@@ -43,7 +43,7 @@ function MobileShell({ children }) {
         width: '100%', maxWidth: 430,
         height: '100dvh',
         background: COLORS.bg,
-        overflow: 'hidden',
+        overflow: 'visible',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 0 60px rgba(0,0,0,0.25)',
         position: 'relative',
@@ -57,9 +57,10 @@ function MobileShell({ children }) {
 function WebShell({ children }) {
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
+      overflow: 'hidden',
       background: COLORS.bg,
-      display: 'flex', flexDirection: 'column',
+      display: 'flex',
     }}>
       {children}
     </div>
@@ -165,12 +166,10 @@ export default function App() {
 
       let count = 0;
 
-      // 오늘 일정
       schedules.forEach(s => {
         if (!readIds.includes(`schedule-${s.id}`)) count++;
       });
 
-      // 생일
       if (birthdayEnabled) {
         customers.forEach(c => {
           const raw = String(c.ssn || c.birth || '').trim();
@@ -181,47 +180,18 @@ export default function App() {
         });
       }
 
-      // 자동차 만기
-if (carEnabled) {
-  customers.forEach(c => {
-
-    const carDate =
-      c.car_expiry ||
-      c.carExpiry ||
-      c.car_expiry_date ||
-      c.carExpiryDate;
-
-    if (!carDate) return;
-
-    const target = new Date(carDate);
-
-    if (isNaN(target.getTime())) return;
-
-    const start = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate()
-    );
-
-    const end = new Date(
-      target.getFullYear(),
-      target.getMonth(),
-      target.getDate()
-    );
-
-    const d = Math.ceil(
-      (end - start) / (1000 * 60 * 60 * 24)
-    );
-
-    if (
-      d >= 0 &&
-      d <= carDays &&
-      !readIds.includes(`car-${c.id}`)
-    ) {
-      count++;
-    }
-  });
-}
+      if (carEnabled) {
+        customers.forEach(c => {
+          const carDate = c.car_expiry || c.carExpiry || c.car_expiry_date || c.carExpiryDate;
+          if (!carDate) return;
+          const target = new Date(carDate);
+          if (isNaN(target.getTime())) return;
+          const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+          const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+          if (d >= 0 && d <= carDays && !readIds.includes(`car-${c.id}`)) count++;
+        });
+      }
 
       if (session?.user?.email === 'gksmf629@naver.com') {
         const { data: requests } = await supabase
@@ -231,7 +201,6 @@ if (carEnabled) {
         count += (requests || []).length;
       }
 
-      // 보험 만기
       if (saleEnabled) {
         const { data: salesData } = await supabase
           .from('sales')
@@ -345,10 +314,9 @@ if (carEnabled) {
     );
   }
 
- if (isMobile) {
-  return (
-    <MobileShell>
-      <div style={{ position: 'sticky', top: 0, zIndex: 10, flexShrink: 0 }}> {/* ✅ 추가 */}
+  if (isMobile) {
+    return (
+      <MobileShell>
         <Header
           user={user}
           notifCount={notifCount}
@@ -360,252 +328,174 @@ if (carEnabled) {
             if (page === 'customers') setCustomersFilter(payload?.filter || '전체');
           }}
         />
-      </div>
-      <div style={{
-        flex: 1, minHeight: 0, overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch', background: COLORS.bg,
-      }}>
-        {hasStack ? renderStack() : renderTab()}
-      </div>
-      {!hasStack && <BottomTabBar activeTab={activeTab} onChange={changeTab} />}
-    </MobileShell>
-  );
-}
+        <div style={{
+          flex: 1, minHeight: 0, overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch', background: COLORS.bg,
+        }}>
+          {hasStack ? renderStack() : renderTab()}
+        </div>
+        {!hasStack && <BottomTabBar activeTab={activeTab} onChange={changeTab} />}
+      </MobileShell>
+    );
+  }
 
+  // ✅ PC 레이아웃 - 스크롤 구조 완전 정리
   return (
     <WebShell>
-      <div style={{ display: 'flex', minHeight: '100vh',
-  overflowX: 'hidden', }}>
-        <div style={{
-          width: 240, flexShrink: 0, background: '#fff',
-          borderRight: `1px solid ${COLORS.border}`,
-          display: 'flex', flexDirection: 'column',
-          height: '100vh', position: 'fixed',
-          left: 0, top: 0, zIndex: 100,
-          boxShadow: '2px 0 12px rgba(124,92,252,0.06)',
-        }}>
-          <div
-            onClick={() => changeTab('home')}
-            style={{ padding: '24px 20px 16px', borderBottom: `1px solid ${COLORS.border}`, cursor: 'pointer' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src="/boplan192.png" alt="보플랜"
-                style={{ width: 36, height: 36, borderRadius: 10 }}
-                onError={e => { e.target.style.display = 'none'; }}
-              />
-              <div>
-                <div style={{ fontWeight: 900, fontSize: 18, color: COLORS.primary }}>보플랜</div>
-                <div style={{ fontSize: 11, color: COLORS.textGray }}>보험설계사 CRM</div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px' }}>
-            {[
-              { id: 'home',             icon: '🏠', label: '홈'           },
-              { id: 'notices',          icon: '📢', label: '공지사항'     },
-              { id: 'notifications',    icon: '🔔', label: '알림 센터'    },
-              { id: 'customers',        icon: '👥', label: '고객 관리'    },
-              { id: 'schedule',         icon: '📅', label: '일정 관리'    },
-              { id: 'sales',            icon: '📊', label: '통계 / 분석'  },
-              { id: 'consulting',       icon: '📝', label: '상담 기록'    },
-              { id: 'tree',             icon: '🌳', label: '소개 트리'    },
-              { id: 'team',             icon: '👨‍👩‍👧', label: '팀 관리'     },
-              { id: 'fax',              icon: '📠', label: '보험팩스청구'  },
-              { id: 'insuranceContact', icon: '📞', label: '보험사 연락처' },
-              { id: 'roleRequest',      icon: '🔑', label: '권한 신청'    },
-              { id: 'more',             icon: '⚙️', label: '설정'         },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => changeTab(tab.id)}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center',
-                  gap: 12, padding: '11px 14px', borderRadius: 12, border: 'none',
-                  background: activeTab === tab.id ? COLORS.primaryBg : 'transparent',
-                  color: activeTab === tab.id ? COLORS.primary : COLORS.textGray,
-                  fontWeight: activeTab === tab.id ? 800 : 500,
-                  fontSize: 14, cursor: 'pointer', marginBottom: 2,
-                  textAlign: 'left', transition: 'all 0.15s',
-                }}
-              >
-                <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{tab.icon}</span>
-                {tab.label}
-                {tab.id === 'notifications' && notifCount > 0 && (
-                  <span style={{
-                    marginLeft: 'auto', background: COLORS.primary,
-                    color: '#fff', borderRadius: 999, padding: '2px 7px',
-                    fontSize: 11, fontWeight: 800,
-                  }}>{notifCount}</span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div style={{
-            margin: '0 12px 12px',
-            background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
-            borderRadius: 12, padding: '10px 14px', color: '#fff',
-          }}>
-            <div style={{ fontWeight: 900, fontSize: 12, marginBottom: 2 }}>보플랜 PRO</div>
-            <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 8, lineHeight: 1.3 }}>
-              팀 협업 기능을<br />사용해보세요!
-            </div>
-            <button style={{
-              background: '#fff', color: COLORS.primary, border: 'none',
-              borderRadius: 6, padding: '5px 10px', fontSize: 11,
-              fontWeight: 800, cursor: 'pointer', width: '100%',
-            }}>
-              자세히 보기 &gt;
-            </button>
-          </div>
-
-          <div style={{
-            padding: '14px 16px', borderTop: `1px solid ${COLORS.border}`,
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            {user?.user_metadata?.photo_url ? (
-              <img
-                src={`${user.user_metadata.photo_url}?t=${Date.now()}`}
-                alt="프로필"
-                style={{
-                  width: 52, height: 52, borderRadius: '50%',
-                  objectFit: 'cover', flexShrink: 0,
-                  border: '2px solid #fff',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                }}
-              />
-            ) : (
-              <div style={{
-                width: 52, height: 52, borderRadius: '50%',
-                background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
-                color: '#fff', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontWeight: 900, fontSize: 20, flexShrink: 0,
-              }}>
-                {(user?.user_metadata?.display_name || user?.email || '?').charAt(0)}
-              </div>
-            )}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 13, color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user?.user_metadata?.display_name || user?.email?.split('@')[0]}
-              </div>
-              <div style={{ fontSize: 11, color: COLORS.textGray }}>
-                {user?.user_metadata?.position || '보플랜 지점'}
-              </div>
+      {/* 사이드바 - fixed */}
+      <div style={{
+        width: 240, flexShrink: 0, background: '#fff',
+        borderRight: `1px solid ${COLORS.border}`,
+        display: 'flex', flexDirection: 'column',
+        height: '100vh', position: 'fixed',
+        left: 0, top: 0, zIndex: 100,
+        boxShadow: '2px 0 12px rgba(124,92,252,0.06)',
+      }}>
+        <div onClick={() => changeTab('home')} style={{ padding: '24px 20px 16px', borderBottom: `1px solid ${COLORS.border}`, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src="/boplan192.png" alt="보플랜" style={{ width: 36, height: 36, borderRadius: 10 }} onError={e => { e.target.style.display = 'none'; }} />
+            <div>
+              <div style={{ fontWeight: 900, fontSize: 18, color: COLORS.primary }}>보플랜</div>
+              <div style={{ fontSize: 11, color: COLORS.textGray }}>보험설계사 CRM</div>
             </div>
           </div>
         </div>
 
-        <div style={{
-          marginLeft: 240, flex: 1, display: 'flex',
-          flexDirection: 'column', minHeight: '100vh',
-  overflowX: 'hidden',
-        }}>
-          
-          <div style={{
-            background: '#fff', borderBottom: `1px solid ${COLORS.border}`,
-            padding: '0 32px', height: 64, display: 'flex',
-            alignItems: 'center', justifyContent: 'space-between',
-            flexShrink: 0, boxShadow: '0 2px 12px rgba(124,92,252,0.06)',
-          }}>
-            <div style={{ flexShrink: 0, marginRight: 24 }}>
-              <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.text }}>
-                👋 {user?.user_metadata?.display_name || user?.email?.split('@')[0]}
-                {user?.user_metadata?.position ? ` ${user.user_metadata.position}` : ''}님, 좋은 하루 보내세요!
-              </div>
-              <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>
-                {formatDateKorean()}
-              </div>
-            </div>
-
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              flex: 1, maxWidth: 360, background: COLORS.bg,
-              borderRadius: 12, padding: '10px 16px',
-              border: `1.5px solid ${COLORS.border}`,
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px' }}>
+          {[
+            { id: 'home',             icon: '🏠', label: '홈'           },
+            { id: 'notices',          icon: '📢', label: '공지사항'     },
+            { id: 'notifications',    icon: '🔔', label: '알림 센터'    },
+            { id: 'customers',        icon: '👥', label: '고객 관리'    },
+            { id: 'schedule',         icon: '📅', label: '일정 관리'    },
+            { id: 'sales',            icon: '📊', label: '통계 / 분석'  },
+            { id: 'consulting',       icon: '📝', label: '상담 기록'    },
+            { id: 'tree',             icon: '🌳', label: '소개 트리'    },
+            { id: 'team',             icon: '👨‍👩‍👧', label: '팀 관리'     },
+            { id: 'fax',              icon: '📠', label: '보험팩스청구'  },
+            { id: 'insuranceContact', icon: '📞', label: '보험사 연락처' },
+            { id: 'roleRequest',      icon: '🔑', label: '권한 신청'    },
+            { id: 'more',             icon: '⚙️', label: '설정'         },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => changeTab(tab.id)} style={{
+              width: '100%', display: 'flex', alignItems: 'center',
+              gap: 12, padding: '11px 14px', borderRadius: 12, border: 'none',
+              background: activeTab === tab.id ? COLORS.primaryBg : 'transparent',
+              color: activeTab === tab.id ? COLORS.primary : COLORS.textGray,
+              fontWeight: activeTab === tab.id ? 800 : 500,
+              fontSize: 14, cursor: 'pointer', marginBottom: 2,
+              textAlign: 'left', transition: 'all 0.15s',
             }}>
-              <span style={{ color: COLORS.textGray }}>🔍</span>
-              <input
-                placeholder="고객명, 전화번호를 검색"
-                value={headerSearch}
-                onChange={e => {
-                  const val = e.target.value;
-                  setHeaderSearch(val);
-                  if (val.trim()) {
-                    setStack([]);
-                    setActiveTab('customers');
-                    setCustomersFilter('전체');
-                    setCustomersSearch(val);
-                  }
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && headerSearch.trim()) {
-                    navigate('customers', { search: headerSearch });
-                    setHeaderSearch('');
-                  }
-                }}
-                style={{
-                  border: 'none', background: 'none', outline: 'none',
-                  fontSize: 13, flex: 1, color: COLORS.text, fontFamily: 'inherit',
-                }}
-              />
-              {headerSearch && (
-                <button
-                  onClick={() => { setHeaderSearch(''); setCustomersSearch(''); }}
-                  style={{
-                    background: 'none', border: 'none',
-                    cursor: 'pointer', color: COLORS.textGray,
-                    fontSize: 16, padding: 0,
-                  }}
-                >✕</button>
+              <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{tab.icon}</span>
+              {tab.label}
+              {tab.id === 'notifications' && notifCount > 0 && (
+                <span style={{ marginLeft: 'auto', background: COLORS.primary, color: '#fff', borderRadius: 999, padding: '2px 7px', fontSize: 11, fontWeight: 800 }}>{notifCount}</span>
               )}
-            </div>
+            </button>
+          ))}
+        </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 16 }}>
-              <button
-                onClick={() => changeTab('notifications')}
-                style={{
-                  width: 42, height: 42, borderRadius: 12,
-                  border: `1px solid ${COLORS.border}`,
-                  background: '#fff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', fontSize: 20, position: 'relative',
-                }}
-              >
-                🔔
-                <span style={{
-                  position: 'absolute', top: 6, right: 6,
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: COLORS.primary,
-                }} />
-              </button>
+        <div style={{ margin: '0 12px 12px', background: 'linear-gradient(135deg,#7C3AED,#A78BFA)', borderRadius: 12, padding: '10px 14px', color: '#fff' }}>
+          <div style={{ fontWeight: 900, fontSize: 12, marginBottom: 2 }}>보플랜 PRO</div>
+          <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 8, lineHeight: 1.3 }}>팀 협업 기능을<br />사용해보세요!</div>
+          <button style={{ background: '#fff', color: COLORS.primary, border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer', width: '100%' }}>자세히 보기 &gt;</button>
+        </div>
 
-              <button
-                onClick={() => navigate('schedule')}
-                style={{
-                  border: 'none',
-                  background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)',
-                  color: '#fff', borderRadius: 12, padding: '10px 18px',
-                  fontSize: 13, fontWeight: 900, cursor: 'pointer',
-                  boxShadow: '0 6px 18px rgba(124,58,237,0.25)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                + 새 일정 등록
-              </button>
+        <div style={{ padding: '14px 16px', borderTop: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          {user?.user_metadata?.photo_url ? (
+            <img src={`${user.user_metadata.photo_url}?t=${Date.now()}`} alt="프로필" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }} />
+          ) : (
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg,#7C3AED,#A78BFA)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 20, flexShrink: 0 }}>
+              {(user?.user_metadata?.display_name || user?.email || '?').charAt(0)}
             </div>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.user_metadata?.display_name || user?.email?.split('@')[0]}
+            </div>
+            <div style={{ fontSize: 11, color: COLORS.textGray }}>{user?.user_metadata?.position || '보플랜 지점'}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ 메인 콘텐츠 - fixed sidebar 옆에 배치 */}
+      <div style={{
+        marginLeft: 240,
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        minWidth: 0, // ✅ flex 자식 넘침 방지
+      }}>
+        {/* 상단 헤더 - 고정 */}
+        <div style={{
+          background: '#fff',
+          borderBottom: `1px solid ${COLORS.border}`,
+          padding: '0 32px',
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0, // ✅ 헤더 높이 고정
+          boxShadow: '0 2px 12px rgba(124,92,252,0.06)',
+        }}>
+          <div style={{ flexShrink: 0, marginRight: 24 }}>
+            <div style={{ fontWeight: 900, fontSize: 16, color: COLORS.text }}>
+              👋 {user?.user_metadata?.display_name || user?.email?.split('@')[0]}
+              {user?.user_metadata?.position ? ` ${user.user_metadata.position}` : ''}님, 좋은 하루 보내세요!
+            </div>
+            <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>{formatDateKorean()}</div>
           </div>
 
-          <div style={{
-  flex: 1,
-  minHeight: 0,
-  overflowY: 'auto',
-  overflowX: 'hidden',
-  padding: '10px 7px 44px 20px',
-  background: COLORS.bg,
-}}>
-            {hasStack ? renderStack() : renderTab()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, maxWidth: 360, background: COLORS.bg, borderRadius: 12, padding: '10px 16px', border: `1.5px solid ${COLORS.border}` }}>
+            <span style={{ color: COLORS.textGray }}>🔍</span>
+            <input
+              placeholder="고객명, 전화번호를 검색"
+              value={headerSearch}
+              onChange={e => {
+                const val = e.target.value;
+                setHeaderSearch(val);
+                if (val.trim()) {
+                  setStack([]);
+                  setActiveTab('customers');
+                  setCustomersFilter('전체');
+                  setCustomersSearch(val);
+                }
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && headerSearch.trim()) {
+                  navigate('customers', { search: headerSearch });
+                  setHeaderSearch('');
+                }
+              }}
+              style={{ border: 'none', background: 'none', outline: 'none', fontSize: 13, flex: 1, color: COLORS.text, fontFamily: 'inherit' }}
+            />
+            {headerSearch && (
+              <button onClick={() => { setHeaderSearch(''); setCustomersSearch(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.textGray, fontSize: 16, padding: 0 }}>✕</button>
+            )}
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 16 }}>
+            <button onClick={() => changeTab('notifications')} style={{ width: 42, height: 42, borderRadius: 12, border: `1px solid ${COLORS.border}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, position: 'relative' }}>
+              🔔
+              <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', background: COLORS.primary }} />
+            </button>
+            <button onClick={() => navigate('schedule')} style={{ border: 'none', background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)', color: '#fff', borderRadius: 12, padding: '10px 18px', fontSize: 13, fontWeight: 900, cursor: 'pointer', boxShadow: '0 6px 18px rgba(124,58,237,0.25)', whiteSpace: 'nowrap' }}>
+              + 새 일정 등록
+            </button>
+          </div>
+        </div>
+
+        {/* ✅ 콘텐츠 영역 - 여기서만 스크롤 */}
+        <div style={{
+          flex: 1,
+          minHeight: 0, // ✅ 핵심! flex 자식 스크롤 위해 필수
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '10px 7px 44px 20px',
+          background: COLORS.bg,
+        }}>
+          {hasStack ? renderStack() : renderTab()}
         </div>
       </div>
     </WebShell>
