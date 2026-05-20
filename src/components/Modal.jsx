@@ -12,16 +12,17 @@ export default function Modal({ visible, onClose, title, children }) {
   transform: 'translate(-50%, -50%)',
   background: '#fff',
   borderRadius: 24,
-  width: '90%',
+
+  width: 'calc(100vw - 32px)',
   maxWidth: 520,
+
+  boxSizing: 'border-box',
+
   maxHeight: '80vh',
   overflowY: 'auto',
   zIndex: 9999,
-
-  boxShadow: '0 24px 80px rgba(0,0,0,0.28)',
-  border: '1px solid rgba(255,255,255,0.9)',
-
 }}
+
  onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
         background: COLORS.white, borderRadius: '24px 24px 0 0',
