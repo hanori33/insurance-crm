@@ -5,24 +5,24 @@ import carImg from '../assets/car.png';
 import cakeImg from '../assets/cake.png';
 import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
-import Header from '../components/Header';
 import { Card, Divider, LoadingSpinner } from '../components/Common';
 import EmptyState from '../components/EmptyState';
 import ScheduleForm from '../components/ScheduleForm';
 import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
-import { formatDateKorean, toTimeStr, todayStr } from '../utils';
+import { toTimeStr, todayStr } from '../utils';
 import noticeService from '../services/noticeService';
 import NoticeForm from '../components/NoticeForm';
 
-
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
+
   return isMobile;
 }
 
@@ -37,6 +37,7 @@ function MiniStatCard({ icon, title, value, sub, bg = '#fff', color = COLORS.pri
     icon.endsWith('.webp') ||
     icon.startsWith('blob:')
   );
+
   const isWideImage = icon === carImg || icon === dogImg;
 
   return (
@@ -54,6 +55,7 @@ function MiniStatCard({ icon, title, value, sub, bg = '#fff', color = COLORS.pri
         border: `1px solid ${COLORS.border}`,
         position: 'relative',
         overflow: 'hidden',
+        width: '100%',
       }}
     >
       <div style={{ position: 'relative', zIndex: 2, width: '58%', minWidth: 0 }}>
@@ -87,11 +89,21 @@ function MiniStatCard({ icon, title, value, sub, bg = '#fff', color = COLORS.pri
           }}
         />
       ) : (
-        <div style={{
-          position: 'absolute', right: 18, bottom: 18,
-          width: 70, height: 70, display: 'flex', alignItems: 'center',
-          justifyContent: 'center', fontSize: 34, color, zIndex: 1,
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            right: 18,
+            bottom: 18,
+            width: 70,
+            height: 70,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 34,
+            color,
+            zIndex: 1,
+          }}
+        >
           {icon}
         </div>
       )}
@@ -136,10 +148,16 @@ function ScheduleRow({ item, isLast }) {
           )}
         </div>
         {item.reminder_minutes && (
-          <span style={{
-            background: COLORS.primaryBg, color: COLORS.primary,
-            borderRadius: 999, padding: '4px 8px', fontSize: 11, fontWeight: 800,
-          }}>
+          <span
+            style={{
+              background: COLORS.primaryBg,
+              color: COLORS.primary,
+              borderRadius: 999,
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: 800,
+            }}
+          >
             알림
           </span>
         )}
@@ -156,27 +174,47 @@ function CustomerMiniRow({ customer, isLast, onClick }) {
         type="button"
         onClick={onClick}
         style={{
-          width: '100%', border: 'none', background: 'transparent',
-          padding: '8px 0', display: 'flex', alignItems: 'center',
-          gap: 12, cursor: 'pointer', textAlign: 'left',
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          padding: '8px 0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          cursor: 'pointer',
+          textAlign: 'left',
         }}
       >
-        <div style={{
-          width: 40, height: 40, borderRadius: 14,
-          background: 'linear-gradient(135deg,#C4B5FD,#8B5CF6)',
-          color: '#fff', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', fontWeight: 900, flexShrink: 0,
-        }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg,#C4B5FD,#8B5CF6)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 900,
+            flexShrink: 0,
+          }}
+        >
           {(customer.name || '?').charAt(0)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 800, color: COLORS.text, fontSize: 14 }}>{customer.name}</div>
           <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>{customer.phone || '-'}</div>
         </div>
-        <span style={{
-          background: COLORS.primaryBg, color: COLORS.primary,
-          borderRadius: 999, padding: '4px 9px', fontSize: 11, fontWeight: 800,
-        }}>
+        <span
+          style={{
+            background: COLORS.primaryBg,
+            color: COLORS.primary,
+            borderRadius: 999,
+            padding: '4px 9px',
+            fontSize: 11,
+            fontWeight: 800,
+          }}
+        >
           {customer.status || '상담중'}
         </span>
       </button>
@@ -191,8 +229,11 @@ function QuickButton({ icon, label, onClick }) {
       type="button"
       onClick={onClick}
       style={{
-        border: `1px solid ${COLORS.border}`, background: '#fff',
-        borderRadius: 16, padding: '14px 10px', cursor: 'pointer',
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        borderRadius: 16,
+        padding: '14px 10px',
+        cursor: 'pointer',
         boxShadow: '0 8px 18px rgba(124,92,252,0.06)',
       }}
     >
@@ -202,80 +243,31 @@ function QuickButton({ icon, label, onClick }) {
   );
 }
 
-function getMonthDay(value) {
-  if (!value) return '';
-  const s = String(value).trim();
-  if (/^\d{6}$/.test(s)) return `${s.slice(2, 4)}-${s.slice(4, 6)}`;
-  if (/^\d{8}$/.test(s)) return `${s.slice(4, 6)}-${s.slice(6, 8)}`;
-  const match = s.match(/(\d{2})[-./](\d{2})$/);
-  if (match) return `${match[1]}-${match[2]}`;
-  const iso = s.match(/\d{4}[-./](\d{2})[-./](\d{2})/);
-  if (iso) return `${iso[1]}-${iso[2]}`;
-  return '';
-}
-
 function daysUntil(dateStr) {
   if (!dateStr) return null;
+
   const target = new Date(dateStr);
   if (Number.isNaN(target.getTime())) return null;
+
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+
   return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
 }
 
-export default function DashboardPage({ user, onNavigate, notifCount: externalNotifCount, onClearNotif }) {
-  const isMobile = useIsMobile();
-  const [loading, setLoading] = useState(true);
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [todaySchedules, setTodaySchedules] = useState([]);
-  const [recentCustomers, setRecentCustomers] = useState([]);
-  const [allCustomers, setAllCustomers] = useState([]);
-  const [statusCounts, setStatusCounts] = useState({});
-const [notices, setNotices] = useState([]);        // ✅ 추가
-const [readIds, setReadIds] = useState([]);         // ✅ 추가
-const [myRole, setMyRole] = useState('agent');      // ✅ 추가
-const [showNoticeForm, setShowNoticeForm] = useState(false);
-
-  const meta = user?.user_metadata || {};
-  const userName = meta.display_name || user?.email?.split('@')[0] || '사용자';
-  const position = meta.position || '';
-
-  useEffect(() => { load(); }, []);
-
-  async function load() {
-  setLoading(true);
-  try {
-    const [todaySched, recent, counts, all, noticeList, readIdList, role] = await Promise.all([
-      scheduleService.today().catch(() => []),
-      customerService.recent(4).catch(() => []),
-      customerService.statusCounts().catch(() => ({})),
-      customerService.list({ status: '전체', search: '' }).catch(() => []),
-      noticeService.list().catch(() => []),          // ✅ 추가
-      noticeService.getReadIds().catch(() => []),    // ✅ 추가
-      noticeService.getMyRole().catch(() => 'agent'), // ✅ 추가
-    ]);
-
-    setTodaySchedules(todaySched || []);
-    setRecentCustomers(recent || []);
-    setStatusCounts(counts || {});
-    setAllCustomers(all || []);
-    console.log('allCustomers 개수:', (all || []).length);
-console.log('car_expiry 있는 고객:', (all || []).filter(c => c.car_expiry).map(c => ({
-  name: c.name,
-  car_expiry: c.car_expiry,
-})));
-    setNotices(noticeList || []);      // ✅ 추가
-    setReadIds(readIdList || []);      // ✅ 추가
-    setMyRole(role || 'agent');        // ✅ 추가
-  } finally {
-    setLoading(false);
-  }
+function getCarExpiry(c) {
+  return (
+    c.car_expiry ||
+    c.carExpiry ||
+    c.car_expiry_date ||
+    c.carExpiryDate ||
+    c.car_expiry_at ||
+    ''
+  );
 }
 
-  const totalCustomers = Object.values(statusCounts).reduce((a, b) => a + b, 0);
-  const todayMMDD = getMonthDay(todayStr());
- const birthdayCustomers = allCustomers.filter((c) => {
+function isBirthdayToday(c) {
   const today = new Date();
   const todayMonth = today.getMonth() + 1;
   const todayDate = today.getDate();
@@ -297,107 +289,222 @@ console.log('car_expiry 있는 고객:', (all || []).filter(c => c.car_expiry).m
   }
 
   return false;
-});
+}
+
+export default function DashboardPage({ user, onNavigate }) {
+  const isMobile = useIsMobile();
+  const [loading, setLoading] = useState(true);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [todaySchedules, setTodaySchedules] = useState([]);
+  const [recentCustomers, setRecentCustomers] = useState([]);
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [statusCounts, setStatusCounts] = useState({});
+  const [notices, setNotices] = useState([]);
+  const [readIds, setReadIds] = useState([]);
+  const [myRole, setMyRole] = useState('agent');
+  const [showNoticeForm, setShowNoticeForm] = useState(false);
+
+  const meta = user?.user_metadata || {};
+  const userName = meta.display_name || user?.email?.split('@')[0] || '사용자';
+  const position = meta.position || '';
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+
+    try {
+      const [todaySched, recent, counts, all, noticeList, readIdList, role] = await Promise.all([
+        scheduleService.today().catch(() => []),
+        customerService.recent(4).catch(() => []),
+        customerService.statusCounts().catch(() => ({})),
+        customerService.list({ status: '전체', search: '' }).catch(() => []),
+        noticeService.list().catch(() => []),
+        noticeService.getReadIds().catch(() => []),
+        noticeService.getMyRole().catch(() => 'agent'),
+      ]);
+
+      setTodaySchedules(todaySched || []);
+      setRecentCustomers(recent || []);
+      setStatusCounts(counts || {});
+      setAllCustomers(all || []);
+      setNotices(noticeList || []);
+      setReadIds(readIdList || []);
+      setMyRole(role || 'agent');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const totalCustomers = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+
+  const birthdayCustomers = allCustomers.filter(isBirthdayToday);
+
   const carExpiringCustomers = allCustomers.filter((c) => {
-    const d = daysUntil(c.car_expiry || c.car_expiry_date || c.car_expiry_at);
+    const d = daysUntil(getCarExpiry(c));
     return d !== null && d >= 0 && d <= 30;
   });
+
   const babyCustomers = allCustomers.filter((c) => c.customer_type === '태아' || c.baby_name);
   const petCustomers = allCustomers.filter((c) => c.customer_type === '펫' || c.pet_name);
   const taskCount = todaySchedules.length + birthdayCustomers.length + carExpiringCustomers.length;
 
- 
   return (
-  <div style={{ width: '100%' }}>
-    <div style={{
-      padding: isMobile ? '16px 16px 72px' : '28px 0 44px'
-    }}>
+    <div
+      style={{
+        width: '100%',
+        minHeight: '100%',
+        boxSizing: 'border-box',
+        background: COLORS.bg,
+      }}
+    >
+      <div
+        style={{
+          padding: isMobile
+            ? '16px 16px calc(116px + env(safe-area-inset-bottom))'
+            : '28px 0 44px',
+          boxSizing: 'border-box',
+        }}
+      >
         {isMobile ? (
           <MobileDashboard
-            userName={userName} position={position} loading={loading}
-            todaySchedules={todaySchedules} recentCustomers={recentCustomers}
-            totalCustomers={totalCustomers} taskCount={taskCount}
-            birthdayCustomers={birthdayCustomers} carExpiringCustomers={carExpiringCustomers}
-            babyCustomers={babyCustomers} petCustomers={petCustomers}
-            setShowScheduleForm={setShowScheduleForm} onNavigate={onNavigate}
+            userName={userName}
+            position={position}
+            loading={loading}
+            todaySchedules={todaySchedules}
+            recentCustomers={recentCustomers}
+            totalCustomers={totalCustomers}
+            taskCount={taskCount}
+            birthdayCustomers={birthdayCustomers}
+            carExpiringCustomers={carExpiringCustomers}
+            babyCustomers={babyCustomers}
+            petCustomers={petCustomers}
+            setShowScheduleForm={setShowScheduleForm}
+            onNavigate={onNavigate}
           />
         ) : (
-         <PcDashboard
-  userName={userName} position={position} loading={loading}
-  todaySchedules={todaySchedules} recentCustomers={recentCustomers}
-  totalCustomers={totalCustomers} taskCount={taskCount}
-  birthdayCustomers={birthdayCustomers} carExpiringCustomers={carExpiringCustomers}
-  babyCustomers={babyCustomers} petCustomers={petCustomers}
-  setShowScheduleForm={setShowScheduleForm} onNavigate={onNavigate}
-  statusCounts={statusCounts}
-  notices={notices}
-  readIds={readIds}
-  myRole={myRole}
-  setReadIds={setReadIds}
-  setShowNoticeForm={setShowNoticeForm}
-/>
+          <PcDashboard
+            userName={userName}
+            position={position}
+            loading={loading}
+            todaySchedules={todaySchedules}
+            recentCustomers={recentCustomers}
+            totalCustomers={totalCustomers}
+            taskCount={taskCount}
+            birthdayCustomers={birthdayCustomers}
+            carExpiringCustomers={carExpiringCustomers}
+            babyCustomers={babyCustomers}
+            petCustomers={petCustomers}
+            setShowScheduleForm={setShowScheduleForm}
+            onNavigate={onNavigate}
+            statusCounts={statusCounts}
+            notices={notices}
+            readIds={readIds}
+            myRole={myRole}
+            setReadIds={setReadIds}
+            setShowNoticeForm={setShowNoticeForm}
+          />
         )}
       </div>
+
       <ScheduleForm
         visible={showScheduleForm}
         onClose={() => setShowScheduleForm(false)}
-        onSave={() => { load(); setShowScheduleForm(false); }}
+        onSave={() => {
+          load();
+          setShowScheduleForm(false);
+        }}
         dateStr={todayStr()}
         initial={null}
       />
-      {/* ✅ 여기에 추가 */}
-{showNoticeForm && (
-  <NoticeForm
-    visible={showNoticeForm}
-    onClose={() => setShowNoticeForm(false)}
-    myRole={myRole}
-    userName={userName}
-    onSave={async () => {
-      const [noticeList, readIdList] = await Promise.all([
-        noticeService.list().catch(() => []),
-        noticeService.getReadIds().catch(() => []),
-      ]);
-  setNotices(noticeList);
-      setReadIds(readIdList);
-      setShowNoticeForm(false);
-    }}
-  />
-)}
+
+      {showNoticeForm && (
+        <NoticeForm
+          visible={showNoticeForm}
+          onClose={() => setShowNoticeForm(false)}
+          myRole={myRole}
+          userName={userName}
+          onSave={async () => {
+            const [noticeList, readIdList] = await Promise.all([
+              noticeService.list().catch(() => []),
+              noticeService.getReadIds().catch(() => []),
+            ]);
+
+            setNotices(noticeList || []);
+            setReadIds(readIdList || []);
+            setShowNoticeForm(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 function MobileDashboard({
-  userName, position, loading, todaySchedules, recentCustomers,
-  totalCustomers, taskCount, birthdayCustomers, carExpiringCustomers,
-  babyCustomers, petCustomers, setShowScheduleForm, onNavigate,
+  userName,
+  position,
+  loading,
+  todaySchedules,
+  recentCustomers,
+  totalCustomers,
+  taskCount,
+  birthdayCustomers,
+  carExpiringCustomers,
+  babyCustomers,
+  petCustomers,
+  setShowScheduleForm,
+  onNavigate,
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 0 }}>
-      <div style={{
-        background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
-        borderRadius: 24, padding: '24px 20px', color: '#fff',
-        boxShadow: '0 14px 34px rgba(124,58,237,0.28)',
-      }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+        minHeight: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        style={{
+          background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
+          borderRadius: 24,
+          padding: '24px 20px',
+          color: '#fff',
+          boxShadow: '0 14px 34px rgba(124,58,237,0.28)',
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
             <div style={{ fontSize: 23, fontWeight: 600, lineHeight: 1.05 }}>
-              👋 {userName}{position ? ` ${position}` : ''}님
+              👋 {userName}
+              {position ? ` ${position}` : ''}님
             </div>
             <div style={{ fontSize: 15, opacity: 0.92, marginTop: 9 }}>
               오늘도 좋은 하루 보내세요~!
             </div>
           </div>
-          <div style={{
-            textAlign: 'right', flexShrink: 0, display: 'flex',
-            flexDirection: 'column', justifyContent: 'center',
-            alignItems: 'flex-end', minWidth: 108,
-          }}>
+
+          <div
+            style={{
+              textAlign: 'right',
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'flex-end',
+              minWidth: 108,
+            }}
+          >
             <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.1, opacity: 0.95 }}>
               {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 {new Date().getDate()}일
             </div>
             <div style={{ fontSize: 18, fontWeight: 400, marginTop: 5, letterSpacing: -0.3, lineHeight: 1 }}>
-              {['일','월','화','수','목','금','토'][new Date().getDay()]}요일
+              {['일', '월', '화', '수', '목', '금', '토'][new Date().getDay()]}요일
             </div>
           </div>
         </div>
@@ -405,14 +512,27 @@ function MobileDashboard({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 20 }}>
           <div
             onClick={() => onNavigate('schedule')}
-            style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 18, padding: 16, color: COLORS.text, cursor: 'pointer' }}
+            style={{
+              background: 'rgba(255,255,255,0.9)',
+              borderRadius: 18,
+              padding: 16,
+              color: COLORS.text,
+              cursor: 'pointer',
+            }}
           >
             <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.primary }}>오늘 일정</div>
             <div style={{ fontSize: 24, fontWeight: 900, marginTop: 8 }}>{todaySchedules.length}건</div>
           </div>
+
           <div
             onClick={() => onNavigate('notifications')}
-            style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 18, padding: 16, color: COLORS.text, cursor: 'pointer' }}
+            style={{
+              background: 'rgba(255,255,255,0.9)',
+              borderRadius: 18,
+              padding: 16,
+              color: COLORS.text,
+              cursor: 'pointer',
+            }}
           >
             <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.primary }}>할 일</div>
             <div style={{ fontSize: 24, fontWeight: 900, marginTop: 8 }}>{taskCount}건</div>
@@ -427,8 +547,13 @@ function MobileDashboard({
           <button
             onClick={() => setShowScheduleForm(true)}
             style={{
-              border: 'none', background: COLORS.primary, color: '#fff',
-              borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 800,
+              border: 'none',
+              background: COLORS.primary,
+              color: '#fff',
+              borderRadius: 999,
+              padding: '7px 12px',
+              fontSize: 12,
+              fontWeight: 800,
             }}
           >
             + 추가
@@ -441,30 +566,49 @@ function MobileDashboard({
           <EmptyState icon="📅" message="오늘 일정이 없습니다" />
         ) : (
           todaySchedules.slice(0, 4).map((s, i) => (
-            <ScheduleRow key={s.id || i} item={s} isLast={i === Math.min(todaySchedules.length, 4) - 1} />
+            <ScheduleRow
+              key={s.id || i}
+              item={s}
+              isLast={i === Math.min(todaySchedules.length, 4) - 1}
+            />
           ))
         )}
       </DashboardSection>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <MiniStatCard
-          icon={cakeImg} title="오늘 생일" value={`${birthdayCustomers.length}명`}
-          sub="고객 생일 확인" bg="#FFF1F2"
+          icon={cakeImg}
+          title="오늘 생일"
+          value={`${birthdayCustomers.length}명`}
+          sub="고객 생일 확인"
+          bg="#FFF1F2"
           onClick={() => onNavigate('customers', { filter: '생일' })}
         />
+
         <MiniStatCard
-          icon={carImg} title="자동차 만기" value={`${carExpiringCustomers.length}건`}
-          sub="30일 이내" bg="#EFF6FF"
+          icon={carImg}
+          title="자동차 만기"
+          value={`${carExpiringCustomers.length}건`}
+          sub="30일 이내"
+          bg="#EFF6FF"
           onClick={() => onNavigate('customers', { filter: '자동차만기' })}
         />
+
         <MiniStatCard
-          icon={babyImg} title="태아 D-day" value={`${babyCustomers.length}명`}
-          sub="출산 예정 고객" bg="#FFF7ED"
+          icon={babyImg}
+          title="태아 D-day"
+          value={`${babyCustomers.length}명`}
+          sub="출산 예정 고객"
+          bg="#FFF7ED"
           onClick={() => onNavigate('customers', { filter: '태아' })}
         />
+
         <MiniStatCard
-          icon={dogImg} title="펫보험 고객" value={`${petCustomers.length}명`}
-          sub="반려동물 고객관리" bg="#ECFDF5"
+          icon={dogImg}
+          title="펫보험 고객"
+          value={`${petCustomers.length}명`}
+          sub="반려동물 고객관리"
+          bg="#ECFDF5"
           onClick={() => onNavigate('customers', { filter: '펫' })}
         />
       </div>
@@ -477,7 +621,8 @@ function MobileDashboard({
         ) : (
           recentCustomers.map((c, i) => (
             <CustomerMiniRow
-              key={c.id || i} customer={c}
+              key={c.id || i}
+              customer={c}
               isLast={i === recentCustomers.length - 1}
               onClick={() => onNavigate('customerDetail', { id: c.db_id || c.id })}
             />
@@ -485,14 +630,26 @@ function MobileDashboard({
         )}
       </DashboardSection>
 
-      <div style={{ position: 'fixed', right: 22, bottom: 74, zIndex: 10 }}>
+      <div
+        style={{
+          position: 'fixed',
+          right: 18,
+          bottom: 'calc(92px + env(safe-area-inset-bottom))',
+          zIndex: 50,
+        }}
+      >
         <button
           onClick={() => setShowScheduleForm(true)}
           style={{
-            width: 58, height: 58, borderRadius: '50%', border: 'none',
+            width: 58,
+            height: 58,
+            borderRadius: '50%',
+            border: 'none',
             background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)',
-            color: '#fff', fontSize: 30,
-            boxShadow: '0 12px 28px rgba(124,58,237,0.38)', cursor: 'pointer',
+            color: '#fff',
+            fontSize: 30,
+            boxShadow: '0 12px 28px rgba(124,58,237,0.38)',
+            cursor: 'pointer',
           }}
         >
           +
@@ -503,33 +660,62 @@ function MobileDashboard({
 }
 
 function PcDashboard({
-  userName, position, loading, todaySchedules, recentCustomers,
-  totalCustomers, taskCount, birthdayCustomers, carExpiringCustomers,
-  babyCustomers, petCustomers, setShowScheduleForm, onNavigate,
+  loading,
+  todaySchedules,
+  recentCustomers,
+  totalCustomers,
+  taskCount,
+  birthdayCustomers,
+  carExpiringCustomers,
+  babyCustomers,
+  petCustomers,
+  setShowScheduleForm,
+  onNavigate,
   statusCounts,
-  notices, readIds, myRole, setReadIds, setShowNoticeForm, // ✅ 추가
+  notices,
+  readIds,
+  myRole,
+  setReadIds,
+  setShowNoticeForm,
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-      
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-        <MiniStatCard icon="📅" title="오늘 일정" value={`${todaySchedules.length}건`} sub="오늘 예정된 일정" bg="#F5F3FF"
-  onClick={() => onNavigate('schedule')}
-/>
-<MiniStatCard icon="✅" title="할 일" value={`${taskCount}건`} sub="오늘 처리할 업무" bg="#FFF1F2"
-  onClick={() => onNavigate('notifications')}
-/>
-<MiniStatCard icon="👥" title="전체 고객" value={`${totalCustomers}명`} sub="등록 고객 수" bg="#FFFBEB"
-  onClick={() => onNavigate('customers', { filter: '전체' })}
-/>
-<MiniStatCard
-  icon="💬"
-  title="상담중 고객"
-  value={`${statusCounts['상담중'] || 0}명`}
-  sub="현재 상담 진행중"
-  bg="#ECFDF5"
-  onClick={() => onNavigate('customers', { filter: '상담중' })}
-/>
+        <MiniStatCard
+          icon="📅"
+          title="오늘 일정"
+          value={`${todaySchedules.length}건`}
+          sub="오늘 예정된 일정"
+          bg="#F5F3FF"
+          onClick={() => onNavigate('schedule')}
+        />
+
+        <MiniStatCard
+          icon="✅"
+          title="할 일"
+          value={`${taskCount}건`}
+          sub="오늘 처리할 업무"
+          bg="#FFF1F2"
+          onClick={() => onNavigate('notifications')}
+        />
+
+        <MiniStatCard
+          icon="👥"
+          title="전체 고객"
+          value={`${totalCustomers}명`}
+          sub="등록 고객 수"
+          bg="#FFFBEB"
+          onClick={() => onNavigate('customers', { filter: '전체' })}
+        />
+
+        <MiniStatCard
+          icon="💬"
+          title="상담중 고객"
+          value={`${statusCounts['상담중'] || 0}명`}
+          sub="현재 상담 진행중"
+          bg="#ECFDF5"
+          onClick={() => onNavigate('customers', { filter: '상담중' })}
+        />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 1fr', gap: 18, alignItems: 'start' }}>
@@ -540,30 +726,49 @@ function PcDashboard({
             <EmptyState icon="📅" message="오늘 일정이 없습니다" />
           ) : (
             todaySchedules.slice(0, 5).map((s, i) => (
-              <ScheduleRow key={s.id || i} item={s} isLast={i === Math.min(todaySchedules.length, 5) - 1} />
+              <ScheduleRow
+                key={s.id || i}
+                item={s}
+                isLast={i === Math.min(todaySchedules.length, 5) - 1}
+              />
             ))
           )}
         </DashboardSection>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <MiniStatCard
-            icon={cakeImg} title="오늘 생일 고객" value={`${birthdayCustomers.length}명`}
-            sub="생일 고객 리스트" bg="#FFF1F2"
+            icon={cakeImg}
+            title="오늘 생일 고객"
+            value={`${birthdayCustomers.length}명`}
+            sub="생일 고객 리스트"
+            bg="#FFF1F2"
             onClick={() => onNavigate('customers', { filter: '생일' })}
           />
+
           <MiniStatCard
-            icon={carImg} title="자동차 만기 고객" value={`${carExpiringCustomers.length}건`}
-            sub="30일 이내 만기" bg="#EFF6FF"
+            icon={carImg}
+            title="자동차 만기 고객"
+            value={`${carExpiringCustomers.length}건`}
+            sub="30일 이내 만기"
+            bg="#EFF6FF"
             onClick={() => onNavigate('customers', { filter: '자동차만기' })}
           />
+
           <MiniStatCard
-            icon={babyImg} title="태아 D-day" value={`${babyCustomers.length}명`}
-            sub="출산 예정 고객" bg="#FFF7ED"
+            icon={babyImg}
+            title="태아 D-day"
+            value={`${babyCustomers.length}명`}
+            sub="출산 예정 고객"
+            bg="#FFF7ED"
             onClick={() => onNavigate('customers', { filter: '태아' })}
           />
+
           <MiniStatCard
-            icon={dogImg} title="펫보험 고객" value={`${petCustomers.length}명`}
-            sub="반려동물 고객 관리" bg="#ECFDF5"
+            icon={dogImg}
+            title="펫보험 고객"
+            value={`${petCustomers.length}명`}
+            sub="반려동물 고객 관리"
+            bg="#ECFDF5"
             onClick={() => onNavigate('customers', { filter: '펫' })}
           />
         </div>
@@ -578,7 +783,8 @@ function PcDashboard({
           ) : (
             recentCustomers.map((c, i) => (
               <CustomerMiniRow
-                key={c.id || i} customer={c}
+                key={c.id || i}
+                customer={c}
                 isLast={i === recentCustomers.length - 1}
                 onClick={() => onNavigate('customerDetail', { id: c.db_id || c.id })}
               />
@@ -596,15 +802,26 @@ function PcDashboard({
         </DashboardSection>
       </div>
 
-      {/* ✅ 여기에 공지사항 추가 */}
-      <DashboardSection title="공지사항" icon="📢"
+      <DashboardSection
+        title="공지사항"
+        icon="📢"
         right={
-          (myRole === 'superadmin' || myRole === 'division_head' || myRole === 'branch_head' || myRole === 'office_head' || myRole === 'team_leader') && (
+          (myRole === 'superadmin' ||
+            myRole === 'division_head' ||
+            myRole === 'branch_head' ||
+            myRole === 'office_head' ||
+            myRole === 'team_leader') && (
             <button
               onClick={() => setShowNoticeForm(true)}
               style={{
-                border: 'none', background: COLORS.primary, color: '#fff',
-                borderRadius: 999, padding: '7px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                border: 'none',
+                background: COLORS.primary,
+                color: '#fff',
+                borderRadius: 999,
+                padding: '7px 12px',
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
               }}
             >
               + 공지 작성
@@ -617,47 +834,63 @@ function PcDashboard({
         ) : (
           notices.map((n, i) => {
             const isRead = readIds.includes(n.id);
+
             return (
               <React.Fragment key={n.id}>
                 <div
                   onClick={async () => {
-  if (!isRead) {
-    await noticeService.markAsRead(n.id);
-    setReadIds(prev => [...prev, n.id]);
-  }
-  onNavigate('notices'); // ✅ 추가
-}}
+                    if (!isRead) {
+                      await noticeService.markAsRead(n.id);
+                      setReadIds(prev => [...prev, n.id]);
+                    }
+                    onNavigate('notices');
+                  }}
                   style={{
-                    padding: '12px 0', cursor: 'pointer',
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '12px 0',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
                   }}
                 >
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>{n.title}</span>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>
+                        {n.title}
+                      </span>
                       {!isRead && (
-                        <span style={{
-                          background: '#EF4444', color: '#fff',
-                          borderRadius: 999, padding: '2px 7px',
-                          fontSize: 10, fontWeight: 800,
-                        }}>NEW</span>
+                        <span
+                          style={{
+                            background: '#EF4444',
+                            color: '#fff',
+                            borderRadius: 999,
+                            padding: '2px 7px',
+                            fontSize: 10,
+                            fontWeight: 800,
+                          }}
+                        >
+                          NEW
+                        </span>
                       )}
                     </div>
+
                     <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 4 }}>
-  {n.content.split('\n')[0].slice(0, 60)}{n.content.split('\n')[0].length > 60 ? '...' : ''}
-</div>
-<div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
- {n.author_name} ({n.author_role}) · {new Date(n.created_at).toLocaleDateString('ko-KR')}  
-                       </div>
+                      {n.content.split('\n')[0].slice(0, 60)}
+                      {n.content.split('\n')[0].length > 60 ? '...' : ''}
+                    </div>
+
+                    <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
+                      {n.author_name} ({n.author_role}) · {new Date(n.created_at).toLocaleDateString('ko-KR')}
+                    </div>
                   </div>
                 </div>
+
                 {i < notices.length - 1 && <Divider />}
               </React.Fragment>
             );
           })
         )}
       </DashboardSection>
-
     </div>
   );
 }
