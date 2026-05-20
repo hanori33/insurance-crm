@@ -387,38 +387,40 @@ function stopVoiceRecord() {
 <div
   style={{
     display: 'flex',
-    justifyContent: 'flex-end',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
   }}
 >
   <button
-  type="button"
-  onMouseDown={startVoiceRecord}
-  onMouseUp={stopVoiceRecord}
-  onTouchStart={startVoiceRecord}
-  onTouchEnd={stopVoiceRecord}
-  style={{
-    border: 'none',
-    background: COLORS.primary,
-    color: '#fff',
-    borderRadius: 999,
-    padding: '10px 14px',
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: 'pointer',
-  }}
->
-  🎤 음성 입력 길게 누르고 말하기
-</button>
-<div
-  style={{
-    marginTop: 6,
-    fontSize: 11,
-    color: COLORS.textGray,
-    textAlign: 'right',
-  }}
->
-  길게 누르고 말하면 자동 입력돼요
-</div>
+    type="button"
+    onMouseDown={startVoiceRecord}
+    onMouseUp={stopVoiceRecord}
+    onTouchStart={startVoiceRecord}
+    onTouchEnd={stopVoiceRecord}
+    style={{
+      border: 'none',
+      background: COLORS.primary,
+      color: '#fff',
+      borderRadius: 999,
+      padding: '10px 14px',
+      fontSize: 12,
+      fontWeight: 900,
+      cursor: 'pointer',
+    }}
+  >
+    🎤 음성 입력
+  </button>
+
+  <div
+    style={{
+      marginTop: 6,
+      fontSize: 11,
+      color: COLORS.textGray,
+      textAlign: 'right',
+    }}
+  >
+    길게 누르고 말하면 자동 입력돼요
+  </div>
 </div>
 
             <textarea
