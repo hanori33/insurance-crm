@@ -45,29 +45,35 @@ export default function Header({ user, notifCount = 0, onNotif, onProfile, onNav
     </button>
 
     {/* 로고 - 중앙 고정 */}
-    <div style={{
-      position: 'absolute', left: '50%', transform: 'translateX(-50%)',
-      display: 'flex', alignItems: 'center', gap: 8,
-    }}>
-      <img
-        src="/boplan192.png"
-        alt="보플랜"
-        style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }}
-        onError={e => {
-          e.target.style.display = 'none';
-          e.target.nextSibling.style.display = 'flex';
-        }}
-      />
-      <div style={{
-        display: 'none', width: 32, height: 32, borderRadius: 8,
-        background: 'linear-gradient(135deg,#8B5CF6,#7C3AED)',
-        alignItems: 'center', justifyContent: 'center',
-        color: '#fff', fontWeight: 900, fontSize: 16,
-      }}>b</div>
-      <span style={{ fontWeight: 800, fontSize: 18, color: COLORS.primary, letterSpacing: -0.3 }}>
-        보플랜
-      </span>
-    </div>
+<div style={{
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: 8,
+  pointerEvents: 'none',
+}}>
+  <img
+    src="/boplan192.png"
+    alt="보플랜"
+    style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', pointerEvents: 'none' }}
+    onError={e => {
+      e.target.style.display = 'none';
+      e.target.nextSibling.style.display = 'flex';
+    }}
+  />
+  <div style={{
+    display: 'none', width: 32, height: 32, borderRadius: 8,
+    background: 'linear-gradient(135deg,#8B5CF6,#7C3AED)',
+    alignItems: 'center', justifyContent: 'center',
+    color: '#fff', fontWeight: 900, fontSize: 16,
+  }}>b</div>
+  <span style={{ fontWeight: 800, fontSize: 18, color: COLORS.primary, letterSpacing: -0.3, pointerEvents: 'none' }}>
+    보플랜
+  </span>
+</div>
 
     {/* 알림 + 프로필 */}
     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
