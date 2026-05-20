@@ -90,20 +90,28 @@ export default function NotificationsPage({ onBack, onRead, onReadOne }) {
         }
       });
 
-      // ③ 자동차 만기 30일 이내
-      customers.forEach(c => {
-        const d = daysUntil(c.car_expiry);
-        if (d !== null && d >= 0 && d <= 30) {
-          notifs.push({
-            id: `car-${c.id}`,
-            icon: '🚗',
-            title: '자동차 만기 임박',
-            body: `${c.name} 고객 자동차 보험 만기 ${d === 0 ? '오늘' : `${d}일 후`}`,
-            time: d === 0 ? '오늘' : `${d}일 후`,
-            color: '#EFF6FF',
-          });
-        }
-      });
+     // ③ 자동차 만기 30일 이내
+customers.forEach(c => {
+  const carDate =
+    c.car_expiry ||
+    c.carExpiry ||
+    c.car_expiry_date ||
+    c.carExpiryDate ||
+    c.car_expiry_at;
+
+  const d = daysUntil(carDate);
+
+  if (d !== null && d >= 0 && d <= 30) {
+    notifs.push({
+      id: `car-${c.id}`,
+      icon: '🚗',
+      title: '자동차 만기 임박',
+      body: `${c.name} 고객 자동차 보험 만기 ${d === 0 ? '오늘' : `${d}일 후`}`,
+      time: d === 0 ? '오늘' : `${d}일 후`,
+      color: '#EFF6FF',
+    });
+  }
+});
 
       // ④ 태아 D-day (출산예정일 30일 이내)
       customers.forEach(c => {
