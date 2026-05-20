@@ -329,12 +329,15 @@ export default function App() {
           }}
         />
         <div style={{
-          flex: 1, minHeight: 0, overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch', background: COLORS.bg,
-        }}>
-          {hasStack ? renderStack() : renderTab()}
-        </div>
-        {!hasStack && <BottomTabBar activeTab={activeTab} onChange={changeTab} />}
+  flex: 1,
+  minHeight: 0,
+  overflowY: (!hasStack && (activeTab === 'customers' || activeTab === 'schedule')) ? 'hidden' : 'auto',
+  overflowX: 'hidden',
+  WebkitOverflowScrolling: 'touch',
+  background: COLORS.bg,
+}}>
+  {hasStack ? renderStack() : renderTab()}
+</div>
       </MobileShell>
     );
   }
