@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
-import { useEffect, useRef, useState } from 'react';
 
 const CATEGORY_OPTIONS = ['상담', '계약', '보완', '청구', '관리', '리모델링', '해지방어', '기타'];
 
