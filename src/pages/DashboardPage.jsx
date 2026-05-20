@@ -306,10 +306,12 @@ console.log('car_expiry 있는 고객:', (all || []).filter(c => c.car_expiry).m
   const petCustomers = allCustomers.filter((c) => c.customer_type === '펫' || c.pet_name);
   const taskCount = todaySchedules.length + birthdayCustomers.length + carExpiringCustomers.length;
 
+ 
   return (
-  <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
-    
-      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: isMobile ? '16px 16px 72px' : '28px 0 44px' }}>
+  <div style={{ width: '100%' }}>
+    <div style={{
+      padding: isMobile ? '16px 16px 72px' : '28px 0 44px'
+    }}>
         {isMobile ? (
           <MobileDashboard
             userName={userName} position={position} loading={loading}

@@ -161,7 +161,9 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', overflow: 'visible' }}>
+<div style={{
+  width: '100%'
+}}>
       {/* 헤더 */}
       <div style={{
         background: COLORS.white, padding: '14px 20px',
@@ -236,7 +238,10 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
       </div>
 
       {/* 리스트 */}
-      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 16px 24px' }}>
+      {/* 리스트 */}
+<div style={{
+  padding: '0 16px 24px'
+}}>
         {loading ? (
           <LoadingSpinner />
         ) : filteredCustomers.length === 0 ? (
