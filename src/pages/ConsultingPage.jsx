@@ -393,27 +393,27 @@ function stopVoiceRecord() {
   }}
 >
   <button
-    type="button"
-    onMouseDown={startVoiceRecord}
-    onMouseUp={stopVoiceRecord}
-    onMouseLeave={stopVoiceRecord}
-    onTouchStart={startVoiceRecord}
-    onTouchEnd={stopVoiceRecord}
-    style={{
-      border: 'none',
-      background: COLORS.primary,
-      color: '#fff',
-      borderRadius: 999,
-      padding: '10px 14px',
-      fontSize: 12,
-      fontWeight: 900,
-      cursor: 'pointer',
-      WebkitUserSelect: 'none',
-      touchAction: 'manipulation',
-    }}
-  >
-    🎤 음성 입력
-  </button>
+  type="button"
+  onMouseDown={startVoiceRecord}
+  onMouseUp={stopVoiceRecord}
+  onMouseLeave={stopVoiceRecord}
+  onTouchStart={startVoiceRecord}
+  onTouchEnd={stopVoiceRecord}
+  style={{
+    border: 'none',
+    background: COLORS.primary,
+    color: '#fff',
+    borderRadius: 999,
+    padding: '10px 14px',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+    WebkitUserSelect: 'none',
+    touchAction: 'manipulation',
+  }}
+>
+  🎤 음성 입력 · 길게 누르고 말하기
+</button>
 
   <span
     style={{
