@@ -5,6 +5,7 @@ import { Card, Avatar, StatusBadge, Divider, LoadingSpinner } from '../component
 import Modal from '../components/Modal';
 import Field from '../components/Field';
 import customerService from '../services/customerService';
+import consultationService from '../services/consultationService';
 import { formatDate } from '../utils';
 
 const RELATION_OPTIONS = ['가족', '지인', '친구', '동료', '고객', '고객소개', '기타'];
@@ -548,10 +549,17 @@ function EditModal({ visible, onClose, customer, onSave }) {
   );
 }
 
-export default function CustomerDetailPage({ customerId, onBack }) {
+export default function CustomerDetailPage({
+  customerId,
+  onBack,
+  onNavigate,
+}) {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
+  const [selectedConsultation, setSelectedConsultation] = useState(null);
+  const [consultations, setConsultations] = useState([]);
+  const [consultLoading, setConsultLoading] = useState(false);
 
   useEffect(() => {
     load();
@@ -563,6 +571,24 @@ export default function CustomerDetailPage({ customerId, onBack }) {
     try {
       const data = await customerService.get(customerId);
       setCustomer(data);
+
+      const realId = data?.db_id || data?.app_customer_id || data?.id;
+
+      if (realId) {
+        setConsultLoading(true);
+
+        try {
+          const consultationData = await consultationService.listByCustomer(realId);
+          setConsultations(consultationData || []);
+        } catch (consultError) {
+          console.error(consultError);
+          setConsultations([]);
+        } finally {
+          setConsultLoading(false);
+        }
+      } else {
+        setConsultations([]);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -686,6 +712,101 @@ export default function CustomerDetailPage({ customerId, onBack }) {
             )}
           </Section>
 
+          <Section title="상담 기록" icon="📝">
+            <div
+  style={{
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: -42,
+    marginBottom: 14,
+  }}
+
+>
+  <button
+    onClick={() =>
+      onNavigate?.('consulting', {
+        initialCustomer: customer,
+      })
+    }
+    style={{
+      border: 'none',
+      background: COLORS.primary,
+      color: '#fff',
+      borderRadius: 10,
+      padding: '10px 14px',
+      fontSize: 13,
+      fontWeight: 800,
+      cursor: 'pointer',
+    }}
+  >
+    + 상담기록 추가
+  </button>
+</div>
+            {consultLoading ? (
+              <LoadingSpinner />
+            ) : consultations.length === 0 ? (
+              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
+                등록된 상담기록이 없습니다.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {consultations.map((item) => (
+                  <div
+  key={item.id}
+  onClick={() => setSelectedConsultation(item)}
+  style={{
+    cursor: 'pointer',
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 14,
+    padding: 14,
+    background: '#fff',
+  }}
+>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: COLORS.primary }}>
+                          {item.category || '상담'}
+                        </div>
+
+                        <div style={{ fontSize: 11, color: COLORS.textGray, marginTop: 3 }}>
+                          {formatDate(item.consulted_at || item.created_at)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 10,
+                        whiteSpace: 'pre-wrap',
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                        color: COLORS.text,
+                      }}
+                    >
+                      {item.content}
+                    </div>
+
+                    {item.next_action && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          background: COLORS.primaryBg,
+                          color: COLORS.primary,
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        다음 액션: {item.next_action}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+
           {customer.tags && customer.tags.length > 0 && (
             <Section title="태그" icon="🏷️">
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -723,6 +844,61 @@ export default function CustomerDetailPage({ customerId, onBack }) {
         customer={customer}
         onSave={load}
       />
+      {selectedConsultation && (
+  <Modal
+    visible={true}
+    onClose={() => setSelectedConsultation(null)}
+    title="상담기록 상세"
+  >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 12, color: COLORS.textGray }}>카테고리</div>
+        <div style={{ fontWeight: 800, color: COLORS.primary }}>
+          {selectedConsultation.category || '상담'}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: COLORS.textGray }}>상담일시</div>
+        <div>
+          {formatDate(selectedConsultation.consulted_at || selectedConsultation.created_at)}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: COLORS.textGray }}>상담내용</div>
+        <div
+          style={{
+            whiteSpace: 'pre-wrap',
+            lineHeight: 1.6,
+            background: '#FAFAFA',
+            padding: 14,
+            borderRadius: 12,
+          }}
+        >
+          {selectedConsultation.content}
+        </div>
+      </div>
+
+      {selectedConsultation.next_action && (
+        <div>
+          <div style={{ fontSize: 12, color: COLORS.textGray }}>다음 액션</div>
+          <div
+            style={{
+              background: COLORS.primaryBg,
+              color: COLORS.primary,
+              padding: 12,
+              borderRadius: 12,
+              fontWeight: 700,
+            }}
+          >
+            {selectedConsultation.next_action}
+          </div>
+        </div>
+      )}
+    </div>
+  </Modal>
+)}
     </div>
   );
 }

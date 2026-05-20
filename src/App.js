@@ -21,6 +21,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import RoleRequestPage from './pages/RoleRequestPage';
 import Header from './components/Header';
 import NotificationSettingsPage from './pages/NotificationSettingsPage';
+import ConsultingPage from './pages/ConsultingPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -236,7 +237,12 @@ export default function App() {
     if (page === 'notifications') { setStack([]); setActiveTab('notifications'); return; }
     if (page === 'sales') { setStack([]); setActiveTab('sales'); return; }
     if (page === 'tree') { setStack([]); setActiveTab('tree'); return; }
-    if (page === 'consulting') { setStack([]); setActiveTab('consulting'); return; }
+    if (page === 'consulting') { setStack([]);  setActiveTab('consulting');
+    if (payload?.initialCustomer) { setStack([{ page: 'consulting', payload }]);
+  }
+
+  return;
+}
     if (page === 'team') { setStack([]); setActiveTab('team'); return; }
     if (page === 'fax') { setStack([]); setActiveTab('fax'); return; }
     if (page === 'insuranceContact') { setStack([]); setActiveTab('insuranceContact'); return; }
@@ -261,12 +267,26 @@ export default function App() {
   function renderStack() {
     if (!current) return null;
     switch (current.page) {
-      case 'customerDetail': return <CustomerDetailPage customerId={current.payload?.id} onBack={goBack} />;
+      case 'customerDetail':
+  return (
+    <CustomerDetailPage
+      customerId={current.payload?.id}
+      onBack={goBack}
+      onNavigate={navigate}
+    />
+  );
       case 'sales':          return <SalesPage onBack={goBack} />;
       case 'notifications':  return <NotificationsPage onBack={goBack} onRead={clearNotifCount} onReadOne={decreaseNotifCount} />;
       case 'insuranceContact': return <InsuranceContactPage onBack={goBack} />;
       case 'schedule':       return <SchedulePage onBack={goBack} />;
       case 'notifSettings':  return <NotificationSettingsPage onBack={goBack} />;
+     case 'consulting':
+  return (
+    <ConsultingPage
+      initialCustomer={current.payload?.initialCustomer}
+      onBack={goBack}
+    />
+  ); 
       default:               return null;
     }
   }
@@ -282,7 +302,8 @@ export default function App() {
       case 'notifications':    return <NotificationsPage onBack={() => setActiveTab('home')} onRead={clearNotifCount} onReadOne={decreaseNotifCount} />;
       case 'insuranceContact': return <InsuranceContactPage onBack={() => setActiveTab('home')} />;
       case 'notices':          return <NoticesPage user={user} />;
-      case 'consulting':       return <div style={{padding:40, color: COLORS.text, fontSize:16}}>상담 기록 준비 중입니다.</div>;
+    case 'consulting':
+  return <ConsultingPage initialCustomer={current?.payload?.initialCustomer} />;
       case 'team':             return <div style={{padding:40, color: COLORS.text, fontSize:16}}>팀 관리 준비 중입니다.</div>;
       case 'fax':              return <div style={{padding:40, color: COLORS.text, fontSize:16}}>보험팩스청구 준비 중입니다.</div>;
       case 'roleRequest':      return <RoleRequestPage user={user} />;
@@ -370,8 +391,8 @@ export default function App() {
             { id: 'notifications',    icon: '🔔', label: '알림 센터'    },
             { id: 'customers',        icon: '👥', label: '고객 관리'    },
             { id: 'schedule',         icon: '📅', label: '일정 관리'    },
-            { id: 'sales',            icon: '📊', label: '통계 / 분석'  },
             { id: 'consulting',       icon: '📝', label: '상담 기록'    },
+            { id: 'sales',            icon: '📊', label: '통계 / 분석'  },
             { id: 'tree',             icon: '🌳', label: '소개 트리'    },
             { id: 'team',             icon: '👨‍👩‍👧', label: '팀 관리'     },
             { id: 'fax',              icon: '📠', label: '보험팩스청구'  },

@@ -1,32 +1,92 @@
-
+// src/services/consultationService.js
 import { supabase } from '../supabaseClient';
 
 const consultationService = {
-  async listByCustomer(customerId) {
+  async list() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     const { data, error } = await supabase
-      .from('consultations').select('*').eq('customer_id', customerId)
+      .from('consultations')
+      .select('*')
+      .eq('user_id', user.id)
       .order('consulted_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async listByCustomer(customerId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('customer_id', customerId)
+      .order('consulted_at', { ascending: false });
+
     if (error) throw error;
     return data || [];
   },
 
   async create(payload) {
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인이 필요합니다.');
+
     const { data, error } = await supabase
-      .from('consultations').insert({ ...payload, user_id: user.id }).select().single();
+      .from('consultations')
+      .insert({
+        user_id: user.id,
+        customer_id: payload.customer_id || null,
+        customer_name: payload.customer_name || '',
+        content: payload.content || '',
+        category: payload.category || '상담',
+        next_action: payload.next_action || '',
+        consulted_at: payload.consulted_at || new Date().toISOString(),
+      })
+      .select()
+      .single();
+
     if (error) throw error;
     return data;
   },
 
   async update(id, payload) {
-    const { data, error } = await supabase
-      .from('consultations').update(payload).eq('id', id).select().single();
-    if (error) throw error;
-    return data;
-  },
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('로그인이 필요합니다.');
+
+  const cleanPayload = {
+    customer_id: payload.customer_id || null,
+    customer_name: payload.customer_name || '',
+    content: payload.content || '',
+    category: payload.category || '상담',
+    next_action: payload.next_action || '',
+  };
+
+  const { data, error } = await supabase
+    .from('consultations')
+    .update(cleanPayload)
+    .eq('user_id', user.id)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+},
 
   async remove(id) {
-    const { error } = await supabase.from('consultations').delete().eq('id', id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인이 필요합니다.');
+
+    const { error } = await supabase
+      .from('consultations')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('id', id);
+
     if (error) throw error;
   },
 };
