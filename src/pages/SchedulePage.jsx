@@ -503,7 +503,7 @@ function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete })
 }
 
 // ── 메인 ─────────────────────────────────────
-export default function SchedulePage() {
+export default function SchedulePage({ initialSchedule }) {
   const isMobile = useIsMobile();
   const today    = new Date();
   const [year, setYear]     = useState(today.getFullYear());
@@ -514,6 +514,30 @@ export default function SchedulePage() {
   const [loading, setLoading]     = useState(false);
   const [showForm, setShowForm]   = useState(false);
   const [editItem, setEditItem]   = useState(null);
+useEffect(() => {
+  if (!initialSchedule) return;
+
+  const targetDate = initialSchedule.dateStr || new Date().toISOString().slice(0, 10);
+  const [y, m, d] = targetDate.split('-').map(Number);
+
+  if (y && m && d) {
+    setYear(y);
+    setMonth(m - 1);
+    setSelDay(d);
+  }
+
+  setEditItem({
+    title: initialSchedule.title || '상담 후속 일정',
+    customer_name: initialSchedule.customer_name || '',
+    memo: initialSchedule.memo || '',
+    next_action: initialSchedule.next_action || '',
+    schedule_icon: initialSchedule.schedule_icon || '📞',
+    scheduled_at: `${targetDate}T09:00`,
+    reminder_minutes: 'none',
+  });
+
+  setShowForm(true);
+}, [initialSchedule]);
 
   const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selDay).padStart(2, '0')}`;
   const matrix  = buildCalendarMatrix(year, month);

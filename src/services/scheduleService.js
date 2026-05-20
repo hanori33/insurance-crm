@@ -1,3 +1,4 @@
+// src/services/scheduleService.js
 import { supabase } from '../supabaseClient';
 
 const scheduleService = {
@@ -30,6 +31,19 @@ const scheduleService = {
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
     return scheduleService.listByDate(dateStr);
+  },
+
+  async listByCustomer(customerName) {
+    if (!customerName) return [];
+
+    const { data, error } = await supabase
+      .from('schedules')
+      .select('*')
+      .eq('customer_name', customerName)
+      .order('scheduled_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
   },
 
   async create(payload) {
@@ -129,11 +143,22 @@ const scheduleService = {
 export default scheduleService;
 
 export const getSchedules = (date) => scheduleService.listByDate(date);
+
 export const getMonthSchedules = (startDate, endDate) =>
   scheduleService.getMonthSchedules(startDate, endDate);
+
 export const addSchedule = (payload) => scheduleService.create(payload);
-export const updateSchedule = (id, payload) => scheduleService.update(id, payload);
+
+export const updateSchedule = (id, payload) =>
+  scheduleService.update(id, payload);
+
 export const deleteSchedule = (id) => scheduleService.remove(id);
+
 export const getTodaySchedules = () => scheduleService.today();
+
+export const getCustomerSchedules = (customerName) =>
+  scheduleService.listByCustomer(customerName);
+
 export const completeSchedule = (id) => scheduleService.complete(id);
+
 export const reopenSchedule = (id) => scheduleService.reopen(id);

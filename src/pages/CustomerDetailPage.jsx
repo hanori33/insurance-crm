@@ -7,6 +7,7 @@ import Field from '../components/Field';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import { formatDate } from '../utils';
+import scheduleService from '../services/scheduleService';
 
 const RELATION_OPTIONS = ['가족', '지인', '친구', '동료', '고객', '고객소개', '기타'];
 
@@ -560,6 +561,7 @@ export default function CustomerDetailPage({
   const [selectedConsultation, setSelectedConsultation] = useState(null);
   const [consultations, setConsultations] = useState([]);
   const [consultLoading, setConsultLoading] = useState(false);
+  const [customerSchedules, setCustomerSchedules] = useState([]);
 
   useEffect(() => {
     load();
@@ -580,7 +582,10 @@ export default function CustomerDetailPage({
         try {
           const consultationData = await consultationService.listByCustomer(realId);
           setConsultations(consultationData || []);
-        } catch (consultError) {
+          const scheduleData = await scheduleService.listByCustomer(data.name);
+setCustomerSchedules(scheduleData || []);
+
+                  } catch (consultError) {
           console.error(consultError);
           setConsultations([]);
         } finally {
@@ -619,6 +624,42 @@ export default function CustomerDetailPage({
 
   const val = (v) => (!v || v === 'EMPTY' || v === '') ? null : v;
   const policies = Array.isArray(customer.policies) ? customer.policies : [];
+
+  const schedules = Array.isArray(customerSchedules)
+  ? customerSchedules
+  : [];
+
+const timelineItems = [
+  ...consultations.map((item) => ({
+    id: `consult-${item.id}`,
+    icon: '📝',
+    type: item.category || '상담',
+    title: item.content || '상담기록',
+    sub: item.next_action ? `다음 액션: ${item.next_action}` : '',
+    date: item.consulted_at || item.created_at,
+  })),
+
+  ...policies.map((policy, idx) => ({
+    id: `policy-${policy.id || idx}`,
+    icon: '📋',
+    type: '보험 이력',
+    title: `${policy.company || '보험사 미입력'} ${policy.product || ''}`.trim(),
+    sub: policy.premium ? `월 ${policy.premium}` : '',
+    date: policy.start_date || customer.created_at,
+  })),
+
+  ...schedules.map((schedule, idx) => ({
+    id: `schedule-${schedule.id || idx}`,
+    icon: schedule.schedule_icon || '📅',
+    type: '일정',
+    title: schedule.title || '등록된 일정',
+    sub: schedule.memo || '',
+    date: schedule.scheduled_at || schedule.created_at,
+  })),
+]
+  .filter((item) => item.title)
+  .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+  .slice(0, 10);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -698,6 +739,87 @@ export default function CustomerDetailPage({
             </Section>
           )}
 
+<Section title="최근 활동" icon="🧭">
+  {timelineItems.length === 0 ? (
+    <div
+      style={{
+        fontSize: 13,
+        color: COLORS.textGray,
+        padding: '8px 0',
+      }}
+    >
+      최근 활동이 없습니다.
+    </div>
+  ) : (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {timelineItems.map((item) => (
+        <div
+  key={item.id}
+  style={{
+    display: 'flex',
+    gap: 12,
+    padding: '10px 0',
+    borderBottom: `1px solid ${COLORS.border}`,
+  }}
+>
+  <div
+    style={{
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      background: COLORS.primaryBg,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      fontSize: 16,
+    }}
+  >
+    {item.icon}
+  </div>
+
+  <div style={{ flex: 1, minWidth: 0 }}>
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 800,
+        color: COLORS.primary,
+      }}
+    >
+      {item.type}
+    </div>
+
+    <div
+      style={{
+        marginTop: 2,
+        fontSize: 13,
+        fontWeight: 700,
+        color: COLORS.text,
+        lineHeight: 1.4,
+        wordBreak: 'keep-all',
+      }}
+    >
+      {item.title}
+    </div>
+
+    <div
+      style={{
+        marginTop: 5,
+        fontSize: 11,
+        color: COLORS.textGray,
+      }}
+    >
+      {item.sub && `${item.sub} · `}
+      {formatDate(item.date)}
+    </div>
+  </div>
+</div>
+      
+      ))}
+    </div>
+  )}
+</Section>
+
           <Section title="보험 이력" icon="📋">
             {policies.length === 0 ? (
               <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
@@ -711,6 +833,8 @@ export default function CustomerDetailPage({
               </div>
             )}
           </Section>
+
+
 
           <Section title="상담 기록" icon="📝">
             <div

@@ -14,7 +14,7 @@ const emptyForm = {
   next_action: '',
 };
 
-export default function ConsultingPage({ initialCustomer }) {
+export default function ConsultingPage({ initialCustomer, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -103,6 +103,41 @@ export default function ConsultingPage({ initialCustomer }) {
   function setField(key, value) {
     setForm(prev => ({ ...prev, [key]: value }));
   }
+
+  function startVoiceInput() {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert('이 브라우저는 음성입력을 지원하지 않습니다. 크롬에서 이용해주세요.');
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'ko-KR';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event) => {
+    const text = event.results?.[0]?.[0]?.transcript || '';
+
+    if (!text) return;
+
+    setForm(prev => ({
+      ...prev,
+      content: prev.content
+        ? `${prev.content}\n${text}`
+        : text,
+    }));
+  };
+
+  recognition.onerror = (event) => {
+    console.error(event);
+    alert('음성인식 중 오류가 발생했습니다.');
+  };
+
+  recognition.start();
+}
 
   function selectCustomer(c) {
     setForm(prev => ({
@@ -337,6 +372,30 @@ export default function ConsultingPage({ initialCustomer }) {
               ))}
             </select>
 
+<div
+  style={{
+    display: 'flex',
+    justifyContent: 'flex-end',
+  }}
+>
+  <button
+    type="button"
+    onClick={startVoiceInput}
+    style={{
+      border: 'none',
+      background: COLORS.primaryBg,
+      color: COLORS.primary,
+      borderRadius: 999,
+      padding: '8px 12px',
+      fontSize: 12,
+      fontWeight: 900,
+      cursor: 'pointer',
+    }}
+  >
+    🎤 음성입력
+  </button>
+</div>
+
             <textarea
               value={form.content}
               onChange={e => setField('content', e.target.value)}
@@ -460,6 +519,31 @@ export default function ConsultingPage({ initialCustomer }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  
+                  <button
+  onClick={() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    onNavigate?.('schedule', {
+      initialSchedule: {
+        dateStr: today,
+        title: item.next_action || '상담 후속 일정',
+        customer_name: item.customer_name || '',
+        memo: item.content || '',
+        next_action: item.next_action || '',
+        schedule_icon: '📞',
+      },
+    });
+  }}
+  style={{
+    ...smallButtonStyle,
+    background: COLORS.primary,
+    color: '#fff',
+  }}
+>
+  📅 일정등록
+</button>
+                  
                   <button
                     onClick={() => handleEdit(item)}
                     style={smallButtonStyle}
@@ -507,6 +591,7 @@ export default function ConsultingPage({ initialCustomer }) {
                   다음 액션: {item.next_action}
                 </div>
               )}
+              
             </Card>
           ))
         )}

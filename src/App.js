@@ -280,13 +280,14 @@ export default function App() {
       case 'insuranceContact': return <InsuranceContactPage onBack={goBack} />;
       case 'schedule':       return <SchedulePage onBack={goBack} />;
       case 'notifSettings':  return <NotificationSettingsPage onBack={goBack} />;
-     case 'consulting':
+    case 'consulting':
   return (
     <ConsultingPage
       initialCustomer={current.payload?.initialCustomer}
       onBack={goBack}
+      onNavigate={navigate}
     />
-  ); 
+  );
       default:               return null;
     }
   }
@@ -303,7 +304,12 @@ export default function App() {
       case 'insuranceContact': return <InsuranceContactPage onBack={() => setActiveTab('home')} />;
       case 'notices':          return <NoticesPage user={user} />;
     case 'consulting':
-  return <ConsultingPage initialCustomer={current?.payload?.initialCustomer} />;
+  return (
+    <ConsultingPage
+      initialCustomer={current?.payload?.initialCustomer}
+      onNavigate={navigate}
+    />
+  );
       case 'team':             return <div style={{padding:40, color: COLORS.text, fontSize:16}}>팀 관리 준비 중입니다.</div>;
       case 'fax':              return <div style={{padding:40, color: COLORS.text, fontSize:16}}>보험팩스청구 준비 중입니다.</div>;
       case 'roleRequest':      return <RoleRequestPage user={user} />;
