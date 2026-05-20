@@ -3,6 +3,7 @@ import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
+import { useEffect, useRef, useState } from 'react';
 
 const CATEGORY_OPTIONS = ['상담', '계약', '보완', '청구', '관리', '리모델링', '해지방어', '기타'];
 
@@ -104,39 +105,50 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
     setForm(prev => ({ ...prev, [key]: value }));
   }
 
-  function startVoiceInput() {
+const recognitionRef = useRef(null);
+
+function startVoiceRecord() {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
-    alert('이 브라우저는 음성입력을 지원하지 않습니다. 크롬에서 이용해주세요.');
+    alert('음성입력을 지원하지 않는 브라우저입니다.');
     return;
   }
 
   const recognition = new SpeechRecognition();
+
   recognition.lang = 'ko-KR';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
+  recognition.continuous = true;
+  recognition.interimResults = true;
 
   recognition.onresult = (event) => {
-    const text = event.results?.[0]?.[0]?.transcript || '';
+    let finalText = '';
 
-    if (!text) return;
+    for (let i = 0; i < event.results.length; i++) {
+      finalText += event.results[i][0].transcript;
+    }
 
     setForm(prev => ({
       ...prev,
-      content: prev.content
-        ? `${prev.content}\n${text}`
-        : text,
+      content: finalText,
     }));
   };
 
   recognition.onerror = (event) => {
     console.error(event);
-    alert('음성인식 중 오류가 발생했습니다.');
   };
 
   recognition.start();
+
+  recognitionRef.current = recognition;
+}
+
+function stopVoiceRecord() {
+  if (recognitionRef.current) {
+    recognitionRef.current.stop();
+    recognitionRef.current = null;
+  }
 }
 
   function selectCustomer(c) {
@@ -379,21 +391,34 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
   }}
 >
   <button
-    type="button"
-    onClick={startVoiceInput}
-    style={{
-      border: 'none',
-      background: COLORS.primaryBg,
-      color: COLORS.primary,
-      borderRadius: 999,
-      padding: '8px 12px',
-      fontSize: 12,
-      fontWeight: 900,
-      cursor: 'pointer',
-    }}
-  >
-    🎤 음성입력
-  </button>
+  type="button"
+  onMouseDown={startVoiceRecord}
+  onMouseUp={stopVoiceRecord}
+  onTouchStart={startVoiceRecord}
+  onTouchEnd={stopVoiceRecord}
+  style={{
+    border: 'none',
+    background: COLORS.primary,
+    color: '#fff',
+    borderRadius: 999,
+    padding: '10px 14px',
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: 'pointer',
+  }}
+>
+  🎤 음성 입력 길게 누르고 말하기
+</button>
+<div
+  style={{
+    marginTop: 6,
+    fontSize: 11,
+    color: COLORS.textGray,
+    textAlign: 'right',
+  }}
+>
+  길게 누르고 말하면 자동 입력돼요
+</div>
 </div>
 
             <textarea
