@@ -182,17 +182,46 @@ export default function App() {
       }
 
       // 자동차 만기
-      if (carEnabled) {
-        customers.forEach(c => {
-          if (!c.car_expiry) return;
-          const target = new Date(c.car_expiry);
-          if (isNaN(target.getTime())) return;
-          const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-          const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-          const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-          if (d >= 0 && d <= carDays && !readIds.includes(`car-${c.id}`)) count++;
-        });
-      }
+if (carEnabled) {
+  customers.forEach(c => {
+
+    const carDate =
+      c.car_expiry ||
+      c.carExpiry ||
+      c.car_expiry_date ||
+      c.carExpiryDate;
+
+    if (!carDate) return;
+
+    const target = new Date(carDate);
+
+    if (isNaN(target.getTime())) return;
+
+    const start = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+
+    const end = new Date(
+      target.getFullYear(),
+      target.getMonth(),
+      target.getDate()
+    );
+
+    const d = Math.ceil(
+      (end - start) / (1000 * 60 * 60 * 24)
+    );
+
+    if (
+      d >= 0 &&
+      d <= carDays &&
+      !readIds.includes(`car-${c.id}`)
+    ) {
+      count++;
+    }
+  });
+}
 
       if (session?.user?.email === 'gksmf629@naver.com') {
         const { data: requests } = await supabase
@@ -345,7 +374,8 @@ export default function App() {
 
   return (
     <WebShell>
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', minHeight: '100vh',
+  overflowX: 'hidden', }}>
         <div style={{
           width: 240, flexShrink: 0, background: '#fff',
           borderRight: `1px solid ${COLORS.border}`,
@@ -468,8 +498,10 @@ export default function App() {
 
         <div style={{
           marginLeft: 240, flex: 1, display: 'flex',
-          flexDirection: 'column', height: '100vh', overflow: 'hidden',
+          flexDirection: 'column', minHeight: '100vh',
+  overflowX: 'hidden',
         }}>
+          
           <div style={{
             background: '#fff', borderBottom: `1px solid ${COLORS.border}`,
             padding: '0 32px', height: 64, display: 'flex',
@@ -565,10 +597,13 @@ export default function App() {
           </div>
 
           <div style={{
-            flex: 1, overflowY: 'auto',
-            padding: '10px 7px 44px 20px',
-            background: COLORS.bg,
-          }}>
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  overflowX: 'hidden',
+  padding: '10px 7px 44px 20px',
+  background: COLORS.bg,
+}}>
             {hasStack ? renderStack() : renderTab()}
           </div>
         </div>
