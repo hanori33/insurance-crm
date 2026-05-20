@@ -6,7 +6,6 @@ import Modal from '../components/Modal';
 import Field from '../components/Field';
 import authService from '../services/authService';
 import { supabase } from '../supabaseClient';
-import NotificationSettingsPage from './NotificationSettingsPage';
 
 function ProfileAvatar({ src, name, size = 60 }) {
   if (src) return <img src={src} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />;
@@ -23,7 +22,7 @@ function ProfileEditModal({ visible, onClose, profile, onSave }) {
   const [photoUrl, setPhotoUrl] = useState(profile.photoUrl || '');
   const [preview, setPreview]   = useState(profile.photoUrl || '');
   const [loading, setLoading]   = useState(false);
-  const [file, setFile]         = useState(null); // ✅ 추가
+  const [file, setFile]         = useState(null);
   const fileRef = useRef();
 
   useEffect(() => {
@@ -31,60 +30,59 @@ function ProfileEditModal({ visible, onClose, profile, onSave }) {
     setPosition(profile.position || '');
     setPhotoUrl(profile.photoUrl || '');
     setPreview(profile.photoUrl || '');
-    setFile(null); // ✅ 추가
+    setFile(null);
   }, [profile, visible]);
 
   function handleFileChange(e) {
     const f = e.target.files[0];
     if (!f) return;
-    setFile(f); // ✅ 파일 객체 저장
+    setFile(f);
     const reader = new FileReader();
-    reader.onload = ev => setPreview(ev.target.result); // 미리보기만 base64
+    reader.onload = ev => setPreview(ev.target.result);
     reader.readAsDataURL(f);
   }
 
-   async function handleSave() {
-  if (!name.trim()) return;
-  setLoading(true);
-  try {
-    let uploadedUrl = photoUrl;
+  async function handleSave() {
+    if (!name.trim()) return;
+    setLoading(true);
+    try {
+      let uploadedUrl = photoUrl;
 
-    if (file) {
-      const { data: { user } } = await supabase.auth.getUser();
-      const ext = file.name.split('.').pop();
-      const path = `avatars/${user.id}.${ext}`;
+      if (file) {
+        const { data: { user } } = await supabase.auth.getUser();
+        const ext = file.name.split('.').pop();
+        const path = `avatars/${user.id}.${ext}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('profiles')
-        .upload(path, file, { upsert: true });
+        const { error: uploadError } = await supabase.storage
+          .from('profiles')
+          .upload(path, file, { upsert: true });
 
-      if (uploadError) throw uploadError;
+        if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('profiles')
-        .getPublicUrl(path);
+        const { data: urlData } = supabase.storage
+          .from('profiles')
+          .getPublicUrl(path);
 
-      uploadedUrl = urlData.publicUrl;
+        uploadedUrl = urlData.publicUrl;
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        data: { display_name: name, position, photo_url: uploadedUrl },
+      });
+
+      if (error) throw error;
+
+      await supabase.auth.refreshSession();
+
+      onSave({ name, position, photoUrl: uploadedUrl });
+      onClose();
+    } catch(e) {
+      console.error(e);
+      alert('저장 중 오류가 발생했습니다: ' + e.message);
+    } finally {
+      setLoading(false);
     }
-
-    const { error } = await supabase.auth.updateUser({
-      data: { display_name: name, position, photo_url: uploadedUrl },
-    });
-
-    if (error) throw error;
-
-    // ✅ 세션 강제 갱신 - 헤더/사이드바에 즉시 반영
-    await supabase.auth.refreshSession();
-
-    onSave({ name, position, photoUrl: uploadedUrl });
-    onClose();
-  } catch(e) {
-    console.error(e);
-    alert('저장 중 오류가 발생했습니다: ' + e.message);
-  } finally {
-    setLoading(false);
   }
-} 
 
   return (
     <Modal visible={visible} onClose={onClose} title="프로필 수정">
@@ -125,12 +123,12 @@ function MenuItem({ icon, label, onClick, danger, isLast }) {
 
 export default function MorePage({ user, onNavigate }) {
   const meta = user?.user_metadata || {};
-  const [profile, setProfile]       = useState({
+  const [profile, setProfile] = useState({
     name:     meta.display_name || user?.email || '사용자',
     position: meta.position     || '',
     photoUrl: meta.photo_url    || '',
   });
- 
+  const [showEdit, setShowEdit] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
@@ -144,19 +142,17 @@ export default function MorePage({ user, onNavigate }) {
   const menuItems = [
     { icon: '🔔', label: '알림 설정', onClick: () => onNavigate('notifSettings') },
     { icon: '☁️', label: '백업 / 복원', onClick: () => alert('백업/복원 기능은 준비 중입니다.') },
-   { icon: '⚙️', label: '설정', onClick: () => alert('설정 기능은 준비 중입니다.') },
-  { icon: '📞', label: '보험사 고객센터', onClick: () => onNavigate('insuranceContact') },
+    { icon: '⚙️', label: '설정', onClick: () => alert('설정 기능은 준비 중입니다.') },
+    { icon: '📞', label: '보험사 고객센터', onClick: () => onNavigate('insuranceContact') },
   ];
 
   return (
     <>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        {/* 헤더 */}
         <div style={{ background: COLORS.white, padding: '14px 20px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0, textAlign: 'center' }}>
           <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>더보기</span>
         </div>
 
-        {/* 스크롤 영역 - 핵심: flex:1 + overflow:auto */}
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 120 }}>
 
@@ -192,7 +188,12 @@ export default function MorePage({ user, onNavigate }) {
         </div>
       </div>
 
-      
+      <ProfileEditModal
+        visible={showEdit}
+        onClose={() => setShowEdit(false)}
+        profile={profile}
+        onSave={setProfile}
+      />
     </>
   );
 }
