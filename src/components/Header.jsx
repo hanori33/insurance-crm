@@ -72,6 +72,7 @@ export default function Header({
               lineHeight: 1,
               borderRadius: 14,
               flexShrink: 0,
+              zIndex: 2,
             }}
           >
             ☰
@@ -85,8 +86,8 @@ export default function Header({
             }}
             style={{
               position: 'absolute',
-              left: 0,
-              right: 0,
+left: '50%',
+transform: 'translateX(-50%)',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
@@ -150,6 +151,7 @@ export default function Header({
               gap: 12,
               alignItems: 'center',
               flexShrink: 0,
+              zIndex: 2,
             }}
           >
             {/* 알림 */}
