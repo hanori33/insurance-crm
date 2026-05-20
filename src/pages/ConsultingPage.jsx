@@ -389,12 +389,15 @@ function stopVoiceRecord() {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-end',
+    gap: 4,
+    marginBottom: 6,
   }}
 >
   <button
     type="button"
     onMouseDown={startVoiceRecord}
     onMouseUp={stopVoiceRecord}
+    onMouseLeave={stopVoiceRecord}
     onTouchStart={startVoiceRecord}
     onTouchEnd={stopVoiceRecord}
     style={{
@@ -411,16 +414,16 @@ function stopVoiceRecord() {
     🎤 음성 입력
   </button>
 
-  <div
+  <span
     style={{
-      marginTop: 6,
+      display: 'block',
       fontSize: 11,
       color: COLORS.textGray,
       textAlign: 'right',
     }}
   >
     길게 누르고 말하면 자동 입력돼요
-  </div>
+  </span>
 </div>
 
             <textarea
