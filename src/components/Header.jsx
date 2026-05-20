@@ -30,6 +30,8 @@ export default function Header({ user, notifCount = 0, onNotif, onProfile, onNav
   background: 'linear-gradient(160deg,#EDE9FF,#F3EEFF)',
   padding: '0 20px 16px',
   flexShrink: 0,
+  position: 'relative',  // ✅ 추가
+  zIndex: 10,            // ✅ 추가
 }}>
   <div style={{
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
