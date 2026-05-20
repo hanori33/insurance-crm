@@ -316,9 +316,10 @@ export default function App() {
     );
   }
 
-  if (isMobile) {
-    return (
-      <MobileShell>
+ if (isMobile) {
+  return (
+    <MobileShell>
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, flexShrink: 0 }}> {/* ✅ 추가 */}
         <Header
           user={user}
           notifCount={notifCount}
@@ -330,16 +331,17 @@ export default function App() {
             if (page === 'customers') setCustomersFilter(payload?.filter || '전체');
           }}
         />
-        <div style={{
-          flex: 1, minHeight: 0, overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch', background: COLORS.bg,
-        }}>
-          {hasStack ? renderStack() : renderTab()}
-        </div>
-        {!hasStack && <BottomTabBar activeTab={activeTab} onChange={changeTab} />}
-      </MobileShell>
-    );
-  }
+      </div>
+      <div style={{
+        flex: 1, minHeight: 0, overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch', background: COLORS.bg,
+      }}>
+        {hasStack ? renderStack() : renderTab()}
+      </div>
+      {!hasStack && <BottomTabBar activeTab={activeTab} onChange={changeTab} />}
+    </MobileShell>
+  );
+}
 
   return (
     <WebShell>
