@@ -517,7 +517,9 @@ export default function SchedulePage({ initialSchedule }) {
 useEffect(() => {
   if (!initialSchedule) return;
 
-  const targetDate = initialSchedule.dateStr || new Date().toISOString().slice(0, 10);
+  const targetDate =
+    initialSchedule.dateStr || new Date().toISOString().slice(0, 10);
+
   const [y, m, d] = targetDate.split('-').map(Number);
 
   if (y && m && d) {
@@ -531,9 +533,11 @@ useEffect(() => {
     customer_name: initialSchedule.customer_name || '',
     memo: initialSchedule.memo || '',
     next_action: initialSchedule.next_action || '',
+    schedule_type: initialSchedule.schedule_type || 'phone',
     schedule_icon: initialSchedule.schedule_icon || '📞',
-    scheduled_at: `${targetDate}T09:00`,
-    reminder_minutes: 'none',
+    color: initialSchedule.color || '#E5D4FF',
+    scheduled_at: `${targetDate}T09:00:00`,
+    reminder_minutes: initialSchedule.reminder_minutes ?? '60',
   });
 
   setShowForm(true);

@@ -225,32 +225,49 @@ export default function App() {
   }
 
   function navigate(page, payload) {
-    if (page === 'customers') {
-      setStack([]);
-      setActiveTab('customers');
-      setCustomersFilter(payload?.filter || '전체');
-      setCustomersSearch(payload?.search || '');
-      return;
-    }
-    if (page === 'schedule') { setStack([]); setActiveTab('schedule'); return; }
-    if (page === 'notices') { setStack([]); setActiveTab('notices'); return; }
-    if (page === 'notifications') { setStack([]); setActiveTab('notifications'); return; }
-    if (page === 'sales') { setStack([]); setActiveTab('sales'); return; }
-    if (page === 'tree') { setStack([]); setActiveTab('tree'); return; }
-    if (page === 'consulting') { setStack([]);  setActiveTab('consulting');
-    if (payload?.initialCustomer) { setStack([{ page: 'consulting', payload }]);
+  if (page === 'customers') {
+    setStack([]);
+    setActiveTab('customers');
+    setCustomersFilter(payload?.filter || '전체');
+    setCustomersSearch(payload?.search || '');
+    return;
   }
 
-  return;
-}
-    if (page === 'team') { setStack([]); setActiveTab('team'); return; }
-    if (page === 'fax') { setStack([]); setActiveTab('fax'); return; }
-    if (page === 'insuranceContact') { setStack([]); setActiveTab('insuranceContact'); return; }
-    if (page === 'roleRequest') { setStack([]); setActiveTab('roleRequest'); return; }
-    if (page === 'more') { setStack([]); setActiveTab('more'); return; }
-    if (page === 'notifSettings') { setStack([]); setActiveTab('notifSettings'); return; }
-    setStack(prev => [...prev, { page, payload }]);
+  if (page === 'schedule') {
+    setStack([]);
+    setActiveTab('schedule');
+
+    if (payload?.initialSchedule) {
+      setStack([{ page: 'schedule', payload }]);
+    }
+
+    return;
   }
+
+  if (page === 'consulting') {
+    setStack([]);
+    setActiveTab('consulting');
+
+    if (payload?.initialCustomer) {
+      setStack([{ page: 'consulting', payload }]);
+    }
+
+    return;
+  }
+
+  if (page === 'notices') { setStack([]); setActiveTab('notices'); return; }
+  if (page === 'notifications') { setStack([]); setActiveTab('notifications'); return; }
+  if (page === 'sales') { setStack([]); setActiveTab('sales'); return; }
+  if (page === 'tree') { setStack([]); setActiveTab('tree'); return; }
+  if (page === 'team') { setStack([]); setActiveTab('team'); return; }
+  if (page === 'fax') { setStack([]); setActiveTab('fax'); return; }
+  if (page === 'insuranceContact') { setStack([]); setActiveTab('insuranceContact'); return; }
+  if (page === 'roleRequest') { setStack([]); setActiveTab('roleRequest'); return; }
+  if (page === 'more') { setStack([]); setActiveTab('more'); return; }
+  if (page === 'notifSettings') { setStack([]); setActiveTab('notifSettings'); return; }
+
+  setStack(prev => [...prev, { page, payload }]);
+}
 
   function goBack() { setStack(prev => prev.slice(0, -1)); }
 
@@ -278,7 +295,13 @@ export default function App() {
       case 'sales':          return <SalesPage onBack={goBack} />;
       case 'notifications':  return <NotificationsPage onBack={goBack} onRead={clearNotifCount} onReadOne={decreaseNotifCount} />;
       case 'insuranceContact': return <InsuranceContactPage onBack={goBack} />;
-      case 'schedule':       return <SchedulePage onBack={goBack} />;
+     case 'schedule':
+  return (
+    <SchedulePage
+      onBack={goBack}
+      initialSchedule={current?.payload?.initialSchedule}
+    />
+  );
       case 'notifSettings':  return <NotificationSettingsPage onBack={goBack} />;
     case 'consulting':
   return (
@@ -296,7 +319,13 @@ export default function App() {
     switch (activeTab) {
       case 'home':             return <DashboardPage user={user} onNavigate={navigate} notifCount={notifCount} onClearNotif={clearNotifCount} />;
       case 'customers':        return <CustomersPage key={`${customersFilter}-${customersSearch}`} onNavigate={navigate} initialFilter={customersFilter} initialSearch={customersSearch} />;
-      case 'schedule':         return <SchedulePage onBack={() => setActiveTab('home')} />;
+     case 'schedule':
+  return (
+    <SchedulePage
+      onBack={() => setActiveTab('home')}
+      initialSchedule={current?.payload?.initialSchedule}
+    />
+  );
       case 'tree':             return <TeamPage />;
       case 'more':             return <MorePage user={user} onNavigate={navigate} />;
       case 'sales':            return <SalesPage onBack={() => setActiveTab('home')} />;
