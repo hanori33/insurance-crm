@@ -386,10 +386,11 @@ function stopVoiceRecord() {
 <div
   style={{
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: 4,
-    marginBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 10,
+    flexWrap: 'wrap',
   }}
 >
   <button
@@ -412,7 +413,7 @@ function stopVoiceRecord() {
     touchAction: 'manipulation',
   }}
 >
-  🎤 음성 입력 · 길게 누르고 말하기
+  🎤 음성 입력
 </button>
 
   <span
@@ -420,7 +421,8 @@ function stopVoiceRecord() {
       display: 'block',
       fontSize: 11,
       color: COLORS.textGray,
-      textAlign: 'right',
+      whiteSpace: 'nowrap',
+flex: 1,
     }}
   >
     길게 누르고 말하면 자동 입력돼요
