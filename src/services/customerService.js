@@ -111,11 +111,18 @@ export async function updateCustomer(customer) {
 }
 
 export async function deleteCustomer(id, userId) {
-  const { error } = await supabase
+  let query = supabase
     .from("customers")
     .delete()
-    .eq("user_id", userId)
-    .eq("app_customer_id", id);
+    .eq("user_id", userId);
+
+  if (String(id).includes("-")) {
+    query = query.eq("id", id);
+  } else {
+    query = query.eq("app_customer_id", Number(id));
+  }
+
+  const { error } = await query;
 
   if (error) throw error;
 }

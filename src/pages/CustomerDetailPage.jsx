@@ -601,16 +601,25 @@ setCustomerSchedules(scheduleData || []);
     }
   }
 
-  async function handleDelete() {
-    if (!window.confirm('고객을 삭제하시겠습니까?')) return;
+    async function handleDelete() {
+  if (!window.confirm('고객을 삭제하시겠습니까?')) return;
 
-    try {
-      await customerService.remove(customer.db_id || customer.id);
-      onBack();
-    } catch (e) {
-      console.error(e);
-    }
+  try {
+    await customerService.remove(customer.db_id || customer.id);
+
+    alert('고객이 삭제되었습니다.');
+
+    onBack();
+  } catch (e) {
+    console.error(e);
+
+    alert(
+      e?.message ||
+      JSON.stringify(e) ||
+      '고객 삭제 실패'
+    );
   }
+}
 
   if (loading) {
     return (
@@ -1003,6 +1012,68 @@ const timelineItems = [
           {selectedConsultation.content}
         </div>
       </div>
+
+      {selectedConsultation?.disclosure_info?.checked && (
+        <div>
+          <div style={{ fontSize: 12, color: COLORS.textGray }}>알릴의무</div>
+          <div
+            style={{
+              background: COLORS.primaryBg,
+              color: COLORS.primary,
+              padding: 12,
+              borderRadius: 12,
+              fontWeight: 800,
+            }}
+          >
+            📋 확인완료
+          </div>
+        </div>
+      )}
+
+      {(selectedConsultation?.medical_history || []).length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, color: COLORS.textGray }}>병력고지</div>
+          <div
+            style={{
+              background: '#F8FAFC',
+              padding: 12,
+              borderRadius: 12,
+              lineHeight: 1.6,
+            }}
+          >
+            {selectedConsultation.medical_history.map((item, idx) => (
+              <div key={idx}>
+                🏥 {item.disease || '질병명 미입력'}
+                {item.medication ? ` / 복용약: ${item.medication}` : ''}
+                {item.memo ? ` / 메모: ${item.memo}` : ''}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(selectedConsultation?.exclusions || []).length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, color: COLORS.textGray }}>부담보</div>
+          <div
+            style={{
+              background: '#FEF2F2',
+              color: '#991B1B',
+              padding: 12,
+              borderRadius: 12,
+              lineHeight: 1.6,
+            }}
+          >
+            {selectedConsultation.exclusions.map((item, idx) => (
+              <div key={idx}>
+                🚫 {item.body_part || item.disease || '부담보 항목'}
+                {item.period ? ` / 기간: ${item.period}` : ''}
+                {item.insurance_company ? ` / 보험사: ${item.insurance_company}` : ''}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {selectedConsultation.next_action && (
         <div>

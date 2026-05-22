@@ -340,19 +340,20 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
 
     setSaving(true);
 
-    try {
-      const payload = {
-        customer_id: form.customer_id || null,
-        customer_name: form.customer_name.trim(),
-        category: form.category || '상담',
-        content: form.content.trim(),
-        next_action: form.next_action.trim(),
-        disclosure_info: form.disclosure_info || {},
-        medical_history: form.medical_history || [],
-        exclusions: form.exclusions || [],
-      };
+   try {
+  const payload = {
+    customer_id: form.customer_id || null,
+    customer_name: form.customer_name.trim(),
+    category: form.category || '상담',
+    content: form.content.trim(),
+    next_action: form.next_action.trim(),
+    disclosure_info: form.disclosure_info || {},
+    medical_history: form.medical_history || [],
+    exclusions: form.exclusions || [],
+  };
 
-      if (editingId) {
+  
+  if (editingId) {
         await consultationService.update(editingId, payload);
       } else {
         await consultationService.create(payload);
@@ -380,7 +381,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       category: item.category || '상담',
       content: item.content || '',
       next_action: item.next_action || '',
-      disclosure_info: item.disclosure_info || createEmptyForm().disclosure_info,
+      disclosure_info: item.disclosure_info || emptyForm.disclosure_info,
       medical_history: item.medical_history || [],
       exclusions: item.exclusions || [],
     });
@@ -874,7 +875,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
             onClick={() => setShowDisclosureModal(false)}
             style={primaryFullButtonStyle}
           >
-            저장하고 닫기
+            입력 완료
           </button>
         </div>
       </Modal>
@@ -962,12 +963,24 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
             + 병력 추가
           </button>
 
+<div
+  style={{
+    fontSize: 12,
+    color: COLORS.textGray,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  }}
+>
+  ※ 입력 후 아래 "상담기록 저장" 버튼을 눌러야 최종 저장됩니다.
+</div>
+
           <button
             type="button"
             onClick={() => setShowMedicalModal(false)}
             style={primaryFullButtonStyle}
           >
-            저장하고 닫기
+            입력 완료
           </button>
         </div>
       </Modal>
@@ -1066,18 +1079,32 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
               />
             </div>
           ))}
+<button
+  type="button"
+  onClick={addExclusion}
+  style={secondaryFullButtonStyle}
+>
+  + 부담보 추가
+</button>
+          <div
+  style={{
+    fontSize: 12,
+    color: COLORS.textGray,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  }}
+>
+  ※ 입력 후 아래 "상담기록 저장" 버튼을 눌러야 최종 저장됩니다.
+</div>
 
-          <button type="button" onClick={addExclusion} style={secondaryFullButtonStyle}>
-            + 부담보 추가
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowExclusionModal(false)}
-            style={primaryFullButtonStyle}
-          >
-            저장하고 닫기
-          </button>
+<button
+  type="button"
+  onClick={() => setShowExclusionModal(false)}
+  style={primaryFullButtonStyle}
+>
+  입력 완료
+</button>
         </div>
       </Modal>
     </>

@@ -35,17 +35,23 @@ const consultationService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('로그인이 필요합니다.');
 
+    const cleanPayload = {
+      user_id: user.id,
+      customer_id: payload.customer_id || null,
+      customer_name: payload.customer_name || '',
+      content: payload.content || '',
+      category: payload.category || '상담',
+      next_action: payload.next_action || '',
+      consulted_at: payload.consulted_at || new Date().toISOString(),
+
+      disclosure_info: payload.disclosure_info || {},
+      medical_history: payload.medical_history || [],
+      exclusions: payload.exclusions || [],
+    };
+
     const { data, error } = await supabase
       .from('consultations')
-      .insert({
-        user_id: user.id,
-        customer_id: payload.customer_id || null,
-        customer_name: payload.customer_name || '',
-        content: payload.content || '',
-        category: payload.category || '상담',
-        next_action: payload.next_action || '',
-        consulted_at: payload.consulted_at || new Date().toISOString(),
-      })
+      .insert(cleanPayload)
       .select()
       .single();
 
@@ -54,28 +60,32 @@ const consultationService = {
   },
 
   async update(id, payload) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('로그인이 필요합니다.');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('로그인이 필요합니다.');
 
-  const cleanPayload = {
-    customer_id: payload.customer_id || null,
-    customer_name: payload.customer_name || '',
-    content: payload.content || '',
-    category: payload.category || '상담',
-    next_action: payload.next_action || '',
-  };
+    const cleanPayload = {
+      customer_id: payload.customer_id || null,
+      customer_name: payload.customer_name || '',
+      content: payload.content || '',
+      category: payload.category || '상담',
+      next_action: payload.next_action || '',
 
-  const { data, error } = await supabase
-    .from('consultations')
-    .update(cleanPayload)
-    .eq('user_id', user.id)
-    .eq('id', id)
-    .select()
-    .single();
+      disclosure_info: payload.disclosure_info || {},
+      medical_history: payload.medical_history || [],
+      exclusions: payload.exclusions || [],
+    };
 
-  if (error) throw error;
-  return data;
-},
+    const { data, error } = await supabase
+      .from('consultations')
+      .update(cleanPayload)
+      .eq('user_id', user.id)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
 
   async remove(id) {
     const { data: { user } } = await supabase.auth.getUser();
