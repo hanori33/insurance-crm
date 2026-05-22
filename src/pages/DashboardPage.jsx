@@ -1,4 +1,3 @@
-// src/pages/DashboardPage.jsx
 import babyImg from '../assets/baby.png';
 import dogImg from '../assets/dog.png';
 import carImg from '../assets/car.png';
@@ -243,6 +242,151 @@ function QuickButton({ icon, label, onClick }) {
   );
 }
 
+function ScheduleCalendarWidget({
+  loading,
+  todaySchedules,
+  monthSchedules,
+  weekSchedules,
+  overdueSchedules,
+  onNavigate,
+}) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const todayNum = now.getDate();
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < firstDay; i += 1) cells.push(null);
+  for (let d = 1; d <= lastDate; d += 1) cells.push(d);
+
+  function hasSchedule(day) {
+    if (!day) return false;
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return monthSchedules.some(s => String(s.scheduled_at || '').slice(0, 10) === dateStr);
+  }
+
+  return (
+    <DashboardSection
+      title="일정 캘린더"
+      icon="📅"
+      right={
+        <button
+          type="button"
+          onClick={() => onNavigate('schedule')}
+          style={{
+            border: 'none',
+            background: COLORS.primary,
+            color: '#fff',
+            borderRadius: 999,
+            padding: '7px 12px',
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: 'pointer',
+          }}
+        >
+          전체 보기
+        </button>
+      }
+    >
+      {loading ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          <div style={{ fontWeight: 900, color: COLORS.text, marginBottom: 10 }}>
+            {year}.{String(month + 1).padStart(2, '0')}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+            {['일', '월', '화', '수', '목', '금', '토'].map(d => (
+              <div key={d} style={{ textAlign: 'center', fontSize: 11, color: COLORS.textGray, fontWeight: 800 }}>
+                {d}
+              </div>
+            ))}
+
+            {cells.map((day, i) => {
+              const isToday = day === todayNum;
+              const marked = hasSchedule(day);
+
+              return (
+                <div
+                  key={`${day || 'empty'}-${i}`}
+                  style={{
+                    height: 34,
+                    borderRadius: 12,
+                    background: isToday ? COLORS.primary : marked ? COLORS.primaryBg : '#fff',
+                    color: isToday ? '#fff' : COLORS.text,
+                    border: `1px solid ${marked && !isToday ? COLORS.border : 'transparent'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: isToday || marked ? 900 : 600,
+                    position: 'relative',
+                  }}
+                >
+                  {day || ''}
+                  {marked && day && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: 4,
+                        width: 4,
+                        height: 4,
+                        borderRadius: 999,
+                        background: isToday ? '#fff' : COLORS.primary,
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 14 }}>
+            <CalendarMiniCount label="오늘" value={`${todaySchedules.length}건`} />
+            <CalendarMiniCount label="이번주" value={`${weekSchedules.length}건`} />
+            <CalendarMiniCount label="미완료" value={`${overdueSchedules.length}건`} danger />
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            {todaySchedules.length === 0 ? (
+              <EmptyState icon="📅" message="오늘 일정이 없습니다" />
+            ) : (
+              todaySchedules.slice(0, 3).map((s, i) => (
+                <ScheduleRow
+                  key={s.id || i}
+                  item={s}
+                  isLast={i === Math.min(todaySchedules.length, 3) - 1}
+                />
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </DashboardSection>
+  );
+}
+
+function CalendarMiniCount({ label, value, danger }) {
+  return (
+    <div
+      style={{
+        background: danger ? '#FEE2E2' : COLORS.primaryBg,
+        color: danger ? '#DC2626' : COLORS.primary,
+        borderRadius: 14,
+        padding: '10px 8px',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 800 }}>{label}</div>
+      <div style={{ fontSize: 17, fontWeight: 950, marginTop: 4 }}>{value}</div>
+    </div>
+  );
+}
+
 function daysUntil(dateStr) {
   if (!dateStr) return null;
 
@@ -291,11 +435,48 @@ function isBirthdayToday(c) {
   return false;
 }
 
+function getMonthRange() {
+  const now = new Date();
+  const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+  return { start, end };
+}
+
+function getWeekSchedules(monthSchedules) {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(now.getDate() - now.getDay());
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+
+  return monthSchedules.filter(s => {
+    if (!s.scheduled_at) return false;
+    const d = new Date(s.scheduled_at);
+    return d >= start && d <= end;
+  });
+}
+
+function getOverdueSchedules(monthSchedules) {
+  const todayDateStr = todayStr();
+  const todayStart = new Date(`${todayDateStr}T00:00:00`);
+
+  return monthSchedules.filter(s => {
+    if (!s.scheduled_at || s.completed) return false;
+    return new Date(s.scheduled_at) < todayStart;
+  });
+}
+
 export default function DashboardPage({ user, onNavigate }) {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [todaySchedules, setTodaySchedules] = useState([]);
+  const [monthSchedules, setMonthSchedules] = useState([]);
   const [recentCustomers, setRecentCustomers] = useState([]);
   const [allCustomers, setAllCustomers] = useState([]);
   const [statusCounts, setStatusCounts] = useState({});
@@ -316,8 +497,11 @@ export default function DashboardPage({ user, onNavigate }) {
     setLoading(true);
 
     try {
-      const [todaySched, recent, counts, all, noticeList, readIdList, role] = await Promise.all([
+      const { start, end } = getMonthRange();
+
+      const [todaySched, monthSchedResult, recent, counts, all, noticeList, readIdList, role] = await Promise.all([
         scheduleService.today().catch(() => []),
+        scheduleService.getMonthSchedules(start, end).catch(() => ({ data: [] })),
         customerService.recent(4).catch(() => []),
         customerService.statusCounts().catch(() => ({})),
         customerService.list({ status: '전체', search: '' }).catch(() => []),
@@ -327,6 +511,7 @@ export default function DashboardPage({ user, onNavigate }) {
       ]);
 
       setTodaySchedules(todaySched || []);
+      setMonthSchedules(monthSchedResult?.data || []);
       setRecentCustomers(recent || []);
       setStatusCounts(counts || {});
       setAllCustomers(all || []);
@@ -353,6 +538,9 @@ export default function DashboardPage({ user, onNavigate }) {
   const petCustomers = allCustomers.filter((c) => c.customer_type === '펫' || c.pet_name);
   const taskCount = todaySchedules.length + birthdayCustomers.length + carExpiringCustomers.length;
 
+  const weekSchedules = getWeekSchedules(monthSchedules);
+  const overdueSchedules = getOverdueSchedules(monthSchedules);
+
   return (
     <div
       style={{
@@ -376,6 +564,9 @@ export default function DashboardPage({ user, onNavigate }) {
             position={position}
             loading={loading}
             todaySchedules={todaySchedules}
+            monthSchedules={monthSchedules}
+            weekSchedules={weekSchedules}
+            overdueSchedules={overdueSchedules}
             recentCustomers={recentCustomers}
             totalCustomers={totalCustomers}
             taskCount={taskCount}
@@ -392,6 +583,9 @@ export default function DashboardPage({ user, onNavigate }) {
             position={position}
             loading={loading}
             todaySchedules={todaySchedules}
+            monthSchedules={monthSchedules}
+            weekSchedules={weekSchedules}
+            overdueSchedules={overdueSchedules}
             recentCustomers={recentCustomers}
             totalCustomers={totalCustomers}
             taskCount={taskCount}
@@ -449,6 +643,9 @@ function MobileDashboard({
   position,
   loading,
   todaySchedules,
+  monthSchedules,
+  weekSchedules,
+  overdueSchedules,
   recentCustomers,
   totalCustomers,
   taskCount,
@@ -540,40 +737,14 @@ function MobileDashboard({
         </div>
       </div>
 
-      <DashboardSection
-        title="오늘의 주요 일정"
-        icon="📅"
-        right={
-          <button
-            onClick={() => setShowScheduleForm(true)}
-            style={{
-              border: 'none',
-              background: COLORS.primary,
-              color: '#fff',
-              borderRadius: 999,
-              padding: '7px 12px',
-              fontSize: 12,
-              fontWeight: 800,
-            }}
-          >
-            + 추가
-          </button>
-        }
-      >
-        {loading ? (
-          <LoadingSpinner />
-        ) : todaySchedules.length === 0 ? (
-          <EmptyState icon="📅" message="오늘 일정이 없습니다" />
-        ) : (
-          todaySchedules.slice(0, 4).map((s, i) => (
-            <ScheduleRow
-              key={s.id || i}
-              item={s}
-              isLast={i === Math.min(todaySchedules.length, 4) - 1}
-            />
-          ))
-        )}
-      </DashboardSection>
+      <ScheduleCalendarWidget
+        loading={loading}
+        todaySchedules={todaySchedules}
+        monthSchedules={monthSchedules}
+        weekSchedules={weekSchedules}
+        overdueSchedules={overdueSchedules}
+        onNavigate={onNavigate}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <MiniStatCard
@@ -662,6 +833,9 @@ function MobileDashboard({
 function PcDashboard({
   loading,
   todaySchedules,
+  monthSchedules,
+  weekSchedules,
+  overdueSchedules,
   recentCustomers,
   totalCustomers,
   taskCount,
@@ -719,21 +893,14 @@ function PcDashboard({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 1fr', gap: 18, alignItems: 'start' }}>
-        <DashboardSection title="오늘의 일정" icon="📅">
-          {loading ? (
-            <LoadingSpinner />
-          ) : todaySchedules.length === 0 ? (
-            <EmptyState icon="📅" message="오늘 일정이 없습니다" />
-          ) : (
-            todaySchedules.slice(0, 5).map((s, i) => (
-              <ScheduleRow
-                key={s.id || i}
-                item={s}
-                isLast={i === Math.min(todaySchedules.length, 5) - 1}
-              />
-            ))
-          )}
-        </DashboardSection>
+        <ScheduleCalendarWidget
+          loading={loading}
+          todaySchedules={todaySchedules}
+          monthSchedules={monthSchedules}
+          weekSchedules={weekSchedules}
+          overdueSchedules={overdueSchedules}
+          onNavigate={onNavigate}
+        />
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <MiniStatCard
