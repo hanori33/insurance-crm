@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState';
 import CustomerCard from '../components/CustomerCard';
 import CustomerForm from '../components/CustomerForm';
 import customerService from '../services/customerService';
+import consultationService from '../services/consultationService';
 
 const EXCEL_HEADERS = [
   '이름', '전화번호', '생년월일', '성별', '상태', '고객유형',
@@ -99,6 +100,7 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
   const [filter, setFilter] = useState(initialFilter || '전체');
   const [search, setSearch] = useState(initialSearch || '');
   const [customers, setCustomers] = useState([]);
+  const [consultations, setConsultations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const fileInputRef = useRef(null);
@@ -112,33 +114,89 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
   }, [initialSearch]);
 
   const filteredCustomers = customers.filter((c) => {
-    if (filter === '생일') return isBirthdayToday(c);
+  const q = search.trim().toLowerCase();
 
-    if (filter === '자동차만기') {
-      const d = daysUntil(getCarExpiry(c));
-      return d !== null && d >= 0 && d <= 30;
-    }
+  const customerId = String(c.db_id || c.id || c.app_customer_id || '');
 
-    if (filter === '태아') return c.customer_type === '태아' || !!c.baby_name;
-    if (filter === '펫') return c.customer_type === '펫' || !!c.pet_name;
+  const relatedConsultations = consultations.filter(item => {
+    const itemCustomerId = String(item.customer_id || '');
+    const itemCustomerName = String(item.customer_name || '');
 
-    return true;
+    return (
+      itemCustomerId === customerId ||
+      itemCustomerName === String(c.name || '')
+    );
   });
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const medicalText = relatedConsultations
+    .flatMap(item => item.medical_history || [])
+    .map(item => [
+      item.disease,
+      item.medication,
+      item.memo,
+      item.current_treatment,
+      item.treatment_period,
+    ].filter(Boolean).join(' '))
+    .join(' ')
+    .toLowerCase();
 
-    try {
-      const apiStatus = CLIENT_SIDE_FILTERS.includes(filter) ? '전체' : filter;
-      const data = await customerService.list({ status: apiStatus, search });
-      setCustomers(data || []);
-    } catch (e) {
-      console.error(e);
-      setCustomers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter, search]);
+  const exclusionText = relatedConsultations
+    .flatMap(item => item.exclusions || [])
+    .map(item => [
+      item.body_part,
+      item.disease,
+      item.insurance_company,
+      item.product_name,
+      item.memo,
+      item.period,
+      item.result,
+    ].filter(Boolean).join(' '))
+    .join(' ')
+    .toLowerCase();
+
+  const basicSearchMatch =
+    !q ||
+    String(c.name || '').toLowerCase().includes(q) ||
+    String(c.phone || '').toLowerCase().includes(q) ||
+    medicalText.includes(q) ||
+    exclusionText.includes(q);
+
+  if (!basicSearchMatch) return false;
+
+  if (filter === '생일') return isBirthdayToday(c);
+
+  if (filter === '자동차만기') {
+    const d = daysUntil(getCarExpiry(c));
+    return d !== null && d >= 0 && d <= 30;
+  }
+
+  if (filter === '태아') return c.customer_type === '태아' || !!c.baby_name;
+  if (filter === '펫') return c.customer_type === '펫' || !!c.pet_name;
+
+  return true;
+});
+
+ const load = useCallback(async () => {
+  setLoading(true);
+
+  try {
+    const apiStatus = CLIENT_SIDE_FILTERS.includes(filter) ? '전체' : filter;
+
+    const [customerData, consultationData] = await Promise.all([
+      customerService.list({ status: apiStatus, search: '' }),
+      consultationService.list(),
+    ]);
+
+    setCustomers(customerData || []);
+    setConsultations(consultationData || []);
+  } catch (e) {
+    console.error(e);
+    setCustomers([]);
+    setConsultations([]);
+  } finally {
+    setLoading(false);
+  }
+}, [filter]);
 
   useEffect(() => {
     load();
@@ -232,7 +290,7 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="고객명, 전화번호 검색"
+              placeholder="고객명, 전화번호, 병력/부담보 검색"
               style={{
                 border: 'none',
                 background: 'none',
@@ -340,9 +398,9 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
           padding: '0 16px calc(24px + env(safe-area-inset-bottom))',
         }}
       >
-        {loading ? (
-          <LoadingSpinner />
-        ) : filteredCustomers.length === 0 ? (
+        {loading && customers.length === 0 ? (
+  <LoadingSpinner />
+) : filteredCustomers.length === 0 ? (
           <EmptyState
             icon="👥"
             message="고객이 없습니다"
@@ -354,7 +412,7 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
           <Card style={{ padding: 0, marginTop: 4 }}>
             {filteredCustomers.map((c, i) => (
               <CustomerCard
-                key={c.id || c.db_id || i}
+                key={c.db_id || c.id || c.app_customer_id || i}
                 customer={c}
                 isLast={i === filteredCustomers.length - 1}
                 onClick={() => onNavigate('customerDetail', { id: c.db_id || c.id })}

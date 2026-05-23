@@ -559,6 +559,7 @@ export default function CustomerDetailPage({
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [selectedConsultation, setSelectedConsultation] = useState(null);
+  const [selectedRiskModal, setSelectedRiskModal] = useState(null); 
   const [consultations, setConsultations] = useState([]);
   const [consultLoading, setConsultLoading] = useState(false);
   const [customerSchedules, setCustomerSchedules] = useState([]);
@@ -637,8 +638,10 @@ setCustomerSchedules(scheduleData || []);
   const schedules = Array.isArray(customerSchedules)
   ? customerSchedules
   : [];
-
-const timelineItems = [
+  const medicalItems = consultations.flatMap(item => item.medical_history || []);
+  const exclusionItems = consultations.flatMap(item => item.exclusions || []);
+  const disclosureDone = consultations.some(item => item?.disclosure_info?.checked);
+  const timelineItems = [
   ...consultations.map((item) => ({
     id: `consult-${item.id}`,
     icon: '📝',
@@ -703,6 +706,65 @@ const timelineItems = [
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 20, color: COLORS.text }}>{customer.name}</div>
                 <div style={{ fontSize: 14, color: COLORS.textGray, marginTop: 4 }}>{customer.phone}</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+  {disclosureDone && (
+  <button
+    type="button"
+    onClick={() => setSelectedRiskModal('disclosure')}
+    style={{
+      border: 'none',
+      background: COLORS.primaryBg,
+      color: COLORS.primary,
+      borderRadius: 999,
+      padding: '5px 9px',
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: 'pointer',
+    }}
+  >
+    📋 알릴의무 완료
+  </button>
+)}
+
+  {medicalItems.length > 0 && (
+  <button
+    type="button"
+    onClick={() => setSelectedRiskModal('medical')}
+    style={{
+      border: 'none',
+      background: COLORS.primaryBg,
+      color: COLORS.primary,
+      borderRadius: 999,
+      padding: '5px 9px',
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: 'pointer',
+    }}
+  >
+    🏥 병력 {medicalItems.length}건
+  </button>
+)}
+
+  {exclusionItems.length > 0 && (
+  <button
+    type="button"
+    onClick={() => setSelectedRiskModal('exclusion')}
+    style={{
+      border: 'none',
+      background: COLORS.primaryBg,
+      color: COLORS.primary,
+      borderRadius: 999,
+      padding: '5px 9px',
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: 'pointer',
+    }}
+  >
+    🚫 부담보 {exclusionItems.length}건
+  </button>
+)}
+  
+</div>
               </div>
 
               <StatusBadge status={customer.status} />
@@ -970,6 +1032,81 @@ const timelineItems = [
           </button>
         </div>
       </div>
+
+{selectedRiskModal && (
+  <Modal
+    visible={true}
+    onClose={() => setSelectedRiskModal(null)}
+    title={
+      selectedRiskModal === 'disclosure'
+        ? '📋 알릴의무'
+        : selectedRiskModal === 'medical'
+        ? '🏥 병력고지'
+        : '🚫 부담보'
+    }
+  >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {selectedRiskModal === 'disclosure' && (
+        <div
+          style={{
+            background: COLORS.primaryBg,
+            color: COLORS.primary,
+            padding: 14,
+            borderRadius: 12,
+            fontWeight: 800,
+          }}
+        >
+          📋 알릴의무 확인완료
+        </div>
+      )}
+
+      {selectedRiskModal === 'medical' && medicalItems.map((item, idx) => (
+        <div
+          key={idx}
+          style={{
+            background: '#F8FAFC',
+            padding: 14,
+            borderRadius: 12,
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 900 }}>🏥 {item.disease || '질병명 미입력'}</div>
+          {item.diagnosed_at && <div>진단일: {item.diagnosed_at}</div>}
+          {item.treatment_period && <div>치료기간: {item.treatment_period}</div>}
+          {item.current_treatment && <div>현재 치료: {item.current_treatment}</div>}
+          {item.medication && <div>복용약: {item.medication}</div>}
+          {item.hospitalization && <div>입원: {item.hospitalization}</div>}
+          {item.surgery && <div>수술: {item.surgery}</div>}
+          {item.memo && <div>메모: {item.memo}</div>}
+        </div>
+      ))}
+
+      {selectedRiskModal === 'exclusion' && exclusionItems.map((item, idx) => (
+        <div
+          key={idx}
+          style={{
+            background: '#FEF2F2',
+            color: '#991B1B',
+            padding: 14,
+            borderRadius: 12,
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 900 }}>
+            🚫 {item.body_part || item.disease || '부담보 항목'}
+          </div>
+          {item.insurance_company && <div>보험사: {item.insurance_company}</div>}
+          {item.product_name && <div>상품명: {item.product_name}</div>}
+          {item.period && <div>기간: {item.period}</div>}
+          {item.start_date && <div>시작일: {item.start_date}</div>}
+          {item.end_date && <div>종료일: {item.end_date}</div>}
+          {item.result && <div>심사결과: {item.result}</div>}
+          {item.memo && <div>메모: {item.memo}</div>}
+        </div>
+      ))}
+    </div>
+  </Modal>
+)}
 
       <EditModal
         visible={showEdit}
