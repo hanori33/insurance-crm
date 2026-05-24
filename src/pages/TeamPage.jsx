@@ -204,7 +204,7 @@ const arrivedMember = selectedMembers[current.endCol];
 setLiveLadderResults((prev) => ({
   ...prev,
   [arrivedMember.id]: arrivedMember.id === winner.id ? "winner" : "safe",
-}));
+}));ㅎ
 
     runnerIndex += 1;
     pathIndex = 0;
@@ -450,7 +450,7 @@ setLiveLadderResults((prev) => ({
           <input value={penalty} onChange={(e) => setPenalty(e.target.value)} placeholder="벌칙 입력 예: 커피 사기" style={styles.input} />
 
           <div style={styles.ladderStage}>
-            <div style={{ ...styles.ladderInner, minWidth: Math.max(560, selectedMembers.length * 180) }}>
+            <div style={styles.ladderInner}>
               {selectedMembers.map((member, index) => {
                 const left = getColLeft(index, selectedMembers.length);
                 return (
