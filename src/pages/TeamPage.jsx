@@ -613,7 +613,28 @@ setLiveLadderResults((prev) => ({
 
 function getColLeft(index, count) {
   if (count <= 1) return 50;
-  return 8 + (index * 84) / (count - 1);
+
+  const mobile =
+    typeof window !== "undefined" &&
+    window.innerWidth <= 480;
+
+  if (mobile) {
+    const padding = count <= 3 ? 18 : 10;
+
+    return (
+      padding +
+      (index * (100 - padding * 2)) /
+        (count - 1)
+    );
+  }
+
+  const padding = count <= 3 ? 18 : 8;
+
+  return (
+    padding +
+    (index * (100 - padding * 2)) /
+      (count - 1)
+  );
 }
 
 function polarToCartesian(cx, cy, r, angle) {
@@ -690,8 +711,22 @@ const styles = {
   resultDivider: { margin: "0 10px", color: "#A78BFA" },
   confettiWrap: { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999, overflow: "hidden" },
   confetti: { position: "absolute", top: "-30px", fontSize: 28, animation: "confettiFall 1.8s ease-out forwards" },
-  ladderStage: { width: "100%", overflowX: "auto", marginTop: 20, padding: "14px 0" },
-  ladderInner: { position: "relative", height: 560, margin: "0 auto", borderRadius: 22, background: "#FFFFFF" },
+  ladderStage: {
+  width: "100%",
+  overflowX: "hidden",
+  marginTop: 20,
+  padding: "14px 0",
+},
+
+ladderInner: {
+  position: "relative",
+  width: "100%",
+  height: 560,
+  margin: "0 auto",
+  borderRadius: 22,
+  background: "#FFFFFF",
+  overflow: "hidden",
+},
   ladderName: { position: "absolute", top: 0, transform: "translateX(-50%)", textAlign: "center", fontSize: 15, lineHeight: 1.4 },
   ladderVertical: { position: "absolute", top: "12%", height: "74%", width: 7, transform: "translateX(-50%)", background: COLORS.primary, borderRadius: 999 },
   ladderHorizontal: { position: "absolute", height: 7, background: COLORS.primary, borderRadius: 999, transform: "translateY(-50%)" },
