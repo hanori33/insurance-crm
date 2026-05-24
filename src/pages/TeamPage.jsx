@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 const COLORS = {
@@ -69,20 +69,41 @@ function TeamPage({ onBack }) {
   const [rouletteRunning, setRouletteRunning] = useState(false);
 
   const isManager = myRole === "manager" || myRole === "admin";
-  const [isPhone, setIsPhone] = useState(
-  typeof window !== "undefined" ? window.innerWidth <= 768 : false
-);
 
-useEffect(() => {
-  const handleResize = () => {
-    setIsPhone(window.innerWidth <= 768);
-  };
+  const pageRef = useRef(null);
+  const [isPhone, setIsPhone] = useState(false);
 
-  handleResize();
-  window.addEventListener("resize", handleResize);
+  useEffect(() => {
+    const updateLayoutMode = () => {
+      const pageWidth = pageRef.current?.getBoundingClientRect?.().width || 0;
+      const viewportWidth =
+        window.visualViewport?.width ||
+        document.documentElement.clientWidth ||
+        window.innerWidth;
 
-  return () => window.removeEventListener("resize", handleResize);
-}, []);
+      setIsPhone((pageWidth || viewportWidth) <= 768);
+    };
+
+    updateLayoutMode();
+
+    const observer =
+      typeof ResizeObserver !== "undefined" && pageRef.current
+        ? new ResizeObserver(updateLayoutMode)
+        : null;
+
+    if (observer && pageRef.current) observer.observe(pageRef.current);
+
+    window.addEventListener("resize", updateLayoutMode);
+    window.visualViewport?.addEventListener("resize", updateLayoutMode);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateLayoutMode);
+      window.visualViewport?.removeEventListener("resize", updateLayoutMode);
+    };
+  }, []);
+
+  const pageStyles = useMemo(() => makeStyles(isPhone), [isPhone]);
 
   useEffect(() => {
     loadMembers();
@@ -450,7 +471,7 @@ async function saveMessage() {
   };
 
   return (
-    <div style={styles.page}>
+    <div ref={pageRef} style={pageStyles.page}>
       <style>{`
         @keyframes confettiFall {
           0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
@@ -459,12 +480,12 @@ async function saveMessage() {
       `}</style>
 
       {showConfetti && (
-        <div style={styles.confettiWrap}>
+        <div style={pageStyles.confettiWrap}>
           {Array.from({ length: 28 }).map((_, i) => (
             <span
               key={i}
               style={{
-                ...styles.confetti,
+                ...pageStyles.confetti,
                 left: `${(i * 37) % 100}%`,
                 animationDelay: `${(i % 8) * 0.08}s`,
               }}
@@ -475,14 +496,14 @@ async function saveMessage() {
         </div>
       )}
 
-      <div style={styles.header}>
+      <div style={pageStyles.header}>
         <div>
-          <div style={styles.title}>팀관리</div>
-          <div style={styles.subtitle}>팀 현황 · 랭킹 · 사다리 · 룰렛</div>
+          <div style={pageStyles.title}>팀관리</div>
+          <div style={pageStyles.subtitle}>팀 현황 · 랭킹 · 사다리 · 룰렛</div>
         </div>
       </div>
 
-      <div style={styles.tabWrap}>
+      <div style={pageStyles.tabWrap}>
         {[
           ["status", "현황"],
           ["ranking", "랭킹"],
@@ -492,7 +513,7 @@ async function saveMessage() {
           <button
             key={key}
             type="button"
-            style={activeTab === key ? styles.activeTab : styles.tab}
+            style={activeTab === key ? pageStyles.activeTab : pageStyles.tab}
             onClick={() => setActiveTab(key)}
           >
             {label}
@@ -502,68 +523,68 @@ async function saveMessage() {
 
       {activeTab === "status" && (
         <>
-          <section style={styles.summaryGrid}>
+          <section style={pageStyles.summaryGrid}>
             {statusSummary.map((status) => (
-              <div key={status.key} style={styles.summaryCard}>
-                <div style={{ ...styles.summaryIcon, background: status.bg, color: status.color }}>
+              <div key={status.key} style={pageStyles.summaryCard}>
+                <div style={{ ...pageStyles.summaryIcon, background: status.bg, color: status.color }}>
                   {status.icon}
                 </div>
                 <div>
-                  <div style={styles.summaryLabel}>{status.key}</div>
-                  <div style={styles.summaryCount}>{status.count}명</div>
+                  <div style={pageStyles.summaryLabel}>{status.key}</div>
+                  <div style={pageStyles.summaryCount}>{status.count}명</div>
                 </div>
               </div>
             ))}
 
-            <div style={styles.summaryCard}>
-              <div style={{ ...styles.summaryIcon, background: COLORS.light, color: COLORS.primary }}>👥</div>
+            <div style={pageStyles.summaryCard}>
+              <div style={{ ...pageStyles.summaryIcon, background: COLORS.light, color: COLORS.primary }}>👥</div>
               <div>
-                <div style={styles.summaryLabel}>전체 팀원</div>
-                <div style={styles.summaryCount}>{members.length}명</div>
+                <div style={pageStyles.summaryLabel}>전체 팀원</div>
+                <div style={pageStyles.summaryCount}>{members.length}명</div>
               </div>
             </div>
           </section>
 
-          <section style={styles.statusLayout}>
-            <div style={styles.card}>
-              <div style={styles.cardHeader}>
+          <section style={pageStyles.statusLayout}>
+            <div style={pageStyles.card}>
+              <div style={pageStyles.cardHeader}>
                 <div>
-                  <div style={styles.sectionTitle}>팀원 현황</div>
-                  <div style={styles.sectionSub}>현재 접속 {members.length}명</div>
+                  <div style={pageStyles.sectionTitle}>팀원 현황</div>
+                  <div style={pageStyles.sectionSub}>현재 접속 {members.length}명</div>
                 </div>
               </div>
 
-              <div style={styles.memberList}>
+              <div style={pageStyles.memberList}>
                 {members.map((member) => {
                   const meta = getStatusMeta(member.status);
 
                   return (
-                    <div key={member.id} style={styles.memberRow}>
-                      <div style={styles.profileAvatar}>{member.profile}</div>
+                    <div key={member.id} style={pageStyles.memberRow}>
+                      <div style={pageStyles.profileAvatar}>{member.profile}</div>
 
-                      <div style={styles.memberInfo}>
+                      <div style={pageStyles.memberInfo}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={styles.memberName}>{member.name}</div>
+                          <div style={pageStyles.memberName}>{member.name}</div>
 
-                          <span style={styles.roleBadge}>
+                          <span style={pageStyles.roleBadge}>
                             {member.role}
                           </span>
                         </div>
 
-                        <div style={styles.memberRole}>
+                        <div style={pageStyles.memberRole}>
                           <div>🏢 {member.division}</div>
                           <div>📍 {member.branch}</div>
                         </div>
                       </div>
 
-                      <div style={styles.statusLine}>
+                      <div style={pageStyles.statusLine}>
                         {member.user_id === currentUserId ? (
-                          <div style={styles.statusSelectWrap}>
+                          <div style={pageStyles.statusSelectWrap}>
                             <select
                               value={member.status}
                               onChange={(e) => updateStatus(member.id, e.target.value)}
                               style={{
-                                ...styles.statusSelect,
+                                ...pageStyles.statusSelect,
                                 background: meta.bg,
                                 color: meta.color,
                               }}
@@ -579,12 +600,12 @@ async function saveMessage() {
                               ))}
                             </select>
 
-                            <span style={styles.statusArrow}>⌄</span>
+                            <span style={pageStyles.statusArrow}>⌄</span>
                           </div>
                         ) : (
                           <div
                             style={{
-                              ...styles.statusViewOnly,
+                              ...pageStyles.statusViewOnly,
                               background: meta.bg,
                               color: meta.color,
                             }}
@@ -595,7 +616,7 @@ async function saveMessage() {
 
                         <div
                           style={{
-                            ...styles.lastSeen,
+                            ...pageStyles.lastSeen,
                             color: member.lastSeen === "접속중" ? "#16A34A" : COLORS.sub,
                             fontWeight: member.lastSeen === "접속중" ? 800 : 500,
                           }}
@@ -609,26 +630,26 @@ async function saveMessage() {
               </div>
             </div>
 
-            <div style={styles.sideStack}>
-              <div style={styles.card}>
-                <div style={styles.sectionTitle}>오늘 활동 요약</div>
-                <div style={styles.activityGrid}>
-                  <div style={styles.activityCard}>
+            <div style={pageStyles.sideStack}>
+              <div style={pageStyles.card}>
+                <div style={pageStyles.sectionTitle}>오늘 활동 요약</div>
+                <div style={pageStyles.activityGrid}>
+                  <div style={pageStyles.activityCard}>
                     <span>💬</span>
                     <b>{activitySummary.consult}건</b>
                     <small>상담기록</small>
                   </div>
-                  <div style={styles.activityCard}>
+                  <div style={pageStyles.activityCard}>
                     <span>📅</span>
                     <b>{activitySummary.schedule}건</b>
                     <small>일정완료</small>
                   </div>
-                  <div style={styles.activityCard}>
+                  <div style={pageStyles.activityCard}>
                     <span>👤</span>
                     <b>{activitySummary.customer}건</b>
                     <small>고객등록</small>
                   </div>
-                  <div style={styles.activityCard}>
+                  <div style={pageStyles.activityCard}>
                     <span>🚩</span>
                     <b>{activitySummary.total}건</b>
                     <small>전체활동</small>
@@ -636,15 +657,15 @@ async function saveMessage() {
                 </div>
               </div>
 
-              <div style={styles.missionCard}>
-                <div style={styles.cardTitleRow}>
-                  <div style={styles.sectionTitle}>🎯 오늘의 미션</div>
+              <div style={pageStyles.missionCard}>
+                <div style={pageStyles.cardTitleRow}>
+                  <div style={pageStyles.sectionTitle}>🎯 오늘의 미션</div>
 
                   {isManager && !editingMission && (
                     <button
                       type="button"
                       onClick={startEditMission}
-                      style={styles.editMiniButtonLight}
+                      style={pageStyles.editMiniButtonLight}
                     >
                       수정
                     </button>
@@ -656,39 +677,39 @@ async function saveMessage() {
     <input
       value={draftMissionText}
       onChange={(e) => setDraftMissionText(e.target.value)}
-      style={styles.missionInput}
+      style={pageStyles.missionInput}
       placeholder="오늘의 미션을 입력하세요"
     />
 
-    <div style={styles.editButtonRow}>
-      <button type="button" onClick={cancelEditMission} style={styles.cancelButton}>
+    <div style={pageStyles.editButtonRow}>
+      <button type="button" onClick={cancelEditMission} style={pageStyles.cancelButton}>
         취소
       </button>
 
-      <button type="button" onClick={saveMission} style={styles.saveButton}>
+      <button type="button" onClick={saveMission} style={pageStyles.saveButton}>
         저장
       </button>
     </div>
   </>
 ) : (
-  <div style={styles.missionText}>{missionText}</div>
+  <div style={pageStyles.missionText}>{missionText}</div>
 )}
 
-                <div style={styles.missionSub}>완료율 60%</div>
-                <div style={styles.progressBg}>
-                  <div style={styles.progressBar} />
+                <div style={pageStyles.missionSub}>완료율 60%</div>
+                <div style={pageStyles.progressBg}>
+                  <div style={pageStyles.progressBar} />
                 </div>
               </div>
 
-              <div style={styles.card}>
-                <div style={styles.cardTitleRow}>
-                  <div style={styles.sectionTitle}>📢 팀 한마디</div>
+              <div style={pageStyles.card}>
+                <div style={pageStyles.cardTitleRow}>
+                  <div style={pageStyles.sectionTitle}>📢 팀 한마디</div>
 
                   {isManager && !editingMessage && (
                     <button
                       type="button"
                       onClick={startEditMessage}
-                      style={styles.editMiniButton}
+                      style={pageStyles.editMiniButton}
                     >
                       수정
                     </button>
@@ -700,22 +721,22 @@ async function saveMessage() {
                     <textarea
                       value={draftTeamMessage}
                       onChange={(e) => setDraftTeamMessage(e.target.value)}
-                      style={styles.teamMessageInput}
+                      style={pageStyles.teamMessageInput}
                       placeholder="팀 한마디를 입력하세요"
                     />
 
-                    <div style={styles.editButtonRow}>
-                      <button type="button" onClick={cancelEditMessage} style={styles.cancelButton}>
+                    <div style={pageStyles.editButtonRow}>
+                      <button type="button" onClick={cancelEditMessage} style={pageStyles.cancelButton}>
                         취소
                       </button>
 
-                      <button type="button" onClick={saveMessage} style={styles.saveButton}>
+                      <button type="button" onClick={saveMessage} style={pageStyles.saveButton}>
   저장
 </button>
                     </div>
                   </>
                 ) : (
-                  <div style={styles.teamMessage}>{teamMessage}</div>
+                  <div style={pageStyles.teamMessage}>{teamMessage}</div>
                 )}
               </div>
             </div>
@@ -724,38 +745,38 @@ async function saveMessage() {
       )}
 
       {activeTab === "ranking" && (
-        <section style={styles.card}>
-          <div style={styles.sectionTitle}>🏆 오늘의 활동 랭킹</div>
-          <div style={styles.sectionSub}>상담기록 + 일정완료 + 고객등록 기준</div>
+        <section style={pageStyles.card}>
+          <div style={pageStyles.sectionTitle}>🏆 오늘의 활동 랭킹</div>
+          <div style={pageStyles.sectionSub}>상담기록 + 일정완료 + 고객등록 기준</div>
 
           {ranking.map((member, index) => (
-            <div key={member.id} style={styles.rankItem}>
-              <div style={styles.rankNo}>
+            <div key={member.id} style={pageStyles.rankItem}>
+              <div style={pageStyles.rankNo}>
                 {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}
               </div>
-              <div style={styles.profileAvatarSmall}>{member.profile}</div>
+              <div style={pageStyles.profileAvatarSmall}>{member.profile}</div>
               <div style={{ flex: 1 }}>
                 <div>🏢 {member.division}</div>
                 <div>📍 {member.branch}</div>
-                <div style={styles.memberRole}>
+                <div style={pageStyles.memberRole}>
                   상담 {member.consultCount}건 · 일정 {member.scheduleCount}건 · 고객 {member.customerCount}건
                 </div>
               </div>
-              <div style={styles.rankCount}>{member.point}P</div>
+              <div style={pageStyles.rankCount}>{member.point}P</div>
             </div>
           ))}
         </section>
       )}
 
       {activeTab === "ladder" && (
-        <section style={styles.card}>
-          <div style={styles.sectionTitle}>🪜 캐릭터 사다리타기</div>
-          <div style={styles.sectionSub}>캐릭터가 한 칸씩 움직이면서 내려가요</div>
+        <section style={pageStyles.card}>
+          <div style={pageStyles.sectionTitle}>🪜 캐릭터 사다리타기</div>
+          <div style={pageStyles.sectionSub}>캐릭터가 한 칸씩 움직이면서 내려가요</div>
 
-          <div style={styles.checkList}>
+          <div style={pageStyles.checkList}>
             {members.map((member) => (
-              <div key={member.id} style={styles.ladderMemberBox}>
-                <label style={styles.checkItem}>
+              <div key={member.id} style={pageStyles.ladderMemberBox}>
+                <label style={pageStyles.checkItem}>
                   <input
                     type="checkbox"
                     checked={ladderSelected.includes(member.id)}
@@ -764,12 +785,12 @@ async function saveMessage() {
                   <span>{ladderEmojiMap[member.id] || "🐰"} {member.name}</span>
                 </label>
 
-                <div style={styles.emojiWrap}>
+                <div style={pageStyles.emojiWrap}>
                   {EMOJIS.map((emoji) => (
                     <button
                       key={emoji}
                       type="button"
-                      style={ladderEmojiMap[member.id] === emoji ? styles.emojiActive : styles.emojiBtn}
+                      style={ladderEmojiMap[member.id] === emoji ? pageStyles.emojiActive : pageStyles.emojiBtn}
                       onClick={() => changeLadderEmoji(member.id, emoji)}
                     >
                       {emoji}
@@ -784,28 +805,28 @@ async function saveMessage() {
             value={penalty}
             onChange={(e) => setPenalty(e.target.value)}
             placeholder="벌칙 입력 예: 커피 사기"
-            style={styles.input}
+            style={pageStyles.input}
           />
 
-          <div style={styles.ladderStage}>
-            <div style={styles.ladderInner}>
+          <div style={pageStyles.ladderStage}>
+            <div style={pageStyles.ladderInner}>
               {selectedMembers.map((member, index) => {
                 const left = getColLeft(index, selectedMembers.length);
                 return (
                   <React.Fragment key={member.id}>
-                    <div style={{ ...styles.ladderName, left: `${left}%` }}>
+                    <div style={{ ...pageStyles.ladderName, left: `${left}%` }}>
                       <div>{ladderEmojiMap[member.id] || "🐰"}</div>
                       <b>{member.name}</b>
                     </div>
-                    <div style={{ ...styles.ladderVertical, left: `${left}%` }} />
+                    <div style={{ ...pageStyles.ladderVertical, left: `${left}%` }} />
                     <div
                       style={{
-                        ...styles.ladderGift,
+                        ...pageStyles.ladderGift,
                         left: `${left}%`,
                         ...(liveLadderResults[member.id] === "winner"
-                          ? styles.ladderGiftWinner
+                          ? pageStyles.ladderGiftWinner
                           : liveLadderResults[member.id] === "safe"
-                          ? styles.ladderGiftSafe
+                          ? pageStyles.ladderGiftSafe
                           : {}),
                       }}
                     >
@@ -826,7 +847,7 @@ async function saveMessage() {
                   <div
                     key={index}
                     style={{
-                      ...styles.ladderHorizontal,
+                      ...pageStyles.ladderHorizontal,
                       left: `${left1}%`,
                       top: `${line.y}%`,
                       width: `${left2 - left1}%`,
@@ -838,7 +859,7 @@ async function saveMessage() {
               {runner && (
                 <div
                   style={{
-                    ...styles.runner,
+                    ...pageStyles.runner,
                     left: `${getColLeft(runner.x, selectedMembers.length)}%`,
                     top: `${runner.y}%`,
                   }}
@@ -849,16 +870,16 @@ async function saveMessage() {
             </div>
           </div>
 
-          <button style={styles.primaryButton} onClick={drawLadder} disabled={ladderRunning}>
+          <button style={pageStyles.primaryButton} onClick={drawLadder} disabled={ladderRunning}>
             {ladderRunning ? "사다리 타는 중..." : "출발하기"}
           </button>
 
           {ladderResult && (
-            <div style={styles.resultLineBox}>
+            <div style={pageStyles.resultLineBox}>
               ☠️ 오늘의 희생양: <b>{ladderResult.winner.name}</b>
-              <span style={styles.resultDivider}>|</span>
+              <span style={pageStyles.resultDivider}>|</span>
               😆 무사생환: <b>{ladderResult.survivors.map((m) => m.name).join(", ") || "없음"}</b>
-              <span style={styles.resultDivider}>|</span>
+              <span style={pageStyles.resultDivider}>|</span>
               ☕ <b>{ladderResult.penalty}</b>
             </div>
           )}
@@ -866,14 +887,14 @@ async function saveMessage() {
       )}
 
       {activeTab === "roulette" && (
-        <section style={styles.card}>
-          <div style={styles.sectionTitle}>🎰 돌아가는 룰렛</div>
-          <div style={styles.sectionSub}>점심메뉴 / 벌칙 / 간식 뽑기용</div>
+        <section style={pageStyles.card}>
+          <div style={pageStyles.sectionTitle}>🎰 돌아가는 룰렛</div>
+          <div style={pageStyles.sectionSub}>점심메뉴 / 벌칙 / 간식 뽑기용</div>
 
-          <div style={styles.rouletteWrap}>
-            <div style={styles.pointer}>▼</div>
+          <div style={pageStyles.rouletteWrap}>
+            <div style={pageStyles.pointer}>▼</div>
 
-            <svg viewBox="0 0 320 320" style={{ ...styles.rouletteSvg, transform: `rotate(${rouletteDeg}deg)` }}>
+            <svg viewBox="0 0 320 320" style={{ ...pageStyles.rouletteSvg, transform: `rotate(${rouletteDeg}deg)` }}>
               <g transform="translate(160 160)">
                 {rouletteItems.map((item, index) => {
                   const count = rouletteItems.length;
@@ -915,31 +936,31 @@ async function saveMessage() {
             </svg>
           </div>
 
-          <div style={styles.inputRow}>
+          <div style={pageStyles.inputRow}>
             <input
               value={rouletteInput}
               onChange={(e) => setRouletteInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addRouletteItem()}
               placeholder="항목 입력"
-              style={styles.input}
+              style={pageStyles.input}
             />
-            <button style={styles.smallButton} onClick={addRouletteItem}>추가</button>
+            <button style={pageStyles.smallButton} onClick={addRouletteItem}>추가</button>
           </div>
 
-          <div style={styles.itemWrap}>
+          <div style={pageStyles.itemWrap}>
             {rouletteItems.map((item, index) => (
-              <button key={`${item}-${index}`} style={styles.itemChip} onClick={() => removeRouletteItem(index)}>
+              <button key={`${item}-${index}`} style={pageStyles.itemChip} onClick={() => removeRouletteItem(index)}>
                 {item} ✕
               </button>
             ))}
           </div>
 
-          <button style={styles.primaryButton} onClick={spinRoulette} disabled={rouletteRunning}>
+          <button style={pageStyles.primaryButton} onClick={spinRoulette} disabled={rouletteRunning}>
             {rouletteRunning ? "돌아가는 중..." : "룰렛 돌리기"}
           </button>
 
           {rouletteResult && (
-            <div style={styles.resultBox}>
+            <div style={pageStyles.resultBox}>
               🎉 결과: <b>{rouletteResult}</b>
             </div>
           )}
@@ -984,16 +1005,8 @@ function shortText(text) {
   return text.length > 5 ? text.slice(0, 5) : text;
 }
 
-function isPhoneLayout() {
-  if (typeof window === "undefined") return false;
 
-  return (
-    window.innerWidth <= 768 ||
-    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-  );
-}
-
-const styles = {
+const makeStyles = (isPhone) => ({
   page: {
     minHeight: "100%",
     background: COLORS.bg,
@@ -1081,7 +1094,7 @@ const styles = {
 
   statusLayout: {
     display: "grid",
-    gridTemplateColumns: isPhoneLayout() ? "1fr" : "1.2fr 1fr",
+    gridTemplateColumns: isPhone ? "1fr" : "1.2fr 1fr",
     gap: 14,
   },
 
@@ -1125,7 +1138,7 @@ const styles = {
 
   memberRow: {
     display: "grid",
-    gridTemplateColumns: isPhoneLayout() ? "50px 1fr" : "50px 260px 190px 90px",
+    gridTemplateColumns: isPhone ? "50px 1fr" : "50px 260px 190px 90px",
     alignItems: "center",
     columnGap: 14,
     rowGap: 12,
@@ -1178,20 +1191,20 @@ const styles = {
   memberRole: { marginTop: 3, fontSize: 13, color: COLORS.sub },
 
   statusLine: {
-    display: isPhoneLayout() ? "grid" : "flex",
-    gridTemplateColumns: isPhoneLayout() ? "165px 78px" : "none",
+    display: isPhone ? "grid" : "flex",
+    gridTemplateColumns: isPhone ? "165px 78px" : "none",
     alignItems: "center",
-    justifyContent: isPhoneLayout() ? "center" : "flex-start",
-    columnGap: isPhoneLayout() ? 10 : 18,
-    gap: isPhoneLayout() ? 10 : 18,
-    gridColumn: isPhoneLayout() ? "1 / 3" : "3 / 5",
-    width: isPhoneLayout() ? "100%" : "auto",
-    marginTop: isPhoneLayout() ? 10 : 0,
+    justifyContent: isPhone ? "center" : "flex-start",
+    columnGap: isPhone ? 10 : 18,
+    gap: isPhone ? 10 : 18,
+    gridColumn: isPhone ? "1 / 3" : "3 / 5",
+    width: isPhone ? "100%" : "auto",
+    marginTop: isPhone ? 10 : 0,
   },
 
   statusSelectWrap: {
     position: "relative",
-    width: isPhoneLayout() ? 165 : 190,
+    width: isPhone ? 165 : 190,
     height: 42,
     flexShrink: 0,
   },
@@ -1199,7 +1212,7 @@ const styles = {
   statusSelect: {
     width: "100%",
     height: "100%",
-    padding: isPhoneLayout() ? "0 34px 0 14px" : "0 42px 0 18px",
+    padding: isPhone ? "0 34px 0 14px" : "0 42px 0 18px",
     borderRadius: 999,
     border: "none",
     fontWeight: 900,
@@ -1216,7 +1229,7 @@ const styles = {
 
   statusArrow: {
     position: "absolute",
-    right: isPhoneLayout() ? 18 : 25,
+    right: isPhone ? 18 : 25,
     top: "43%",
     transform: "translateY(-50%)",
     fontSize: 12,
@@ -1226,7 +1239,7 @@ const styles = {
   },
 
   statusViewOnly: {
-    width: isPhoneLayout() ? 165 : 190,
+    width: isPhone ? 165 : 190,
     height: 42,
     padding: "0 18px",
     borderRadius: 999,
@@ -1243,9 +1256,9 @@ const styles = {
   },
 
   lastSeen: {
-    width: isPhoneLayout() ? 78 : 90,
+    width: isPhone ? 78 : 90,
     minHeight: 42,
-    fontSize: isPhoneLayout() ? 13 : 14,
+    fontSize: isPhone ? 13 : 14,
     fontWeight: 800,
     display: "flex",
     alignItems: "center",
@@ -1688,6 +1701,6 @@ const styles = {
     background: COLORS.white,
     fontWeight: 800,
   },
-};
+});
 
 export default TeamPage;
