@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "../supabaseClient";
 
 const COLORS = {
   primary: "#7C3AED",
@@ -31,11 +32,11 @@ const STATUS_LIST = [
 const EMOJIS = ["🐰", "🐻", "🐥", "🐶", "🐱", "🦊", "🐼", "🐯", "🐸", "🐹", "🐷", "🐵"];
 
 const DEFAULT_MEMBERS = [
-  { id: 1, name: "박하늘", role: "팀장", branch: "강남지점", status: "상담중", phone: "010-0000-0000", consultCount: 18, scheduleCount: 7, customerCount: 5, profile: "박", lastSeen: "09:21 접속" },
-  { id: 2, name: "배세영", role: "지점장", branch: "강남지점", status: "통화중", phone: "010-0000-0000", consultCount: 24, scheduleCount: 4, customerCount: 4, profile: "배", lastSeen: "09:18 접속" },
-  { id: 3, name: "김설계", role: "팀원", branch: "강남지점", status: "외근중", phone: "010-0000-0000", consultCount: 9, scheduleCount: 3, customerCount: 2, profile: "김", lastSeen: "09:05 접속" },
-  { id: 4, name: "이영희", role: "팀원", branch: "강남지점", status: "미팅중", phone: "010-0000-0000", consultCount: 11, scheduleCount: 3, customerCount: 3, profile: "이", lastSeen: "08:59 접속" },
-  { id: 5, name: "박민수", role: "팀원", branch: "강남지점", status: "점심중", phone: "010-0000-0000", consultCount: 8, scheduleCount: 2, customerCount: 1, profile: "민", lastSeen: "12:10 접속" },
+  { id: 1, name: "박보플", role: "팀장", branch: "로얄사업단", status: "상담중", phone: "010-0000-0000", consultCount: 18, scheduleCount: 7, customerCount: 5, profile: "박", lastSeen: "09:21 접속" },
+  { id: 2, name: "배보플", role: "지점장", branch: "로얄사업단", status: "통화중", phone: "010-0000-0000", consultCount: 24, scheduleCount: 4, customerCount: 4, profile: "배", lastSeen: "09:18 접속" },
+  { id: 3, name: "김보플", role: "팀원", branch: "로얄사업단", status: "외근중", phone: "010-0000-0000", consultCount: 9, scheduleCount: 3, customerCount: 2, profile: "김", lastSeen: "09:05 접속" },
+  { id: 4, name: "이보플", role: "팀원", branch: "로얄사업단", status: "미팅중", phone: "010-0000-0000", consultCount: 11, scheduleCount: 3, customerCount: 3, profile: "이", lastSeen: "08:59 접속" },
+  { id: 5, name: "최보플", role: "팀원", branch: "로얄사업단", status: "점심중", phone: "010-0000-0000", consultCount: 8, scheduleCount: 2, customerCount: 1, profile: "민", lastSeen: "12:10 접속" },
 ];
 
 function getStatusMeta(status) {
@@ -44,9 +45,85 @@ function getStatusMeta(status) {
 
 function TeamPage({ onBack }) {
   const [activeTab, setActiveTab] = useState("status");
-  const [members, setMembers] = useState(DEFAULT_MEMBERS);
+  const [members, setMembers] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
-  const [ladderSelected, setLadderSelected] = useState(DEFAULT_MEMBERS.map((m) => m.id));
+  useEffect(() => {
+    loadMembers();
+  }, []);
+
+async function loadMembers() {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) throw userError;
+    if (!user) return;
+
+    setCurrentUserId(user.id);
+
+    const { data: myProfile, error: myProfileError } = await supabase
+      .from("profiles")
+      .select("id, user_id, name, role, branch_id, status")
+      .eq("user_id", user.id)
+      .single();
+
+    if (myProfileError) throw myProfileError;
+
+    if (!myProfile?.branch_id) {
+      setMembers([]);
+      setLadderSelected([]);
+      return;
+    }
+
+    const { data: branchData, error: branchError } = await supabase
+      .from("branches")
+      .select("id, name, division")
+      .eq("id", myProfile.branch_id)
+      .single();
+
+    if (branchError) throw branchError;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, user_id, name, role, branch_id, status, created_at")
+      .eq("branch_id", myProfile.branch_id)
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+
+    const mapped = (data || []).map((m) => ({
+      id: m.id,
+      user_id: m.user_id,
+      name: m.name || "이름없음",
+      role:
+        m.role === "admin"
+          ? "관리자"
+          : m.role === "manager"
+          ? "지점장"
+          : "팀원",
+      branch: branchData?.name || "소속지점",
+      division: branchData?.division || "소속사업단",
+      status: m.status || "상담중",
+      phone: "",
+      consultCount: 0,
+      scheduleCount: 0,
+      customerCount: 0,
+      profile: (m.name || "?").charAt(0),
+      lastSeen: m.user_id === user.id ? "접속중" : "미접속",
+      branch_id: m.branch_id,
+    }));
+
+    setMembers(mapped);
+    setLadderSelected(mapped.map((m) => m.id));
+  } catch (err) {
+    console.error("팀원 불러오기 실패:", err);
+    alert("팀원 불러오기 실패: " + err.message);
+  }
+}
+  const [ladderSelected, setLadderSelected] = useState([]);
   const [ladderEmojiMap, setLadderEmojiMap] = useState({ 1: "🐰", 2: "🐻", 3: "🐥", 4: "🐶", 5: "🐱" });
   const [penalty, setPenalty] = useState("커피 사기");
   const [ladderLines, setLadderLines] = useState([]);
@@ -92,9 +169,21 @@ function TeamPage({ onBack }) {
     })).filter((s) => s.count > 0);
   }, [members]);
 
-  const updateStatus = (id, status) => {
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
-  };
+ const updateStatus = async (id, status) => {
+  setMembers((prev) =>
+    prev.map((m) => (m.id === id ? { ...m, status } : m))
+  );
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ status })
+    .eq("id", id);
+
+  if (error) {
+    console.error("상태 저장 실패:", error);
+    alert("상태 저장에 실패했어. 다시 시도해줘.");
+  }
+};
 
   const toggleLadderMember = (id) => {
     setLadderSelected((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
@@ -204,7 +293,7 @@ const arrivedMember = selectedMembers[current.endCol];
 setLiveLadderResults((prev) => ({
   ...prev,
   [arrivedMember.id]: arrivedMember.id === winner.id ? "winner" : "safe",
-}));ㅎ
+}));
 
     runnerIndex += 1;
     pathIndex = 0;
@@ -332,13 +421,30 @@ setLiveLadderResults((prev) => ({
   <div style={styles.profileAvatar}>{member.profile}</div>
 
   <div style={styles.memberInfo}>
-    <div style={styles.memberName}>{member.name}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+  <div style={styles.memberName}>{member.name}</div>
+
+  <span
+    style={{
+      fontSize: 11,
+      fontWeight: 700,
+      padding: "3px 8px",
+      borderRadius: 999,
+      background: "#F3E8FF",
+      color: "#7C3AED",
+    }}
+  >
+    {member.role}
+  </span>
+</div>
     <div style={styles.memberRole}>
-      {member.role} · {member.branch}
+      <div>🏢 {member.division}</div>
+<div>📍 {member.branch}</div>
     </div>
     <div style={styles.lastSeenMobile}>{member.lastSeen}</div>
   </div>
 
+  {member.user_id === currentUserId ? (
   <select
     value={member.status}
     onChange={(e) => updateStatus(member.id, e.target.value)}
@@ -350,8 +456,27 @@ setLiveLadderResults((prev) => ({
       </option>
     ))}
   </select>
+) : (
+  <div
+    style={{
+      ...styles.statusViewOnly,
+      background: meta.bg,
+      color: meta.color,
+    }}
+  >
+    {meta.icon} {member.status}
+  </div>
+)}
 
-  <div style={styles.lastSeen}>{member.lastSeen}</div>
+  <div
+  style={{
+    ...styles.lastSeen,
+    color: member.lastSeen === "접속중" ? "#16A34A" : COLORS.sub,
+    fontWeight: member.lastSeen === "접속중" ? 800 : 500,
+  }}
+>
+  {member.lastSeen === "접속중" ? "🟢 접속중" : "미접속"}
+</div>
 </div>
                   );
                 })}
@@ -413,7 +538,8 @@ setLiveLadderResults((prev) => ({
               <div style={styles.rankNo}>{index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}</div>
               <div style={styles.profileAvatarSmall}>{member.profile}</div>
               <div style={{ flex: 1 }}>
-                <div style={styles.memberName}>{member.name}</div>
+                <div>🏢 {member.division}</div>
+                <div>📍 {member.branch}</div>
                 <div style={styles.memberRole}>상담 {member.consultCount}건 · 일정 {member.scheduleCount}건 · 고객 {member.customerCount}건</div>
               </div>
               <div style={styles.rankCount}>{member.point}P</div>
@@ -690,41 +816,56 @@ const styles = {
   sectionTitle: { fontSize: 18, fontWeight: 900 },
   sectionSub: { marginTop: 4, marginBottom: 14, fontSize: 13, color: COLORS.sub },
   memberList: { display: "flex", flexDirection: "column", gap: 10 },
-  memberRow: {
-  display: "flex",
+ memberRow: {
+  display: "grid",
+  gridTemplateColumns:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? "50px 1fr"
+      : "50px 200px 250px 70px",
   alignItems: "center",
-  gap: 10,
-  padding: 12,
+  justifyContent: "start",
+  columnGap: 14,
+  rowGap: 10,
+  padding: 14,
   borderRadius: 18,
   background: "#FAFAFA",
-  flexWrap:
-    typeof window !== "undefined" && window.innerWidth <= 640
-      ? "wrap"
-      : "nowrap",
+},
+
+memberInfo: {
+  minWidth: 0,
 },
 
 statusSelect: {
-  width:
-    typeof window !== "undefined" && window.innerWidth <= 640
-      ? "100%"
-      : 150,
-  padding: "9px 10px",
+  width: "170px",
+  padding: "8px 15px 8px 14px",
   borderRadius: 999,
   border: "none",
   fontWeight: 900,
   outline: "none",
   fontSize: 13,
+  textAlign: "center",
+},
+
+statusViewOnly: {
+  width: "170px",
+  padding: "8px 15px 8px 14px",
+  borderRadius: 999,
+  border: "none",
+  fontWeight: 900,
+  outline: "none",
+  fontSize: 13,
+  boxSizing: "border-box",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
 },
 
 lastSeen: {
-  display:
-    typeof window !== "undefined" && window.innerWidth <= 640
-      ? "none"
-      : "block",
-  minWidth: 75,
+  width: 70,
   fontSize: 12,
   color: COLORS.sub,
-  textAlign: "right",
+  textAlign: "left",
 },
 
 lastSeenMobile: {
@@ -740,8 +881,12 @@ lastSeenMobile: {
   profileAvatarSmall: { width: 38, height: 38, borderRadius: 14, background: COLORS.light, color: COLORS.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
   memberName: { fontSize: 16, fontWeight: 900 },
   memberRole: { marginTop: 3, fontSize: 13, color: COLORS.sub },
-  statusSelect: { width: 150, padding: "9px 10px", borderRadius: 999, border: "none", fontWeight: 900, outline: "none" },
-  lastSeen: { minWidth: 75, fontSize: 12, color: COLORS.sub, textAlign: "right" },
+  lastSeen: {
+  minWidth: 55,
+  fontSize: 12,
+  color: COLORS.sub,
+  textAlign: "left",
+},
   activityGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 14 },
   activityCard: { border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 12, textAlign: "center", background: "#FAFAFA", display: "flex", flexDirection: "column", gap: 4 },
   missionCard: { background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.primaryDark})`, color: COLORS.white, borderRadius: 22, padding: 18, boxShadow: "0 10px 24px rgba(124,58,237,0.25)" },
