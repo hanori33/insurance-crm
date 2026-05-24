@@ -19,7 +19,7 @@ const COLORS = {
 const STATUS_LIST = [
   { key: "상담중", icon: "💬", color: "#16A34A", bg: "#DCFCE7" },
   { key: "통화중", icon: "📞", color: "#7C3AED", bg: "#F3E8FF" },
-  { key: "상담기록 작성중", icon: "📝", color: "#2563EB", bg: "#DBEAFE" },
+  { key: "상담기록중", icon: "📝", color: "#2563EB", bg: "#DBEAFE" },
   { key: "미팅중", icon: "👥", color: "#F97316", bg: "#FFEDD5" },
   { key: "외근중", icon: "🚗", color: "#2563EB", bg: "#DBEAFE" },
   { key: "점심중", icon: "☕", color: "#D97706", bg: "#FEF3C7" },
@@ -361,8 +361,7 @@ setLiveLadderResults((prev) => ({
       )}
 
       <div style={styles.header}>
-        <button style={styles.backButton} onClick={onBack}>←</button>
-        <div>
+                <div>
           <div style={styles.title}>팀관리</div>
           <div style={styles.subtitle}>팀 현황 · 랭킹 · 사다리 · 룰렛</div>
         </div>
@@ -444,6 +443,8 @@ setLiveLadderResults((prev) => ({
     <div style={styles.lastSeenMobile}>{member.lastSeen}</div>
   </div>
 
+<div style={styles.statusLine}>
+
 {member.user_id === currentUserId ? (
   <div style={styles.statusSelectWrap}>
     <select
@@ -484,6 +485,7 @@ setLiveLadderResults((prev) => ({
   }}
 >
   {member.lastSeen === "접속중" ? "🟢 접속중" : "미접속"}
+</div>
 </div>
 </div>
                   );
@@ -829,14 +831,14 @@ const styles = {
   gridTemplateColumns:
     typeof window !== "undefined" && window.innerWidth <= 640
       ? "50px 1fr"
-      : "50px 200px 250px 70px",
+      : "50px 200px 165px 80px",
   alignItems: "center",
-  justifyContent: "start",
   columnGap: 14,
-  rowGap: 10,
+  rowGap: 12,
   padding: 14,
   borderRadius: 18,
   background: "#FAFAFA",
+  overflow: "hidden",
 },
 
 memberInfo: {
@@ -845,68 +847,103 @@ memberInfo: {
 
 statusSelectWrap: {
   position: "relative",
-  width: 170,
+  width: 165,
+  height: 42,
   flexShrink: 0,
+  
+},
+
+statusSelect: {
+  width: "100%",
+  height: "100%",
+  padding: "0 38px 0 18px",
+  borderRadius: 999,
+  border: "none",
+  fontWeight: 900,
+  fontSize: 14,
+  outline: "none",
+  cursor: "pointer",
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  boxSizing: "border-box",
+  textAlign: "center",
+  textAlignLast: "center",
 },
 
 statusArrow: {
   position: "absolute",
-  right: 12,
-  top: "50%",
+  right:25, // ✅ 화살표 위치 조정
+  top: "43%",
   transform: "translateY(-50%)",
-  fontSize: 16,
+  fontSize: 12,
   fontWeight: 900,
   color: "#2563EB",
   pointerEvents: "none",
-  lineHeight: 1,
-},
-
-statusSelect: {
-  width: "170px",
-  height: 38,
-  padding: "8px 34px 8px 14px",
-  borderRadius: 999,
-  border: "none",
-  fontWeight: 900,
-  outline: "none",
-  fontSize: 13,
-  textAlign: "center",
-  appearance: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
-  cursor: "pointer",
 },
 
 statusViewOnly: {
-  width: "170px",
-  padding: "8px 15px 8px 14px",
+  width: 165,
+  height: 42,
+  padding: "0 18px",
   borderRadius: 999,
   border: "none",
   fontWeight: 900,
   outline: "none",
-  fontSize: 13,
+  fontSize: 14,
   boxSizing: "border-box",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   gap: 6,
+  whiteSpace: "nowrap",
 },
 
 lastSeen: {
-  width: 70,
-  fontSize: 12,
+  fontSize: 13,
   color: COLORS.sub,
-  textAlign: "left",
+  whiteSpace: "nowrap",
+
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+
+  minHeight: 42,
+
+ width:
+  typeof window !== "undefined" && window.innerWidth <= 640
+    ? 58
+    : 80,
+
+marginLeft:
+  typeof window !== "undefined" && window.innerWidth <= 640
+    ? -50
+    : 0,
 },
 
 lastSeenMobile: {
-  display:
+  display: "none",
+},
+
+statusLine: {
+  display: "flex",
+  alignItems: "center",
+  gap: 80,
+
+  gridColumn:
     typeof window !== "undefined" && window.innerWidth <= 640
-      ? "block"
-      : "none",
-  marginTop: 4,
-  fontSize: 11,
-  color: COLORS.sub,
+      ? "1 / 3"
+      : "auto",
+
+  justifySelf:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? "center"
+      : "auto",
+
+  marginTop:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? 10
+      : 0,
 },
   profileAvatar: { width: 48, height: 48, borderRadius: 18, background: COLORS.light, color: COLORS.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 20 },
   profileAvatarSmall: { width: 38, height: 38, borderRadius: 14, background: COLORS.light, color: COLORS.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
