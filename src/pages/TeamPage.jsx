@@ -328,27 +328,31 @@ setLiveLadderResults((prev) => ({
                 {members.map((member) => {
                   const meta = getStatusMeta(member.status);
                   return (
-                    <div key={member.id} style={styles.memberRow}>
-                      <div style={styles.profileAvatar}>{member.profile}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={styles.memberName}>{member.name}</div>
-                        <div style={styles.memberRole}>{member.role} · {member.branch}</div>
-                      </div>
+                  <div key={member.id} style={styles.memberRow}>
+  <div style={styles.profileAvatar}>{member.profile}</div>
 
-                      <select
-                        value={member.status}
-                        onChange={(e) => updateStatus(member.id, e.target.value)}
-                        style={{ ...styles.statusSelect, background: meta.bg, color: meta.color }}
-                      >
-                        {STATUS_LIST.map((status) => (
-                          <option key={status.key} value={status.key}>
-                            {status.icon} {status.key}
-                          </option>
-                        ))}
-                      </select>
+  <div style={styles.memberInfo}>
+    <div style={styles.memberName}>{member.name}</div>
+    <div style={styles.memberRole}>
+      {member.role} · {member.branch}
+    </div>
+    <div style={styles.lastSeenMobile}>{member.lastSeen}</div>
+  </div>
 
-                      <div style={styles.lastSeen}>{member.lastSeen}</div>
-                    </div>
+  <select
+    value={member.status}
+    onChange={(e) => updateStatus(member.id, e.target.value)}
+    style={{ ...styles.statusSelect, background: meta.bg, color: meta.color }}
+  >
+    {STATUS_LIST.map((status) => (
+      <option key={status.key} value={status.key}>
+        {status.icon} {status.key}
+      </option>
+    ))}
+  </select>
+
+  <div style={styles.lastSeen}>{member.lastSeen}</div>
+</div>
                   );
                 })}
               </div>
@@ -672,14 +676,66 @@ const styles = {
   summaryIcon: { width: 44, height: 44, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 },
   summaryLabel: { fontSize: 13, color: COLORS.sub, fontWeight: 800 },
   summaryCount: { marginTop: 2, fontSize: 22, color: COLORS.text, fontWeight: 900 },
-  statusLayout: { display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 14 },
+  statusLayout: {
+  display: "grid",
+  gridTemplateColumns:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? "1fr"
+      : "1.2fr 1fr",
+  gap: 14,
+},
   sideStack: { display: "flex", flexDirection: "column", gap: 14 },
   card: { background: COLORS.white, borderRadius: 22, padding: 18, border: `1px solid ${COLORS.border}`, boxShadow: "0 10px 24px rgba(17,24,39,0.06)", marginBottom: 14 },
   cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sectionTitle: { fontSize: 18, fontWeight: 900 },
   sectionSub: { marginTop: 4, marginBottom: 14, fontSize: 13, color: COLORS.sub },
   memberList: { display: "flex", flexDirection: "column", gap: 10 },
-  memberRow: { display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 18, background: "#FAFAFA" },
+  memberRow: {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: 12,
+  borderRadius: 18,
+  background: "#FAFAFA",
+  flexWrap:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? "wrap"
+      : "nowrap",
+},
+
+statusSelect: {
+  width:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? "100%"
+      : 150,
+  padding: "9px 10px",
+  borderRadius: 999,
+  border: "none",
+  fontWeight: 900,
+  outline: "none",
+  fontSize: 13,
+},
+
+lastSeen: {
+  display:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? "none"
+      : "block",
+  minWidth: 75,
+  fontSize: 12,
+  color: COLORS.sub,
+  textAlign: "right",
+},
+
+lastSeenMobile: {
+  display:
+    typeof window !== "undefined" && window.innerWidth <= 640
+      ? "block"
+      : "none",
+  marginTop: 4,
+  fontSize: 11,
+  color: COLORS.sub,
+},
   profileAvatar: { width: 48, height: 48, borderRadius: 18, background: COLORS.light, color: COLORS.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 20 },
   profileAvatarSmall: { width: 38, height: 38, borderRadius: 14, background: COLORS.light, color: COLORS.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
   memberName: { fontSize: 16, fontWeight: 900 },
