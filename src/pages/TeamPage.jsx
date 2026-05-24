@@ -444,18 +444,26 @@ setLiveLadderResults((prev) => ({
     <div style={styles.lastSeenMobile}>{member.lastSeen}</div>
   </div>
 
-  {member.user_id === currentUserId ? (
-  <select
-    value={member.status}
-    onChange={(e) => updateStatus(member.id, e.target.value)}
-    style={{ ...styles.statusSelect, background: meta.bg, color: meta.color }}
-  >
-    {STATUS_LIST.map((status) => (
-      <option key={status.key} value={status.key}>
-        {status.icon} {status.key}
-      </option>
-    ))}
-  </select>
+{member.user_id === currentUserId ? (
+  <div style={styles.statusSelectWrap}>
+    <select
+      value={member.status}
+      onChange={(e) => updateStatus(member.id, e.target.value)}
+      style={{
+        ...styles.statusSelect,
+        background: meta.bg,
+        color: meta.color,
+      }}
+    >
+      {STATUS_LIST.map((status) => (
+        <option key={status.key} value={status.key}>
+          {status.icon} {status.key}
+        </option>
+      ))}
+    </select>
+
+    <span style={styles.statusArrow}>⌄</span>
+  </div>
 ) : (
   <div
     style={{
@@ -835,15 +843,38 @@ memberInfo: {
   minWidth: 0,
 },
 
+statusSelectWrap: {
+  position: "relative",
+  width: 170,
+  flexShrink: 0,
+},
+
+statusArrow: {
+  position: "absolute",
+  right: 12,
+  top: "50%",
+  transform: "translateY(-50%)",
+  fontSize: 16,
+  fontWeight: 900,
+  color: "#2563EB",
+  pointerEvents: "none",
+  lineHeight: 1,
+},
+
 statusSelect: {
   width: "170px",
-  padding: "8px 15px 8px 14px",
+  height: 38,
+  padding: "8px 34px 8px 14px",
   borderRadius: 999,
   border: "none",
   fontWeight: 900,
   outline: "none",
   fontSize: 13,
   textAlign: "center",
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  cursor: "pointer",
 },
 
 statusViewOnly: {
@@ -881,12 +912,7 @@ lastSeenMobile: {
   profileAvatarSmall: { width: 38, height: 38, borderRadius: 14, background: COLORS.light, color: COLORS.primaryDark, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 },
   memberName: { fontSize: 16, fontWeight: 900 },
   memberRole: { marginTop: 3, fontSize: 13, color: COLORS.sub },
-  lastSeen: {
-  minWidth: 55,
-  fontSize: 12,
-  color: COLORS.sub,
-  textAlign: "left",
-},
+ 
   activityGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 14 },
   activityCard: { border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 12, textAlign: "center", background: "#FAFAFA", display: "flex", flexDirection: "column", gap: 4 },
   missionCard: { background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.primaryDark})`, color: COLORS.white, borderRadius: 22, padding: 18, boxShadow: "0 10px 24px rgba(124,58,237,0.25)" },
