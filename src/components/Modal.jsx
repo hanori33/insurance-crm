@@ -27,6 +27,7 @@ export default function Modal({ visible, onClose, title, children }) {
           width: '100%',
           maxWidth: 520,
           maxHeight: '85vh',
+          overflowX: 'hidden',
           overflowY: 'auto',
           background: COLORS.white || '#fff',
           borderRadius: 24,
