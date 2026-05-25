@@ -129,60 +129,142 @@ function TeamPage({ onBack }) {
 
     if (myProfileError) throw myProfileError;
 
+    const { data: myUserRole, error: myUserRoleError } = await supabase
+      .from("user_roles")
+      .select("user_id, role, organization, branch, office, team")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (myUserRoleError) throw myUserRoleError;
+
     setMyRole(myProfile.role || "");
     setMyBranchId(myProfile.branch_id || null);
 
-    if (!myProfile?.branch_id) {
+    if (myProfile?.branch_id) {
+      await loadBranchSettings(myProfile.branch_id);
+    }
+
+    let branchData = null;
+
+    if (myProfile?.branch_id) {
+      const { data: foundBranch } = await supabase
+        .from("branches")
+        .select("id, name, division")
+        .eq("id", myProfile.branch_id)
+        .maybeSingle();
+
+      branchData = foundBranch;
+    }
+
+    let scopedRoles = [];
+    let targetUserIds = [];
+
+    if (myUserRole?.role) {
+      let roleQuery = supabase
+        .from("user_roles")
+        .select("user_id, role, organization, branch, office, team");
+
+      const role = myUserRole.role;
+      const organization = myUserRole.organization || "";
+      const branch = myUserRole.branch || "";
+      const office = myUserRole.office || "";
+      const team = myUserRole.team || "";
+
+      if (role === "division_head") {
+        roleQuery = roleQuery.eq("organization", organization);
+      } else if (role === "branch_head") {
+        roleQuery = roleQuery
+          .eq("organization", organization)
+          .eq("branch", branch);
+      } else if (role === "office_head") {
+        roleQuery = roleQuery
+          .eq("organization", organization)
+          .eq("branch", branch)
+          .eq("office", office);
+      } else if (role === "team_leader" || role === "team_member") {
+        roleQuery = roleQuery
+          .eq("organization", organization)
+          .eq("branch", branch)
+          .eq("office", office)
+          .eq("team", team);
+      } else {
+        roleQuery = null;
+      }
+
+      if (roleQuery) {
+        const { data: roleRows, error: roleRowsError } = await roleQuery;
+
+        if (roleRowsError) throw roleRowsError;
+
+        scopedRoles = roleRows || [];
+        targetUserIds = scopedRoles.map((r) => r.user_id).filter(Boolean);
+      }
+    }
+
+    let profiles = [];
+
+    if (targetUserIds.length > 0) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, user_id, name, role, branch_id, status, created_at")
+        .in("user_id", targetUserIds)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      profiles = data || [];
+    } else if (myProfile?.branch_id) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, user_id, name, role, branch_id, status, created_at")
+        .eq("branch_id", myProfile.branch_id)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      profiles = data || [];
+
+      const fallbackUserIds = profiles.map((m) => m.user_id).filter(Boolean);
+
+      if (fallbackUserIds.length > 0) {
+        const { data: fallbackRoles, error: fallbackRolesError } = await supabase
+          .from("user_roles")
+          .select("user_id, role, organization, branch, office, team")
+          .in("user_id", fallbackUserIds);
+
+        if (fallbackRolesError) throw fallbackRolesError;
+
+        scopedRoles = fallbackRoles || [];
+      }
+    } else {
       setMembers([]);
       setLadderSelected([]);
       return;
     }
 
-    await loadBranchSettings(myProfile.branch_id);
-
-    const { data: branchData, error: branchError } = await supabase
-      .from("branches")
-      .select("id, name, division")
-      .eq("id", myProfile.branch_id)
-      .single();
-
-    if (branchError) throw branchError;
-
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, user_id, name, role, branch_id, status, created_at")
-      .eq("branch_id", myProfile.branch_id)
-      .order("created_at", { ascending: true });
-
-    if (error) throw error;
-
-    const userIds = (data || []).map((m) => m.user_id).filter(Boolean);
-
-    const { data: userRoles, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("user_id, role, organization, branch, office, team")
-      .in("user_id", userIds);
-
-    if (rolesError) throw rolesError;
-
     const roleMap = {};
-    (userRoles || []).forEach((r) => {
+    scopedRoles.forEach((r) => {
       roleMap[r.user_id] = r;
     });
 
-    const mapped = (data || []).map((m) => {
+    const getRoleLabel = (profileRole, userRole) => {
+      if (userRole === "division_head") return "사업단장";
+      if (userRole === "branch_head") return "본부장";
+      if (userRole === "office_head") return "지점장";
+      if (userRole === "team_leader") return "팀장";
+      if (userRole === "team_member") return "팀원";
+
+      if (profileRole === "admin") return "관리자";
+      if (profileRole === "manager") return "지점장";
+      return "팀원";
+    };
+
+    const mapped = profiles.map((m) => {
       const roleInfo = roleMap[m.user_id] || {};
 
       return {
         id: m.id,
         user_id: m.user_id,
         name: m.name || "이름없음",
-        role:
-          m.role === "admin"
-            ? "관리자"
-            : m.role === "manager"
-            ? "지점장"
-            : "팀원",
+        role: getRoleLabel(m.role, roleInfo.role),
 
         division: roleInfo.organization || branchData?.division || "소속사업단",
         headquarters: roleInfo.branch || "",
@@ -205,9 +287,11 @@ function TeamPage({ onBack }) {
 
     setLadderEmojiMap((prev) => {
       const next = { ...prev };
+
       mapped.forEach((m, index) => {
         if (!next[m.id]) next[m.id] = EMOJIS[index % EMOJIS.length];
       });
+
       return next;
     });
   } catch (err) {
@@ -602,7 +686,7 @@ async function saveMessage() {
                           <div>🏢 {member.division}</div>
 {member.headquarters && <div>🏬 {member.headquarters}</div>}
 <div>📍 {member.branch}</div>
-{member.team && <div>👥 {member.team}</div>}
+
                         </div>
                       </div>
 
@@ -784,13 +868,15 @@ async function saveMessage() {
                 {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}
               </div>
               <div style={pageStyles.profileAvatarSmall}>{member.profile}</div>
-              <div style={{ flex: 1 }}>
-                <div>🏢 {member.division}</div>
-                <div>📍 {member.branch}</div>
-                <div style={pageStyles.memberRole}>
-                  상담 {member.consultCount}건 · 일정 {member.scheduleCount}건 · 고객 {member.customerCount}건
-                </div>
-              </div>
+             <div style={{ flex: 1, minWidth: 0 }}>
+  <div style={pageStyles.rankOrgLine}>
+  📍 {member.branch} · {member.name}
+</div>
+
+  <div style={pageStyles.memberRole}>
+    상담 {member.consultCount}건 · 일정 {member.scheduleCount}건 · 고객 {member.customerCount}건
+  </div>
+</div>
               <div style={pageStyles.rankCount}>{member.point}P</div>
             </div>
           ))}
@@ -1467,6 +1553,15 @@ const makeStyles = (isPhone) => ({
     justifyContent: "center",
     fontWeight: 900,
   },
+
+rankOrgLine: {
+  fontSize: 14,
+  fontWeight: 700,
+  color: COLORS.text,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+},
 
   rankCount: {
     fontWeight: 900,

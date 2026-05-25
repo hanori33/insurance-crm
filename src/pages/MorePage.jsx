@@ -122,6 +122,7 @@ function MenuItem({ icon, label, onClick, danger, isLast }) {
 }
 
 export default function MorePage({ user, onNavigate }) {
+  
   const meta = user?.user_metadata || {};
   const [profile, setProfile] = useState({
     name:     meta.display_name || user?.email || '사용자',
@@ -139,12 +140,28 @@ export default function MorePage({ user, onNavigate }) {
     finally { setLoggingOut(false); }
   }
 
+  const isAdmin = user?.email === 'gksmf629@naver.com';
+
   const menuItems = [
   { icon: '🔔', label: '알림 설정', onClick: () => onNavigate('notifSettings') },
 
   { icon: '☁️', label: '백업 / 복원', onClick: () => onNavigate('backupRestore') },
 
-  { icon: '📞', label: '보험사 고객센터', onClick: () => onNavigate('insuranceContact') },
+  {
+  icon: '💬',
+  label: '문의하기 / 오류 제보',
+  onClick: () => onNavigate('inquiry'),
+},
+ 
+...(isAdmin
+  ? [
+      {
+        icon: '📮',
+        label: '관리자 문의함',
+        onClick: () => onNavigate('adminInquiry'),
+      },
+    ]
+  : []),
 
   {
     icon: '📄',

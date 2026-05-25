@@ -26,6 +26,8 @@ import ConsultingPage from './pages/ConsultingPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
 import BackupRestorePage from './pages/BackupRestorePage';
+import InquiryPage from './pages/InquiryPage';
+import AdminInquiryPage from './pages/AdminInquiryPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -407,6 +409,18 @@ if (page === 'backupRestore') {
   return;
 }
 
+if (page === 'inquiry') {
+  setStack([]);
+  setActiveTab('inquiry');
+  return;
+}
+
+if (page === 'adminInquiry') {
+  setStack([]);
+  setActiveTab('adminInquiry');
+  return;
+}
+
     setStack(prev => [...prev, { page, payload }]);
   }
 
@@ -568,7 +582,13 @@ if (page === 'backupRestore') {
       onBack={() => setActiveTab('more')}
     />
   );
-  
+
+  case 'inquiry':
+  return <InquiryPage user={user} onBack={() => setActiveTab('more')} />;
+
+case 'adminInquiry':
+  return <AdminInquiryPage onBack={() => setActiveTab('more')} />;
+
         case 'privacyPolicy':
   return (
     <PrivacyPolicyPage
