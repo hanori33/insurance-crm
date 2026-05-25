@@ -110,59 +110,85 @@ function TeamPage({ onBack }) {
   }, []);
 
   async function loadMembers() {
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-      if (userError) throw userError;
-      if (!user) return;
+    if (userError) throw userError;
+    if (!user) return;
 
-      setCurrentUserId(user.id);
+    setCurrentUserId(user.id);
 
-      const { data: myProfile, error: myProfileError } = await supabase
-        .from("profiles")
-        .select("id, user_id, name, role, branch_id, status")
-        .eq("user_id", user.id)
-        .single();
+    const { data: myProfile, error: myProfileError } = await supabase
+      .from("profiles")
+      .select("id, user_id, name, role, branch_id, status")
+      .eq("user_id", user.id)
+      .single();
 
-      if (myProfileError) throw myProfileError;
+    if (myProfileError) throw myProfileError;
 
-      setMyRole(myProfile.role || "");
-      setMyBranchId(myProfile.branch_id || null);
+    setMyRole(myProfile.role || "");
+    setMyBranchId(myProfile.branch_id || null);
 
-      if (!myProfile?.branch_id) {
-        setMembers([]);
-        setLadderSelected([]);
-        return;
-      }
+    if (!myProfile?.branch_id) {
+      setMembers([]);
+      setLadderSelected([]);
+      return;
+    }
 
-      await loadBranchSettings(myProfile.branch_id);
+    await loadBranchSettings(myProfile.branch_id);
 
-      const { data: branchData, error: branchError } = await supabase
-        .from("branches")
-        .select("id, name, division")
-        .eq("id", myProfile.branch_id)
-        .single();
+    const { data: branchData, error: branchError } = await supabase
+      .from("branches")
+      .select("id, name, division")
+      .eq("id", myProfile.branch_id)
+      .single();
 
-      if (branchError) throw branchError;
+    if (branchError) throw branchError;
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, user_id, name, role, branch_id, status, created_at")
-        .eq("branch_id", myProfile.branch_id)
-        .order("created_at", { ascending: true });
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, user_id, name, role, branch_id, status, created_at")
+      .eq("branch_id", myProfile.branch_id)
+      .order("created_at", { ascending: true });
 
-      if (error) throw error;
+    if (error) throw error;
 
-      const mapped = (data || []).map((m) => ({
+    const userIds = (data || []).map((m) => m.user_id).filter(Boolean);
+
+    const { data: userRoles, error: rolesError } = await supabase
+      .from("user_roles")
+      .select("user_id, role, organization, branch, office, team")
+      .in("user_id", userIds);
+
+    if (rolesError) throw rolesError;
+
+    const roleMap = {};
+    (userRoles || []).forEach((r) => {
+      roleMap[r.user_id] = r;
+    });
+
+    const mapped = (data || []).map((m) => {
+      const roleInfo = roleMap[m.user_id] || {};
+
+      return {
         id: m.id,
         user_id: m.user_id,
         name: m.name || "이름없음",
-        role: m.role === "admin" ? "관리자" : m.role === "manager" ? "지점장" : "팀원",
-        branch: branchData?.name || "소속지점",
-        division: branchData?.division || "소속사업단",
+        role:
+          m.role === "admin"
+            ? "관리자"
+            : m.role === "manager"
+            ? "지점장"
+            : "팀원",
+
+        division: roleInfo.organization || branchData?.division || "소속사업단",
+        headquarters: roleInfo.branch || "",
+        branch: roleInfo.office || branchData?.name || "소속지점",
+        team: roleInfo.team || "",
+
         status: m.status || "상담중",
         phone: "",
         consultCount: 0,
@@ -171,23 +197,24 @@ function TeamPage({ onBack }) {
         profile: (m.name || "?").charAt(0),
         lastSeen: m.user_id === user.id ? "접속중" : "미접속",
         branch_id: m.branch_id,
-      }));
+      };
+    });
 
-      setMembers(mapped);
-      setLadderSelected(mapped.map((m) => m.id));
+    setMembers(mapped);
+    setLadderSelected(mapped.map((m) => m.id));
 
-      setLadderEmojiMap((prev) => {
-        const next = { ...prev };
-        mapped.forEach((m, index) => {
-          if (!next[m.id]) next[m.id] = EMOJIS[index % EMOJIS.length];
-        });
-        return next;
+    setLadderEmojiMap((prev) => {
+      const next = { ...prev };
+      mapped.forEach((m, index) => {
+        if (!next[m.id]) next[m.id] = EMOJIS[index % EMOJIS.length];
       });
-    } catch (err) {
-      console.error("팀원 불러오기 실패:", err);
-      alert("팀원 불러오기 실패: " + err.message);
-    }
+      return next;
+    });
+  } catch (err) {
+    console.error("팀원 불러오기 실패:", err);
+    alert("팀원 불러오기 실패: " + err.message);
   }
+}
 
   async function loadBranchSettings(branchId) {
     if (!branchId) return;
@@ -573,7 +600,9 @@ async function saveMessage() {
 
                         <div style={pageStyles.memberRole}>
                           <div>🏢 {member.division}</div>
-                          <div>📍 {member.branch}</div>
+{member.headquarters && <div>🏬 {member.headquarters}</div>}
+<div>📍 {member.branch}</div>
+{member.team && <div>👥 {member.team}</div>}
                         </div>
                       </div>
 

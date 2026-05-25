@@ -11,6 +11,7 @@ const ROLE_OPTIONS = [
   { value: 'branch_head', label: '본부장' },
   { value: 'office_head', label: '지점장' },
   { value: 'team_leader', label: '팀장' },
+  { value: 'team_member', label: '팀원' },
 ];
 
 const STATUS_LABELS = {
@@ -33,12 +34,13 @@ export default function RoleRequestPage({ user }) {
 
   const [form, setForm] = useState({
     userName: user?.user_metadata?.display_name || '',
-    requestedRole: 'team_leader',
+    requestedRole: 'team_member',
     organization: '',
     branch: '',
     office: '',
     team: '',
   });
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -54,8 +56,9 @@ export default function RoleRequestPage({ user }) {
         roleService.getMyRequest().catch(() => null),
         noticeService.getMyRole().catch(() => 'agent'),
       ]);
+
       setMyRequest(myReq);
-      setMyRole(role);
+      setMyRole(role || 'agent');
 
       if (role === 'superadmin') {
         const all = await roleService.listAll().catch(() => []);
@@ -66,15 +69,46 @@ export default function RoleRequestPage({ user }) {
     }
   }
 
+  const hasActiveRequest =
+    myRequest && (myRequest.status === 'pending' || myRequest.status === 'approved');
+
+  const canShowForm = !hasActiveRequest && myRole !== 'superadmin';
+
   async function handleSubmit() {
-    if (!form.userName.trim()) { setError('이름을 입력하세요'); return; }
+    if (!form.userName.trim()) {
+      setError('이름을 입력하세요');
+      return;
+    }
+
+    if (!form.organization.trim()) {
+      setError('소속 사업단을 입력하세요');
+      return;
+    }
+
+    if (!form.branch.trim()) {
+      setError('본부를 입력하세요');
+      return;
+    }
+
+    if (!form.office.trim()) {
+      setError('지점을 입력하세요');
+      return;
+    }
+
+    if (!form.team.trim()) {
+      setError('팀을 입력하세요');
+      return;
+    }
+
     setSaving(true);
     setError('');
+    setSuccess('');
+
     try {
       await roleService.request(form);
       setSuccess('권한 신청이 완료되었습니다! 관리자 승인 후 적용됩니다.');
-      load();
-    } catch(e) {
+      await load();
+    } catch (e) {
       setError(e.message || '신청 실패');
     } finally {
       setSaving(false);
@@ -89,18 +123,19 @@ export default function RoleRequestPage({ user }) {
         office: req.office,
         team: req.team,
       });
-      load();
-    } catch(e) {
+      await load();
+    } catch (e) {
       alert(e.message || '승인 실패');
     }
   }
 
   async function handleReject(req) {
     if (!window.confirm('거절하시겠습니까?')) return;
+
     try {
       await roleService.reject(req.id);
-      load();
-    } catch(e) {
+      await load();
+    } catch (e) {
       alert(e.message || '거절 실패');
     }
   }
@@ -109,68 +144,131 @@ export default function RoleRequestPage({ user }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{
-        background: '#fff', padding: '14px 20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
-      }}>
+      <div
+        style={{
+          background: '#fff',
+          padding: '14px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: `1px solid ${COLORS.border}`,
+          flexShrink: 0,
+        }}
+      >
         <span style={{ fontWeight: 700, fontSize: 17, color: COLORS.text }}>권한 신청</span>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {/* 내 신청 현황 */}
-        {myRequest && (
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+        }}
+      >
+        {hasActiveRequest && (
           <Card>
             <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text, marginBottom: 12 }}>
               내 신청 현황
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 14, color: COLORS.text, fontWeight: 600 }}>
-                  {ROLE_OPTIONS.find(r => r.value === myRequest.requested_role)?.label || myRequest.requested_role}
+                  {ROLE_OPTIONS.find((r) => r.value === myRequest.requested_role)?.label ||
+                    myRequest.requested_role}
                 </div>
+
                 <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 4 }}>
-                  {new Date(myRequest.created_at).toLocaleDateString('ko-KR')} 신청
+                  {myRequest.created_at
+                    ? new Date(myRequest.created_at).toLocaleDateString('ko-KR')
+                    : '-'}{' '}
+                  신청
                 </div>
+
+                {myRequest.organization && (
+                  <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 6 }}>
+                    사업단: {myRequest.organization}
+                  </div>
+                )}
+                {myRequest.branch && (
+                  <div style={{ fontSize: 12, color: COLORS.textGray }}>본부: {myRequest.branch}</div>
+                )}
+                {myRequest.office && (
+                  <div style={{ fontSize: 12, color: COLORS.textGray }}>지점: {myRequest.office}</div>
+                )}
+                {myRequest.team && (
+                  <div style={{ fontSize: 12, color: COLORS.textGray }}>팀: {myRequest.team}</div>
+                )}
               </div>
-              <span style={{
-                background: STATUS_COLORS[myRequest.status]?.bg || '#F3F4F6',
-                color: STATUS_COLORS[myRequest.status]?.color || COLORS.text,
-                borderRadius: 999, padding: '4px 12px',
-                fontSize: 12, fontWeight: 800,
-              }}>
+
+              <span
+                style={{
+                  background: STATUS_COLORS[myRequest.status]?.bg || '#F3F4F6',
+                  color: STATUS_COLORS[myRequest.status]?.color || COLORS.text,
+                  borderRadius: 999,
+                  padding: '4px 12px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {STATUS_LABELS[myRequest.status] || myRequest.status}
               </span>
             </div>
           </Card>
         )}
 
-        {/* 신청 폼 (승인되지 않은 경우만) */}
-        {myRole === 'agent' && (!myRequest || myRequest.status === 'rejected') && (
+        {canShowForm && (
           <Card>
             <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text, marginBottom: 16 }}>
               권한 신청하기
             </div>
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>이름</span>
+            {myRequest?.status === 'rejected' && (
+              <div
+                style={{
+                  background: '#FEE2E2',
+                  color: '#DC2626',
+                  padding: 12,
+                  borderRadius: 12,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  marginBottom: 14,
+                }}
+              >
+                이전 신청이 거절되었습니다. 내용을 수정해서 다시 신청할 수 있습니다.
+              </div>
+            )}
+
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              이름
+            </span>
             <Field
               icon="👤"
               placeholder="이름"
               value={form.userName}
-              onChange={e => setForm(p => ({ ...p, userName: e.target.value }))}
+              onChange={(e) => setForm((p) => ({ ...p, userName: e.target.value }))}
             />
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 8, display: 'block' }}>신청 역할</span>
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 8, display: 'block' }}>
+              신청 역할
+            </span>
+
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-              {ROLE_OPTIONS.map(r => (
+              {ROLE_OPTIONS.map((r) => (
                 <button
                   key={r.value}
                   type="button"
-                  onClick={() => setForm(p => ({ ...p, requestedRole: r.value }))}
+                  onClick={() => setForm((p) => ({ ...p, requestedRole: r.value }))}
                   style={{
-                    padding: '6px 14px', borderRadius: 999, border: 'none',
-                    cursor: 'pointer', fontSize: 13,
+                    padding: '6px 14px',
+                    borderRadius: 999,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
                     background: form.requestedRole === r.value ? COLORS.primary : COLORS.primaryBg,
                     color: form.requestedRole === r.value ? '#fff' : COLORS.primary,
                     fontWeight: form.requestedRole === r.value ? 700 : 400,
@@ -181,17 +279,45 @@ export default function RoleRequestPage({ user }) {
               ))}
             </div>
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>소속 사업단</span>
-            <Field icon="🏢" placeholder="사업단명" value={form.organization} onChange={e => setForm(p => ({ ...p, organization: e.target.value }))} />
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              소속 사업단
+            </span>
+            <Field
+              icon="🏢"
+              placeholder="예: 인카다이렉트 로얄사업단"
+              value={form.organization}
+              onChange={(e) => setForm((p) => ({ ...p, organization: e.target.value }))}
+            />
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>본부</span>
-            <Field icon="🏬" placeholder="본부명" value={form.branch} onChange={e => setForm(p => ({ ...p, branch: e.target.value }))} />
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              본부
+            </span>
+            <Field
+              icon="🏬"
+              placeholder="예: 로얄본부"
+              value={form.branch}
+              onChange={(e) => setForm((p) => ({ ...p, branch: e.target.value }))}
+            />
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>지점</span>
-            <Field icon="🏪" placeholder="지점명" value={form.office} onChange={e => setForm(p => ({ ...p, office: e.target.value }))} />
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              지점
+            </span>
+            <Field
+              icon="🏪"
+              placeholder="예: 배보플지점"
+              value={form.office}
+              onChange={(e) => setForm((p) => ({ ...p, office: e.target.value }))}
+            />
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>팀</span>
-            <Field icon="👥" placeholder="팀명" value={form.team} onChange={e => setForm(p => ({ ...p, team: e.target.value }))} />
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              팀
+            </span>
+            <Field
+              icon="👥"
+              placeholder="예: 박보플팀"
+              value={form.team}
+              onChange={(e) => setForm((p) => ({ ...p, team: e.target.value }))}
+            />
 
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
             {success && <div style={{ color: '#16A34A', fontSize: 13, marginBottom: 12 }}>{success}</div>}
@@ -200,9 +326,16 @@ export default function RoleRequestPage({ user }) {
               onClick={handleSubmit}
               disabled={saving}
               style={{
-                width: '100%', padding: '14px 0', borderRadius: 12,
-                border: 'none', background: COLORS.primary, color: '#fff',
-                fontSize: 16, fontWeight: 700, cursor: 'pointer',
+                width: '100%',
+                padding: '14px 0',
+                borderRadius: 12,
+                border: 'none',
+                background: COLORS.primary,
+                color: '#fff',
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: saving ? 'default' : 'pointer',
+                opacity: saving ? 0.7 : 1,
               }}
             >
               {saving ? '신청 중...' : '권한 신청'}
@@ -210,42 +343,53 @@ export default function RoleRequestPage({ user }) {
           </Card>
         )}
 
-        {/* 관리자용 신청 목록 */}
         {myRole === 'superadmin' && (
           <Card>
             <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text, marginBottom: 16 }}>
               권한 신청 목록
             </div>
+
             {allRequests.length === 0 ? (
               <div style={{ fontSize: 13, color: COLORS.textGray }}>신청이 없습니다</div>
             ) : (
               allRequests.map((req, i) => (
-                <div key={req.id} style={{
-                  padding: '14px 0',
-                  borderBottom: i < allRequests.length - 1 ? `1px solid ${COLORS.border}` : 'none',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div
+                  key={req.id}
+                  style={{
+                    padding: '14px 0',
+                    borderBottom: i < allRequests.length - 1 ? `1px solid ${COLORS.border}` : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>
                         {req.user_name} ({req.user_email})
                       </div>
                       <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 4 }}>
-                        신청 역할: {ROLE_OPTIONS.find(r => r.value === req.requested_role)?.label}
+                        신청 역할: {ROLE_OPTIONS.find((r) => r.value === req.requested_role)?.label}
                       </div>
-                      {req.organization && <div style={{ fontSize: 12, color: COLORS.textGray }}>사업단: {req.organization}</div>}
+                      {req.organization && (
+                        <div style={{ fontSize: 12, color: COLORS.textGray }}>사업단: {req.organization}</div>
+                      )}
                       {req.branch && <div style={{ fontSize: 12, color: COLORS.textGray }}>본부: {req.branch}</div>}
                       {req.office && <div style={{ fontSize: 12, color: COLORS.textGray }}>지점: {req.office}</div>}
                       {req.team && <div style={{ fontSize: 12, color: COLORS.textGray }}>팀: {req.team}</div>}
                       <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
-                        {new Date(req.created_at).toLocaleDateString('ko-KR')} 신청
+                        {req.created_at ? new Date(req.created_at).toLocaleDateString('ko-KR') : '-'} 신청
                       </div>
                     </div>
-                    <span style={{
-                      background: STATUS_COLORS[req.status]?.bg || '#F3F4F6',
-                      color: STATUS_COLORS[req.status]?.color || COLORS.text,
-                      borderRadius: 999, padding: '4px 12px',
-                      fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
-                    }}>
+
+                    <span
+                      style={{
+                        background: STATUS_COLORS[req.status]?.bg || '#F3F4F6',
+                        color: STATUS_COLORS[req.status]?.color || COLORS.text,
+                        borderRadius: 999,
+                        padding: '4px 12px',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {STATUS_LABELS[req.status] || req.status}
                     </span>
                   </div>
@@ -255,9 +399,15 @@ export default function RoleRequestPage({ user }) {
                       <button
                         onClick={() => handleApprove(req)}
                         style={{
-                          flex: 1, padding: '8px 0', borderRadius: 10,
-                          border: 'none', background: '#DCFCE7', color: '#16A34A',
-                          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                          flex: 1,
+                          padding: '8px 0',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#DCFCE7',
+                          color: '#16A34A',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: 'pointer',
                         }}
                       >
                         ✅ 승인
@@ -265,9 +415,15 @@ export default function RoleRequestPage({ user }) {
                       <button
                         onClick={() => handleReject(req)}
                         style={{
-                          flex: 1, padding: '8px 0', borderRadius: 10,
-                          border: 'none', background: '#FEE2E2', color: '#DC2626',
-                          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                          flex: 1,
+                          padding: '8px 0',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#FEE2E2',
+                          color: '#DC2626',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: 'pointer',
                         }}
                       >
                         ❌ 거절

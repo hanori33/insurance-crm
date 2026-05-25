@@ -23,6 +23,8 @@ import RoleRequestPage from './pages/RoleRequestPage';
 import Header from './components/Header';
 import NotificationSettingsPage from './pages/NotificationSettingsPage';
 import ConsultingPage from './pages/ConsultingPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import DeleteAccountPage from './pages/DeleteAccountPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -386,6 +388,18 @@ export default function App() {
       return;
     }
 
+    if (page === 'privacyPolicy') {
+  setStack([]);
+  setActiveTab('privacyPolicy');
+  return;
+}
+
+if (page === 'deleteAccount') {
+  setStack([]);
+  setActiveTab('deleteAccount');
+  return;
+}
+
     setStack(prev => [...prev, { page, payload }]);
   }
 
@@ -541,6 +555,20 @@ export default function App() {
           />
         );
 
+        case 'privacyPolicy':
+  return (
+    <PrivacyPolicyPage
+      onBack={() => setActiveTab('more')}
+    />
+  );
+
+case 'deleteAccount':
+  return (
+    <DeleteAccountPage
+      onBack={() => setActiveTab('more')}
+    />
+  );
+  
       default:
         return <DashboardPage user={user} onNavigate={navigate} />;
     }
