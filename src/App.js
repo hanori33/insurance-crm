@@ -25,6 +25,7 @@ import NotificationSettingsPage from './pages/NotificationSettingsPage';
 import ConsultingPage from './pages/ConsultingPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
+import BackupRestorePage from './pages/BackupRestorePage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -400,6 +401,12 @@ if (page === 'deleteAccount') {
   return;
 }
 
+if (page === 'backupRestore') {
+  setStack([]);
+  setActiveTab('backupRestore');
+  return;
+}
+
     setStack(prev => [...prev, { page, payload }]);
   }
 
@@ -555,6 +562,13 @@ if (page === 'deleteAccount') {
           />
         );
 
+        case 'backupRestore':
+  return (
+    <BackupRestorePage
+      onBack={() => setActiveTab('more')}
+    />
+  );
+  
         case 'privacyPolicy':
   return (
     <PrivacyPolicyPage
@@ -568,7 +582,7 @@ case 'deleteAccount':
       onBack={() => setActiveTab('more')}
     />
   );
-  
+
       default:
         return <DashboardPage user={user} onNavigate={navigate} />;
     }

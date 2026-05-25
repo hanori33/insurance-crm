@@ -142,9 +142,7 @@ export default function MorePage({ user, onNavigate }) {
   const menuItems = [
   { icon: '🔔', label: '알림 설정', onClick: () => onNavigate('notifSettings') },
 
-  { icon: '☁️', label: '백업 / 복원', onClick: () => alert('백업/복원 기능은 준비 중입니다.') },
-
-  { icon: '⚙️', label: '설정', onClick: () => alert('설정 기능은 준비 중입니다.') },
+  { icon: '☁️', label: '백업 / 복원', onClick: () => onNavigate('backupRestore') },
 
   { icon: '📞', label: '보험사 고객센터', onClick: () => onNavigate('insuranceContact') },
 

@@ -577,7 +577,7 @@ async function saveMessage() {
               <div style={pageStyles.cardHeader}>
                 <div>
                   <div style={pageStyles.sectionTitle}>팀원 현황</div>
-                  <div style={pageStyles.sectionSub}>현재 접속 {members.length}명</div>
+                  <div style={pageStyles.sectionSub}>전체 팀원 {members.length}명</div>
                 </div>
               </div>
 
