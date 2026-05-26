@@ -814,7 +814,7 @@ async function saveMessage() {
                 </div>
               </div>
 
-              <div style={pageStyles.card}>
+              <div style={pageStyles.teamCard}>
                 <div style={pageStyles.cardTitleRow}>
                   <div style={pageStyles.sectionTitle}>📢 팀 한마디</div>
 
@@ -1207,11 +1207,13 @@ const makeStyles = (isPhone) => ({
   summaryLabel: { fontSize: 13, color: COLORS.sub, fontWeight: 800 },
   summaryCount: { marginTop: 2, fontSize: 22, color: COLORS.text, fontWeight: 900 },
 
-  statusLayout: {
-    display: "grid",
-    gridTemplateColumns: isPhone ? "1fr" : "1.2fr 1fr",
-    gap: 14,
-  },
+ statusLayout: {
+  display: "grid",
+  gridTemplateColumns: isPhone
+    ? "1fr"
+    : "1.7fr 1fr",
+  gap: 14,
+},
 
   sideStack: {
     display: "flex",
@@ -1253,7 +1255,9 @@ const makeStyles = (isPhone) => ({
 
   memberRow: {
     display: "grid",
-    gridTemplateColumns: isPhone ? "50px 1fr" : "50px 260px 190px 90px",
+   gridTemplateColumns: isPhone
+  ? "50px 1fr"
+  : "50px 1fr 190px 90px",
     alignItems: "center",
     columnGap: 14,
     rowGap: 12,
@@ -1387,22 +1391,31 @@ const makeStyles = (isPhone) => ({
   },
 
   activityGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 10,
-    marginTop: 14,
-  },
+  display: "grid",
+  gridTemplateColumns: "repeat(4, 1fr)",
+  gap: 8,
+  marginTop: 14,
+},
 
-  activityCard: {
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: 16,
-    padding: 12,
-    textAlign: "center",
-    background: "#FAFAFA",
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
+   activityCard: {
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 16,
+  padding: "10px 6px",
+  textAlign: "center",
+  background: "#FAFAFA",
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  minWidth: 0,
+  wordBreak: "keep-all",
+  whiteSpace: "nowrap",
+},
+
+teamCard: {
+  background: "linear-gradient(135deg, #E9D5FF 0%, #D8B4FE 100%)",
+  borderRadius: 24,
+  padding: 18,
+},
 
   missionCard: {
     background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.primaryDark})`,
@@ -1454,13 +1467,13 @@ const makeStyles = (isPhone) => ({
   },
 
   teamMessage: {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 16,
-    background: COLORS.light,
-    color: COLORS.primaryDark,
-    fontWeight: 800,
-  },
+  marginTop: 12,
+  padding: 14,
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.65)",
+  color: "#5B21B6",
+  fontWeight: 900,
+},
 
   teamMessageInput: {
     width: "100%",
