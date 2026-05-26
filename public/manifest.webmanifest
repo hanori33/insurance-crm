@@ -1,6 +1,11 @@
 {
-  "short_name": "보플랜",
   "name": "보플랜",
+  "short_name": "보플랜",
+  "description": "보험설계사 CRM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F7FC",
+  "theme_color": "#7C3AED",
   "icons": [
     {
       "src": "/boplan192.png",
@@ -12,10 +17,5 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ],
-  "start_url": "/?v=3"
-  "id": "/boplan-v3"
-  "display": "standalone",
-  "theme_color": "#8B5CF6",
-  "background_color": "#ffffff"
+  ]
 }
