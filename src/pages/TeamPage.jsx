@@ -36,6 +36,142 @@ function getStatusMeta(status) {
   return STATUS_LIST.find((s) => s.key === status) || STATUS_LIST[0];
 }
 
+
+function getTodayRange() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const yyyy = start.getFullYear();
+  const mm = String(start.getMonth() + 1).padStart(2, "0");
+  const dd = String(start.getDate()).padStart(2, "0");
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+    todayStr: `${yyyy}-${mm}-${dd}`,
+  };
+}
+
+function increaseCount(map, userId, key) {
+  if (!userId) return;
+
+  if (!map[userId]) {
+    map[userId] = {
+      consultCount: 0,
+      scheduleCount: 0,
+      customerCount: 0,
+    };
+  }
+
+  map[userId][key] += 1;
+}
+
+async function fetchRowsSafely(label, queryBuilder) {
+  try {
+    const { data, error } = await queryBuilder();
+
+    if (error) {
+      console.warn(`${label} 집계 실패:`, error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.warn(`${label} 집계 예외:`, error.message);
+    return [];
+  }
+}
+
+async function loadTodayActivityCounts(userIds) {
+  const ids = (userIds || []).filter(Boolean);
+
+  const emptyResult = {
+    byUserId: {},
+    total: {
+      consultCount: 0,
+      scheduleCount: 0,
+      customerCount: 0,
+    },
+  };
+
+  if (ids.length === 0) return emptyResult;
+
+  const { startIso, endIso, todayStr } = getTodayRange();
+  const byUserId = {};
+
+  const consultationRows = await fetchRowsSafely("상담기록", () =>
+    supabase
+      .from("consultations")
+      .select("id, user_id, created_at")
+      .in("user_id", ids)
+      .gte("created_at", startIso)
+      .lt("created_at", endIso)
+  );
+
+  consultationRows.forEach((row) => {
+    increaseCount(byUserId, row.user_id, "consultCount");
+  });
+
+  let scheduleRows = await fetchRowsSafely("일정", () =>
+    supabase
+      .from("schedules")
+      .select("id, user_id, scheduled_at")
+      .in("user_id", ids)
+      .gte("scheduled_at", startIso)
+      .lt("scheduled_at", endIso)
+  );
+
+  if (scheduleRows.length === 0) {
+    const fallbackScheduleRows = await fetchRowsSafely("일정(date fallback)", () =>
+      supabase
+        .from("schedules")
+        .select("id, user_id, date")
+        .in("user_id", ids)
+        .eq("date", todayStr)
+    );
+
+    scheduleRows = fallbackScheduleRows;
+  }
+
+  scheduleRows.forEach((row) => {
+    increaseCount(byUserId, row.user_id, "scheduleCount");
+  });
+
+  const customerRows = await fetchRowsSafely("고객등록", () =>
+    supabase
+      .from("customers")
+      .select("id, user_id, created_at")
+      .in("user_id", ids)
+      .gte("created_at", startIso)
+      .lt("created_at", endIso)
+  );
+
+  customerRows.forEach((row) => {
+    increaseCount(byUserId, row.user_id, "customerCount");
+  });
+
+  const total = Object.values(byUserId).reduce(
+    (acc, count) => ({
+      consultCount: acc.consultCount + count.consultCount,
+      scheduleCount: acc.scheduleCount + count.scheduleCount,
+      customerCount: acc.customerCount + count.customerCount,
+    }),
+    {
+      consultCount: 0,
+      scheduleCount: 0,
+      customerCount: 0,
+    }
+  );
+
+  return {
+    byUserId,
+    total,
+  };
+}
+
 function TeamPage({ onBack }) {
   const [activeTab, setActiveTab] = useState("status");
   const [members, setMembers] = useState([]);
@@ -283,13 +419,28 @@ function TeamPage({ onBack }) {
       };
     });
 
-    setMembers(mapped);
-    setLadderSelected(mapped.map((m) => m.id));
+    const activityCounts = await loadTodayActivityCounts(
+      mapped.map((m) => m.user_id)
+    );
+
+    const mappedWithActivity = mapped.map((member) => {
+      const count = activityCounts.byUserId[member.user_id] || {};
+
+      return {
+        ...member,
+        consultCount: count.consultCount || 0,
+        scheduleCount: count.scheduleCount || 0,
+        customerCount: count.customerCount || 0,
+      };
+    });
+
+    setMembers(mappedWithActivity);
+    setLadderSelected(mappedWithActivity.map((m) => m.id));
 
     setLadderEmojiMap((prev) => {
       const next = { ...prev };
 
-      mapped.forEach((m, index) => {
+      mappedWithActivity.forEach((m, index) => {
         if (!next[m.id]) next[m.id] = EMOJIS[index % EMOJIS.length];
       });
 
@@ -698,6 +849,12 @@ async function saveMessage() {
 {member.headquarters && <div>🏬 {member.headquarters}</div>}
 <div>📍 {member.branch}</div>
 
+                        </div>
+
+                        <div style={pageStyles.memberActivityLine}>
+                          <span>💬 {member.consultCount}</span>
+                          <span>📅 {member.scheduleCount}</span>
+                          <span>👤 {member.customerCount}</span>
                         </div>
                       </div>
 
@@ -1347,6 +1504,16 @@ const makeStyles = (isPhone) => ({
 
   memberName: { fontSize: 16, fontWeight: 900 },
   memberRole: { marginTop: 3, fontSize: 13, color: COLORS.sub },
+
+  memberActivityLine: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: 900,
+    color: COLORS.primaryDark,
+  },
 
   statusLine: {
     display: isPhone ? "grid" : "flex",
