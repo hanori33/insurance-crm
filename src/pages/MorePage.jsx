@@ -147,6 +147,7 @@ if (profileError) throw profileError;
         name: name.trim(),
         position: position.trim(),
         photoUrl: uploadedUrl,
+        email: profile.email || user.email || '',
       });
 
       onClose();
@@ -220,9 +221,42 @@ if (profileError) throw profileError;
         </button>
       </div>
 
+      <div
+        style={{
+          marginBottom: 16,
+          padding: '14px 16px',
+          borderRadius: 12,
+          background: '#F7F5FF',
+          border: '1px solid #E9DFFF',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            color: COLORS.textGray,
+            marginBottom: 4,
+            fontWeight: 600,
+          }}
+        >
+          로그인 계정
+        </div>
+
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: COLORS.text,
+            wordBreak: 'break-all',
+          }}
+        >
+          {profile.email || '-'}
+        </div>
+      </div>
+
       <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
         이름
       </span>
+
       <Field
         icon="👤"
         placeholder="이름을 입력하세요"
@@ -300,6 +334,7 @@ export default function MorePage({ user, onNavigate }) {
     name: meta.display_name || user?.email || '사용자',
     position: meta.position || '',
     photoUrl: meta.photo_url || '',
+    email: user?.email || '',
   });
 
   const [showEdit, setShowEdit] = useState(false);
@@ -319,6 +354,7 @@ export default function MorePage({ user, onNavigate }) {
         name: data?.name || meta.display_name || user?.email || '사용자',
         position: meta.position || '',
         photoUrl: data?.photo_url || meta.photo_url || '',
+        email: user?.email || '',
       });
     }
 
