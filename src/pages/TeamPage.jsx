@@ -36,6 +36,59 @@ function getStatusMeta(status) {
   return STATUS_LIST.find((s) => s.key === status) || STATUS_LIST[0];
 }
 
+function getDescendantUserIds(items, rootUserId, includeRoot = true) {
+  if (!rootUserId) return [];
+
+  const childrenMap = {};
+
+  (items || []).forEach((item) => {
+    const parentId = item.parent_user_id || item.parentUserId || null;
+    if (!parentId) return;
+
+    if (!childrenMap[parentId]) childrenMap[parentId] = [];
+    childrenMap[parentId].push(item.user_id || item.userId);
+  });
+
+  const result = [];
+  const queue = includeRoot ? [rootUserId] : childrenMap[rootUserId] || [];
+  const visited = new Set();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+
+    visited.add(current);
+    result.push(current);
+
+    (childrenMap[current] || []).forEach((childId) => {
+      if (childId && !visited.has(childId)) queue.push(childId);
+    });
+  }
+
+  return result;
+}
+
+function getRootUserId(items, userId) {
+  if (!userId) return null;
+
+  const byUserId = {};
+  (items || []).forEach((item) => {
+    if (item.user_id || item.userId) byUserId[item.user_id || item.userId] = item;
+  });
+
+  let currentId = userId;
+  const visited = new Set();
+
+  while (currentId && byUserId[currentId] && !visited.has(currentId)) {
+    visited.add(currentId);
+    const parentId = byUserId[currentId].parent_user_id || byUserId[currentId].parentUserId;
+    if (!parentId || !byUserId[parentId]) break;
+    currentId = parentId;
+  }
+
+  return currentId || userId;
+}
+
 
 function getTodayRange() {
   const start = new Date();
@@ -174,6 +227,7 @@ async function loadTodayActivityCounts(userIds) {
 
 function TeamPage({ onBack }) {
   const [activeTab, setActiveTab] = useState("status");
+  const [viewMode, setViewMode] = useState("myteam");
   const [members, setMembers] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [myRole, setMyRole] = useState("");
@@ -259,7 +313,7 @@ function TeamPage({ onBack }) {
 
     const { data: myProfile, error: myProfileError } = await supabase
       .from("profiles")
-      .select("id, user_id, name, role, branch_id, status, photo_url")
+      .select("id, user_id, name, role, role_name, parent_user_id, branch_id, status, photo_url")
       .eq("user_id", user.id)
       .single();
 
@@ -293,87 +347,39 @@ function TeamPage({ onBack }) {
     }
 
     let scopedRoles = [];
-    let targetUserIds = [];
 
-    if (myUserRole?.role) {
-      let roleQuery = supabase
-        .from("user_roles")
-        .select("user_id, role, organization, branch, office, team");
+    const { data: allProfilesData, error: allProfilesError } = await supabase
+      .from("profiles")
+      .select("id, user_id, name, role, role_name, parent_user_id, branch_id, status, photo_url, created_at")
+      .order("created_at", { ascending: true });
 
-      const role = myUserRole.role;
-      const organization = myUserRole.organization || "";
-      const branch = myUserRole.branch || "";
-      const office = myUserRole.office || "";
-      const team = myUserRole.team || "";
+    if (allProfilesError) throw allProfilesError;
 
-      if (role === "division_head") {
-        roleQuery = roleQuery.eq("organization", organization);
-      } else if (role === "branch_head") {
-        roleQuery = roleQuery
-          .eq("organization", organization)
-          .eq("branch", branch);
-      } else if (role === "office_head") {
-        roleQuery = roleQuery
-          .eq("organization", organization)
-          .eq("branch", branch)
-          .eq("office", office);
-      } else if (role === "team_leader" || role === "team_member") {
-        roleQuery = roleQuery
-          .eq("organization", organization)
-          .eq("branch", branch)
-          .eq("office", office)
-          .eq("team", team);
-      } else {
-        roleQuery = null;
-      }
+    const allProfiles = (allProfilesData || []).filter((m) => m.user_id);
+    const rootUserId = getRootUserId(allProfiles, user.id);
+    const orgUserIds = getDescendantUserIds(allProfiles, rootUserId, true);
 
-      if (roleQuery) {
-        const { data: roleRows, error: roleRowsError } = await roleQuery;
+    let profiles = allProfiles.filter((m) => orgUserIds.includes(m.user_id));
 
-        if (roleRowsError) throw roleRowsError;
-
-        scopedRoles = roleRows || [];
-        targetUserIds = scopedRoles.map((r) => r.user_id).filter(Boolean);
-      }
+    if (profiles.length === 0 && myProfile?.branch_id) {
+      profiles = allProfiles.filter((m) => m.branch_id === myProfile.branch_id);
     }
 
-    let profiles = [];
+    if (profiles.length === 0) {
+      profiles = allProfiles.filter((m) => m.user_id === user.id);
+    }
 
-    if (targetUserIds.length > 0) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, user_id, name, role, branch_id, status, photo_url, created_at")
-        .in("user_id", targetUserIds)
-        .order("created_at", { ascending: true });
+    const profileUserIds = profiles.map((m) => m.user_id).filter(Boolean);
 
-      if (error) throw error;
-      profiles = data || [];
-    } else if (myProfile?.branch_id) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, user_id, name, role, branch_id, status, photo_url, created_at")
-        .eq("branch_id", myProfile.branch_id)
-        .order("created_at", { ascending: true });
+    if (profileUserIds.length > 0) {
+      const { data: roleRows, error: roleRowsError } = await supabase
+        .from("user_roles")
+        .select("user_id, role, organization, branch, office, team")
+        .in("user_id", profileUserIds);
 
-      if (error) throw error;
-      profiles = data || [];
+      if (roleRowsError) throw roleRowsError;
 
-      const fallbackUserIds = profiles.map((m) => m.user_id).filter(Boolean);
-
-      if (fallbackUserIds.length > 0) {
-        const { data: fallbackRoles, error: fallbackRolesError } = await supabase
-          .from("user_roles")
-          .select("user_id, role, organization, branch, office, team")
-          .in("user_id", fallbackUserIds);
-
-        if (fallbackRolesError) throw fallbackRolesError;
-
-        scopedRoles = fallbackRoles || [];
-      }
-    } else {
-      setMembers([]);
-      setLadderSelected([]);
-      return;
+      scopedRoles = roleRows || [];
     }
 
     const roleMap = {};
@@ -381,7 +387,8 @@ function TeamPage({ onBack }) {
       roleMap[r.user_id] = r;
     });
 
-    const getRoleLabel = (profileRole, userRole) => {
+    const getRoleLabel = (profileRole, userRole, roleName) => {
+      if (roleName) return roleName;
       if (userRole === "division_head") return "사업단장";
       if (userRole === "branch_head") return "본부장";
       if (userRole === "office_head") return "지점장";
@@ -400,8 +407,10 @@ function TeamPage({ onBack }) {
         id: m.id,
         user_id: m.user_id,
         photoUrl: m.photo_url || "",
+        parentUserId: m.parent_user_id || "",
+        roleName: m.role_name || "",
         name: m.name || "이름없음",
-        role: getRoleLabel(m.role, roleInfo.role),
+        role: getRoleLabel(m.role, roleInfo.role, m.role_name),
 
         division: roleInfo.organization || branchData?.division || "소속사업단",
         headquarters: roleInfo.branch || "",
@@ -534,35 +543,48 @@ async function saveMessage() {
   setTeamMessage(nextMessage);
   setEditingMessage(false);
 }
-  const selectedMembers = members.filter((m) => ladderSelected.includes(m.id));
+  const myTeamMembers = useMemo(() => {
+    if (!currentUserId) return members;
+
+    const userIds = getDescendantUserIds(members, currentUserId, true);
+    const filtered = members.filter((m) => userIds.includes(m.user_id));
+
+    return filtered.length > 0 ? filtered : members.filter((m) => m.user_id === currentUserId);
+  }, [members, currentUserId]);
+
+  const visibleMembers = useMemo(() => {
+    return viewMode === "myteam" ? myTeamMembers : members;
+  }, [viewMode, myTeamMembers, members]);
+
+  const selectedMembers = visibleMembers.filter((m) => ladderSelected.includes(m.id));
 
   const ranking = useMemo(() => {
-    return [...members]
+    return [...visibleMembers]
       .map((m) => ({
         ...m,
         point: m.consultCount * 5 + m.scheduleCount * 3 + m.customerCount * 10,
       }))
       .sort((a, b) => b.point - a.point);
-  }, [members]);
+  }, [visibleMembers]);
 
   const activitySummary = useMemo(() => {
-    const consult = members.reduce((sum, m) => sum + m.consultCount, 0);
-    const schedule = members.reduce((sum, m) => sum + m.scheduleCount, 0);
-    const customer = members.reduce((sum, m) => sum + m.customerCount, 0);
+    const consult = visibleMembers.reduce((sum, m) => sum + m.consultCount, 0);
+    const schedule = visibleMembers.reduce((sum, m) => sum + m.scheduleCount, 0);
+    const customer = visibleMembers.reduce((sum, m) => sum + m.customerCount, 0);
     return {
       consult,
       schedule,
       customer,
       total: consult + schedule + customer,
     };
-  }, [members]);
+  }, [visibleMembers]);
 
   const statusSummary = useMemo(() => {
     return STATUS_LIST.map((status) => ({
       ...status,
-      count: members.filter((m) => m.status === status.key).length,
+      count: visibleMembers.filter((m) => m.status === status.key).length,
     })).filter((s) => s.count > 0);
-  }, [members]);
+  }, [visibleMembers]);
 
   const updateStatus = async (id, status) => {
     setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
@@ -784,6 +806,24 @@ async function saveMessage() {
         ))}
       </div>
 
+      <div style={pageStyles.scopeToggleWrap}>
+        <button
+          type="button"
+          onClick={() => setViewMode("myteam")}
+          style={viewMode === "myteam" ? pageStyles.scopeToggleActive : pageStyles.scopeToggle}
+        >
+          👥 내 팀 {myTeamMembers.length}명
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setViewMode("org")}
+          style={viewMode === "org" ? pageStyles.scopeToggleActive : pageStyles.scopeToggle}
+        >
+          🏢 전체 조직 {members.length}명
+        </button>
+      </div>
+
       {activeTab === "status" && (
         <>
           <section style={pageStyles.summaryGrid}>
@@ -802,7 +842,7 @@ async function saveMessage() {
             <div style={pageStyles.summaryCard}>
               <div style={{ ...pageStyles.summaryIcon, background: COLORS.light, color: COLORS.primary }}>👥</div>
               <div>
-                <div style={pageStyles.summaryLabel}>전체 팀원</div>
+                <div style={pageStyles.summaryLabel}>전체 조직</div>
                 <div style={pageStyles.summaryCount}>{members.length}명</div>
               </div>
             </div>
@@ -813,12 +853,12 @@ async function saveMessage() {
               <div style={pageStyles.cardHeader}>
                 <div>
                   <div style={pageStyles.sectionTitle}>팀원 현황</div>
-                  <div style={pageStyles.sectionSub}>전체 팀원 {members.length}명</div>
+                  <div style={pageStyles.sectionSub}>{viewMode === "myteam" ? "내 팀" : "전체 조직"} {visibleMembers.length}명</div>
                 </div>
               </div>
 
               <div style={pageStyles.memberList}>
-                {members.map((member) => {
+                {visibleMembers.map((member) => {
                   const meta = getStatusMeta(member.status);
 
                   return (
@@ -1067,7 +1107,7 @@ async function saveMessage() {
           <div style={pageStyles.sectionSub}>캐릭터가 한 칸씩 움직이면서 내려가요</div>
 
           <div style={pageStyles.checkList}>
-            {members.map((member) => (
+            {visibleMembers.map((member) => (
               <div key={member.id} style={pageStyles.ladderMemberBox}>
                 <label style={pageStyles.checkItem}>
                   <input
@@ -1352,6 +1392,36 @@ const makeStyles = (isPhone) => ({
     borderRadius: 16,
     fontWeight: 900,
     fontSize: 13,
+  },
+
+  scopeToggleWrap: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: 8,
+    marginBottom: 14,
+  },
+
+  scopeToggle: {
+    border: `1px solid ${COLORS.border}`,
+    background: COLORS.white,
+    color: COLORS.sub,
+    padding: "11px 8px",
+    borderRadius: 16,
+    fontWeight: 900,
+    fontSize: isPhone ? 12 : 13,
+    cursor: "pointer",
+  },
+
+  scopeToggleActive: {
+    border: `1px solid ${COLORS.primary}`,
+    background: COLORS.light,
+    color: COLORS.primaryDark,
+    padding: "11px 8px",
+    borderRadius: 16,
+    fontWeight: 900,
+    fontSize: isPhone ? 12 : 13,
+    cursor: "pointer",
+    boxShadow: "0 8px 20px rgba(124,58,237,0.12)",
   },
 
   summaryGrid: {
