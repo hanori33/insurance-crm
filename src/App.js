@@ -30,6 +30,7 @@ import InquiryPage from './pages/InquiryPage';
 import AdminInquiryPage from './pages/AdminInquiryPage';
 import { getToken, onMessage } from 'firebase/messaging';
 import { getFirebaseMessaging, VAPID_KEY } from './firebase';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -92,6 +93,8 @@ export default function App() {
   const isMobile = useIsMobile();
 
   const [session, setSession] = useState(undefined);
+  const isResetPassword =
+    window.location.pathname === '/reset-password';
   const [activeTab, setActiveTab] = useState('home');
   const [stack, setStack] = useState([]);
   const [notifiedIds, setNotifiedIds] = useState([]);
@@ -706,17 +709,29 @@ case 'deleteAccount':
     );
   }
 
-  if (!session) {
-    const Shell = isMobile ? MobileShell : WebShell;
+if (isResetPassword) {
+  const Shell = isMobile ? MobileShell : WebShell;
 
-    return (
-      <Shell>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <LoginScreen />
-        </div>
-      </Shell>
-    );
-  }
+  return (
+    <Shell>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <ResetPasswordPage />
+      </div>
+    </Shell>
+  );
+}
+
+if (!session) {
+  const Shell = isMobile ? MobileShell : WebShell;
+
+  return (
+    <Shell>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <LoginScreen />
+      </div>
+    </Shell>
+  );
+}
 
   if (isMobile) {
     return (
