@@ -689,33 +689,33 @@ case 'deleteAccount':
     }
   }
 
-  if (session === undefined) {
-    const Shell = isMobile ? MobileShell : WebShell;
-
-    return (
-      <Shell>
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: COLORS.bg,
-          }}
-        >
-          <LoadingSpinner size={48} />
-        </div>
-      </Shell>
-    );
-  }
-
-if (isResetPassword) {
+  if (isResetPassword) {
   const Shell = isMobile ? MobileShell : WebShell;
 
   return (
     <Shell>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <ResetPasswordPage />
+      </div>
+    </Shell>
+  );
+}
+
+if (session === undefined) {
+  const Shell = isMobile ? MobileShell : WebShell;
+
+  return (
+    <Shell>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: COLORS.bg,
+        }}
+      >
+        <LoadingSpinner size={48} />
       </div>
     </Shell>
   );
