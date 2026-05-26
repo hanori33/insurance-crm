@@ -43,46 +43,77 @@ function ProfileEditModal({ visible, onClose, profile, onSave }) {
   }
 
   async function handleSave() {
-    if (!name.trim()) return;
-    setLoading(true);
-    try {
-      let uploadedUrl = photoUrl;
+  if (!name.trim()) return;
 
-      if (file) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const ext = file.name.split('.').pop();
-        const path = `avatars/${user.id}.${ext}`;
+  setLoading(true);
 
-        const { error: uploadError } = await supabase.storage
-          .from('profiles')
-          .upload(path, file, { upsert: true });
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-        if (uploadError) throw uploadError;
+    if (userError) throw userError;
+    if (!user) throw new Error('로그인이 필요합니다.');
 
-        const { data: urlData } = supabase.storage
-          .from('profiles')
-          .getPublicUrl(path);
+    let uploadedUrl = photoUrl;
 
-        uploadedUrl = urlData.publicUrl;
-      }
+    if (file) {
+      const ext = file.name.split('.').pop();
+      const path = `${user.id}/avatar.${ext}`;
 
-      const { error } = await supabase.auth.updateUser({
-        data: { display_name: name, position, photo_url: uploadedUrl },
-      });
+      const { error: uploadError } = await supabase.storage
+        .from('profile-images')
+        .upload(path, file, {
+          upsert: true,
+          cacheControl: '0',
+        });
 
-      if (error) throw error;
+      if (uploadError) throw uploadError;
 
-      await supabase.auth.refreshSession();
+      const { data: urlData } = supabase.storage
+        .from('profile-images')
+        .getPublicUrl(path);
 
-      onSave({ name, position, photoUrl: uploadedUrl });
-      onClose();
-    } catch(e) {
-      console.error(e);
-      alert('저장 중 오류가 발생했습니다: ' + e.message);
-    } finally {
-      setLoading(false);
+      uploadedUrl = `${urlData.publicUrl}?t=${Date.now()}`;
     }
+
+    const { error: authError } = await supabase.auth.updateUser({
+      data: {
+        display_name: name,
+        position,
+        photo_url: uploadedUrl,
+      },
+    });
+
+    if (authError) throw authError;
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        name,
+        photo_url: uploadedUrl,
+      })
+      .eq('user_id', user.id);
+
+    if (profileError) throw profileError;
+
+    await supabase.auth.refreshSession();
+
+    onSave({
+      name,
+      position,
+      photoUrl: uploadedUrl,
+    });
+
+    onClose();
+  } catch (e) {
+    console.error(e);
+    alert('저장 중 오류가 발생했습니다: ' + e.message);
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <Modal visible={visible} onClose={onClose} title="프로필 수정">

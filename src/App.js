@@ -251,7 +251,12 @@ useEffect(() => {
 
       console.log('FCM 토큰 저장 완료');
     } catch (e) {
-      console.error('FCM 토큰 저장 실패:', e);
+      console.error('FCM 토큰 저장 실패:', {
+  code: e?.code,
+  message: e?.message,
+  name: e?.name,
+  stack: e?.stack,
+});
     }
   }
 
