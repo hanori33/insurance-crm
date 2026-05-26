@@ -2,7 +2,7 @@ importScripts("https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"
 importScripts("https://www.gstatic.com/firebasejs/9.22.2/firebase-messaging-compat.js");
 
 firebase.initializeApp({
-  apiKey: "AIzaSyC4Q1_13Px1MZiFA9AcRS16KCsBhN22Ve4",
+  apiKey: "AIzaSyC49l_13Px1MZiFA9AcRS16KCsBhN22Ve4",
   authDomain: "insu-real.firebaseapp.com",
   projectId: "insu-real",
   storageBucket: "insu-real.firebasestorage.app",
@@ -13,8 +13,12 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage(function (payload) {
-  self.registration.showNotification(payload.notification.title, {
-    body: payload.notification.body,
+  const title = payload.notification?.title || "보플랜";
+  const options = {
+    body: payload.notification?.body || "",
     icon: "/boplan192.png",
-  });
+    badge: "/boplan192.png",
+  };
+
+  self.registration.showNotification(title, options);
 });
