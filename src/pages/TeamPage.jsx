@@ -123,7 +123,7 @@ function TeamPage({ onBack }) {
 
     const { data: myProfile, error: myProfileError } = await supabase
       .from("profiles")
-      .select("id, user_id, name, role, branch_id, status")
+      .select("id, user_id, name, role, branch_id, status, photo_url")
       .eq("user_id", user.id)
       .single();
 
@@ -206,7 +206,7 @@ function TeamPage({ onBack }) {
     if (targetUserIds.length > 0) {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, user_id, name, role, branch_id, status, created_at")
+        .select("id, user_id, name, role, branch_id, status, photo_url, created_at")
         .in("user_id", targetUserIds)
         .order("created_at", { ascending: true });
 
@@ -215,7 +215,7 @@ function TeamPage({ onBack }) {
     } else if (myProfile?.branch_id) {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, user_id, name, role, branch_id, status, created_at")
+        .select("id, user_id, name, role, branch_id, status, photo_url, created_at")
         .eq("branch_id", myProfile.branch_id)
         .order("created_at", { ascending: true });
 
@@ -263,6 +263,7 @@ function TeamPage({ onBack }) {
       return {
         id: m.id,
         user_id: m.user_id,
+        photoUrl: m.photo_url || "",
         name: m.name || "이름없음",
         role: getRoleLabel(m.role, roleInfo.role),
 
@@ -671,7 +672,17 @@ async function saveMessage() {
 
                   return (
                     <div key={member.id} style={pageStyles.memberRow}>
-                      <div style={pageStyles.profileAvatar}>{member.profile}</div>
+                      <div style={pageStyles.profileAvatar}>
+                        {member.photoUrl ? (
+                          <img
+                            src={member.photoUrl}
+                            alt={member.name}
+                            style={pageStyles.profileAvatarImage}
+                          />
+                        ) : (
+                          member.profile
+                        )}
+                      </div>
 
                       <div style={pageStyles.memberInfo}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -867,7 +878,17 @@ async function saveMessage() {
               <div style={pageStyles.rankNo}>
                 {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}
               </div>
-              <div style={pageStyles.profileAvatarSmall}>{member.profile}</div>
+              <div style={pageStyles.profileAvatarSmall}>
+                {member.photoUrl ? (
+                  <img
+                    src={member.photoUrl}
+                    alt={member.name}
+                    style={pageStyles.profileAvatarSmallImage}
+                  />
+                ) : (
+                  member.profile
+                )}
+              </div>
              <div style={{ flex: 1, minWidth: 0 }}>
   <div style={pageStyles.rankOrgLine}>
   📍 {member.branch} · {member.name}
@@ -1292,6 +1313,15 @@ const makeStyles = (isPhone) => ({
     justifyContent: "center",
     fontWeight: 900,
     fontSize: 20,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+
+  profileAvatarImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
   },
 
   profileAvatarSmall: {
@@ -1304,6 +1334,15 @@ const makeStyles = (isPhone) => ({
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 900,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+
+  profileAvatarSmallImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
   },
 
   memberName: { fontSize: 16, fontWeight: 900 },
