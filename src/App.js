@@ -94,7 +94,10 @@ export default function App() {
 
   const [session, setSession] = useState(undefined);
   const isResetPassword =
-    window.location.pathname === '/reset-password';
+  window.location.pathname === '/reset-password' ||
+  window.location.hash.includes('type=recovery') ||
+  window.location.hash.includes('access_token') ||
+  window.location.search.includes('type=recovery');
   const [activeTab, setActiveTab] = useState('home');
   const [stack, setStack] = useState([]);
   const [notifiedIds, setNotifiedIds] = useState([]);
@@ -107,15 +110,21 @@ export default function App() {
     authService.getSession().then(s => setSession(s));
 
     const {
-      data: { subscription },
-    } = authService.onAuthStateChange((_e, s) => {
-      setSession(s);
+  data: { subscription },
+} = authService.onAuthStateChange((event, s) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    window.history.replaceState({}, '', '/reset-password');
+    setSession(s);
+    return;
+  }
 
-      if (!s) {
-        setActiveTab('home');
-        setStack([]);
-      }
-    });
+  setSession(s);
+
+  if (!s) {
+    setActiveTab('home');
+    setStack([]);
+  }
+});
 
     return () => subscription.unsubscribe();
   }, []);
