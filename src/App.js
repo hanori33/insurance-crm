@@ -230,6 +230,29 @@ useEffect(() => {
 useEffect(() => {
   if (!session?.user) return;
 
+  async function updateLastSeen() {
+    try {
+      await supabase
+        .from('profiles')
+        .update({
+          last_seen: new Date().toISOString(),
+        })
+        .eq('user_id', session.user.id);
+    } catch (e) {
+      console.error('last_seen 업데이트 실패', e);
+    }
+  }
+
+  updateLastSeen();
+
+  const interval = setInterval(updateLastSeen, 30000);
+
+  return () => clearInterval(interval);
+}, [session]);
+
+useEffect(() => {
+  if (!session?.user) return;
+
   async function setupFcmToken() {
     try {
       if (!('Notification' in window)) return;

@@ -119,7 +119,20 @@ useEffect(() => {
         {mode === 'signup' && (
           <Field icon="👤" placeholder="이름" value={name} onChange={e => setName(e.target.value)} />
         )}
-        <Field icon="✉️" placeholder="이메일" value={email} onChange={e => setEmail(e.target.value)} type="email" />
+       <Field
+  icon="✉️"
+  placeholder="이메일"
+  value={email}
+  onChange={e => {
+    const value = e.target.value;
+    setEmail(value);
+
+    if (saveId) {
+      localStorage.setItem('savedEmail', value);
+    }
+  }}
+  type="email"
+/>
         {mode !== 'reset' && (
           <Field
             icon="🔒"
@@ -138,7 +151,21 @@ useEffect(() => {
         {mode === 'login' && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: COLORS.textGray }}>
-              <input type="checkbox" checked={saveId} onChange={e => setSaveId(e.target.checked)} style={{ accentColor: COLORS.primary }} />
+              <input
+  type="checkbox"
+  checked={saveId}
+  onChange={e => {
+    const checked = e.target.checked;
+    setSaveId(checked);
+
+    if (checked) {
+      localStorage.setItem('savedEmail', email);
+    } else {
+      localStorage.removeItem('savedEmail');
+    }
+  }}
+  style={{ accentColor: COLORS.primary }}
+/>
               아이디 저장
             </label>
             <button onClick={() => { setMode('reset'); reset(); }}
