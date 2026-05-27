@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { COLORS } from '../constants';
 import authService from '../services/authService';
 import Field from './Field';
@@ -55,28 +55,49 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState('');
+useEffect(() => {
+  const savedEmail = localStorage.getItem('savedEmail');
 
+  if (savedEmail) {
+    setEmail(savedEmail);
+    setSaveId(true);
+  }
+}, []);
   const reset = () => { setError(''); setSuccess(''); };
 
   async function handle() {
-    reset(); setLoading(true);
-    try {
-      if (mode === 'login')  { await authService.signIn(email, pw); }
-      if (mode === 'signup') {
-        if (!name.trim()) throw new Error('이름을 입력해주세요');
-        await authService.signUp(email, pw, name);
-        setSuccess('이메일 인증 후 로그인해주세요.');
-        setMode('login');
-      }
-      if (mode === 'reset') {
-        await authService.resetPassword(email);
-        setSuccess('비밀번호 재설정 이메일을 발송했습니다.');
-        setMode('login');
-      }
-    } catch(e) { setError(e.message || '오류가 발생했습니다'); }
-    finally { setLoading(false); }
-  }
+  reset();
+  setLoading(true);
 
+  try {
+    if (mode === 'login') {
+      await authService.signIn(email, pw);
+
+      if (saveId) {
+        localStorage.setItem('savedEmail', email);
+      } else {
+        localStorage.removeItem('savedEmail');
+      }
+    }
+
+    if (mode === 'signup') {
+      if (!name.trim()) throw new Error('이름을 입력해주세요');
+      await authService.signUp(email, pw, name);
+      setSuccess('이메일 인증 후 로그인해주세요.');
+      setMode('login');
+    }
+
+    if (mode === 'reset') {
+      await authService.resetPassword(email);
+      setSuccess('비밀번호 재설정 이메일을 발송했습니다.');
+      setMode('login');
+    }
+  } catch (e) {
+    setError(e.message || '오류가 발생했습니다');
+  } finally {
+    setLoading(false);
+  }
+}
   return (
     <div style={{
       minHeight: '100%', display: 'flex', flexDirection: 'column',
