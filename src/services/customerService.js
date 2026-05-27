@@ -34,6 +34,7 @@ ssn_masked: c.ssn
     car_expiry: c.car_expiry || "",
    due_date: c.due_date || '',  // ✅ 추가
     referrer_app_id: c.referrer_app_id || "",
+    referrer_name: c.referrer_name || "",
     tags: c.tags || [],
     relation_type: c.relation_type || "",
     policies: Array.isArray(c.policies) ? c.policies : [],
@@ -63,6 +64,7 @@ function customerToDb(userId, customer) {
     car_expiry: customer.car_expiry || "",
     due_date: customer.due_date || '',  // ✅ 추가
     referrer_app_id: customer.referrer_app_id || null,
+    referrer_name: customer.referrer_name || "",
     tags: Array.isArray(customer.tags) ? customer.tags : [],
     relation_type: customer.relation_type || "",
     policies: Array.isArray(customer.policies)

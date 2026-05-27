@@ -278,9 +278,22 @@ const customerCount = allPeople.filter(p => p.customer_type === '일반' || !p.c
                             </div>
 
                             <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 4 }}>
-                              {p.phone || '-'} · {p.customer_type || '일반'}
-                              {p.relation_type ? ` · ${p.relation_type}` : ''}
-                            </div>
+  {p.phone || '-'} · {p.customer_type || '일반'}
+  {p.relation_type ? ` · ${p.relation_type}` : ''}
+</div>
+
+{p.referrer_name && (
+  <div
+    style={{
+      marginTop: 6,
+      fontSize: 11,
+      color: COLORS.primary,
+      fontWeight: 800,
+    }}
+  >
+    👥 최초 소개자: {p.referrer_name}
+  </div>
+)}
 
                             <div style={{
                               marginTop: 10,

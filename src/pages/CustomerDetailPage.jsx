@@ -105,6 +105,7 @@ function EditModal({ visible, onClose, customer, onSave }) {
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(false);
   const [referrerSearch, setReferrerSearch] = useState('');
+  const [selectedReferrerName, setSelectedReferrerName] = useState('');
   const [referrerOptions, setReferrerOptions] = useState([]);
   const [newPolicy, setNewPolicy] = useState({
     company: '',
@@ -117,36 +118,37 @@ function EditModal({ visible, onClose, customer, onSave }) {
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    if (customer) {
-      setForm({
-  name: customer.name || '',
-  phone: customer.phone || '',
-  status: customer.status || '상담중',
-  birth: customer.birth || '',
-  email: customer.email || '',
-  memo: customer.memo || '',
-  job: customer.job || '',
-  address: customer.address || '',
-  customer_type: customer.customer_type || '일반',
-  pet_name: customer.pet_name || '',
-  baby_name: customer.baby_name || '',
-  due_date: customer.due_date || '',   // ✅ 추가
-  transfer_day: customer.transfer_day || '',
-  car_number: customer.car_number || '',
-  car_expiry: customer.car_expiry || '',  // ✅ 추가
-  relation_type: customer.relation_type || '',
-  referrer_app_id: customer.referrer_app_id || '',
-  policies: Array.isArray(customer.policies) ? customer.policies : [],
-});
+    if (!customer) return;
 
-      setNewPolicy({
-        company: '',
-        product: '',
-        premium: '',
-        start_date: '',
-        note: '',
-      });
-    }
+    setForm({
+      name: customer.name || '',
+      phone: customer.phone || '',
+      status: customer.status || '상담중',
+      birth: customer.birth || '',
+      email: customer.email || '',
+      memo: customer.memo || '',
+      job: customer.job || '',
+      address: customer.address || '',
+      customer_type: customer.customer_type || '일반',
+      pet_name: customer.pet_name || '',
+      baby_name: customer.baby_name || '',
+      due_date: customer.due_date || '',
+      transfer_day: customer.transfer_day || '',
+      car_number: customer.car_number || '',
+      car_expiry: customer.car_expiry || '',
+      relation_type: customer.relation_type || '',
+      referrer_app_id: customer.referrer_app_id || '',
+      referrer_name: customer.referrer_name || '',
+      policies: Array.isArray(customer.policies) ? customer.policies : [],
+    });
+
+    setNewPolicy({
+      company: '',
+      product: '',
+      premium: '',
+      start_date: '',
+      note: '',
+    });
   }, [customer, visible]);
 
   useEffect(() => {
@@ -155,18 +157,40 @@ function EditModal({ visible, onClose, customer, onSave }) {
         const data = await customerService.list({ status: '전체', search: '' });
         const currentId = customer?.app_customer_id || customer?.id || customer?.db_id;
 
-        const filtered = (data || []).filter((c) =>
-          String(c.app_customer_id || c.id || c.db_id) !== String(currentId)
-        );
+        const filtered = (data || []).filter((c) => {
+          return String(c.app_customer_id || c.id || c.db_id) !== String(currentId);
+        });
 
         setReferrerOptions(filtered);
+
+        const savedReferrerId = customer?.referrer_app_id || '';
+
+        if (!savedReferrerId) {
+          setSelectedReferrerName('');
+          setReferrerSearch('');
+          return;
+        }
+
+        const found = (data || []).find((c) => {
+          return String(c.app_customer_id || c.id || c.db_id) === String(savedReferrerId);
+        });
+
+        if (found) {
+          setSelectedReferrerName(found.name || '');
+          setReferrerSearch(found.name || '');
+        } else {
+          setSelectedReferrerName('');
+          setReferrerSearch('');
+        }
       } catch (e) {
         console.error(e);
         setReferrerOptions([]);
       }
     }
 
-    if (visible) loadReferrers();
+    if (visible && customer) {
+      loadReferrers();
+    }
   }, [visible, customer]);
 
   function addPolicy() {
@@ -200,6 +224,7 @@ function EditModal({ visible, onClose, customer, onSave }) {
     setLoading(true);
 
     try {
+      console.log(form);
       await customerService.update(customer.db_id || customer.id, form);
       onSave();
       onClose();
@@ -332,14 +357,24 @@ function EditModal({ visible, onClose, customer, onSave }) {
         </div>
 
         {form.referrer_app_id && (
-          <div style={{ marginBottom: 8, fontSize: 12, color: COLORS.primary, fontWeight: 700 }}>
-            소개자 연결 완료
+          <div
+            style={{
+              marginBottom: 8,
+              fontSize: 12,
+              color: COLORS.primary,
+              fontWeight: 700,
+            }}
+          >
+            👥 최초 소개자 : {form.referrer_name || selectedReferrerName || '-'}
+
             <button
               type="button"
               onClick={() => {
-                set('referrer_app_id', '');
-                setReferrerSearch('');
-              }}
+  set('referrer_app_id', '');
+  set('referrer_name', '');
+  setReferrerSearch('');
+  setSelectedReferrerName('');
+}}
               style={{
                 marginLeft: 8,
                 border: 'none',
@@ -369,19 +404,18 @@ function EditModal({ visible, onClose, customer, onSave }) {
             }}
           >
             {referrerOptions
-              .filter((c) =>
-                c.name?.includes(referrerSearch.trim()) ||
-                c.phone?.includes(referrerSearch.trim())
-              )
+              .filter((c) => c.name?.includes(referrerSearch.trim()) || c.phone?.includes(referrerSearch.trim()))
               .slice(0, 10)
               .map((c) => (
                 <button
                   key={c.app_customer_id || c.id}
                   type="button"
                   onClick={() => {
-                    set('referrer_app_id', c.app_customer_id || c.id);
-                    setReferrerSearch(c.name);
-                  }}
+  set('referrer_app_id', c.app_customer_id || c.id);
+  set('referrer_name', c.name || '');
+  setSelectedReferrerName(c.name || '');
+  setReferrerSearch('');
+}}
                   style={{
                     width: '100%',
                     border: 'none',
@@ -424,8 +458,8 @@ function EditModal({ visible, onClose, customer, onSave }) {
         <span style={{ fontSize: 13, color: COLORS.textGray }}>차량번호</span>
         <Field icon="🚗" placeholder="차량번호" value={form.car_number || ''} onChange={(e) => set('car_number', e.target.value)} />
 
-<span style={{ fontSize: 13, color: COLORS.textGray }}>자동차 만기일</span>
-<Field icon="📅" placeholder="자동차 만기일 (예: 2026-05-15)" value={form.car_expiry || ''} onChange={(e) => set('car_expiry', e.target.value)} />
+        <span style={{ fontSize: 13, color: COLORS.textGray }}>자동차 만기일</span>
+        <Field icon="📅" placeholder="자동차 만기일 (예: 2026-05-15)" value={form.car_expiry || ''} onChange={(e) => set('car_expiry', e.target.value)} />
 
         <span style={{ fontSize: 13, color: COLORS.textGray }}>반려동물명</span>
         <Field icon="🐶" placeholder="반려동물명" value={form.pet_name || ''} onChange={(e) => set('pet_name', e.target.value)} />
@@ -433,9 +467,9 @@ function EditModal({ visible, onClose, customer, onSave }) {
         <span style={{ fontSize: 13, color: COLORS.textGray }}>태아/자녀명</span>
         <Field icon="👶" placeholder="태아/자녀명" value={form.baby_name || ''} onChange={(e) => set('baby_name', e.target.value)} />
 
-<span style={{ fontSize: 13, color: COLORS.textGray }}>출산예정일</span>
-<Field icon="🍼" placeholder="출산예정일 (예: 2026-08-15)" value={form.due_date || ''} onChange={(e) => set('due_date', e.target.value)} />
-       
+        <span style={{ fontSize: 13, color: COLORS.textGray }}>출산예정일</span>
+        <Field icon="🍼" placeholder="출산예정일 (예: 2026-08-15)" value={form.due_date || ''} onChange={(e) => set('due_date', e.target.value)} />
+
         <span style={{ fontSize: 13, color: COLORS.textGray, marginTop: 8 }}>보험 이력</span>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
@@ -444,10 +478,7 @@ function EditModal({ visible, onClose, customer, onSave }) {
               key={policy.id || idx}
               policy={policy}
               onDelete={() => {
-                set(
-                  'policies',
-                  (form.policies || []).filter((_, i) => i !== idx)
-                );
+                set('policies', (form.policies || []).filter((_, i) => i !== idx));
               }}
             />
           ))}
@@ -460,33 +491,10 @@ function EditModal({ visible, onClose, customer, onSave }) {
               background: '#fff',
             }}
           >
-            <Field
-              icon="🏢"
-              placeholder="보험사"
-              value={newPolicy.company}
-              onChange={(e) => setNewPolicy((p) => ({ ...p, company: e.target.value }))}
-            />
-
-            <Field
-              icon="📄"
-              placeholder="상품명"
-              value={newPolicy.product}
-              onChange={(e) => setNewPolicy((p) => ({ ...p, product: e.target.value }))}
-            />
-
-            <Field
-              icon="💰"
-              placeholder="보험료"
-              value={newPolicy.premium}
-              onChange={(e) => setNewPolicy((p) => ({ ...p, premium: e.target.value }))}
-            />
-
-            <Field
-              icon="📅"
-              placeholder="계약일"
-              value={newPolicy.start_date}
-              onChange={(e) => setNewPolicy((p) => ({ ...p, start_date: e.target.value }))}
-            />
+            <Field icon="🏢" placeholder="보험사" value={newPolicy.company} onChange={(e) => setNewPolicy((p) => ({ ...p, company: e.target.value }))} />
+            <Field icon="📄" placeholder="상품명" value={newPolicy.product} onChange={(e) => setNewPolicy((p) => ({ ...p, product: e.target.value }))} />
+            <Field icon="💰" placeholder="보험료" value={newPolicy.premium} onChange={(e) => setNewPolicy((p) => ({ ...p, premium: e.target.value }))} />
+            <Field icon="📅" placeholder="계약일" value={newPolicy.start_date} onChange={(e) => setNewPolicy((p) => ({ ...p, start_date: e.target.value }))} />
 
             <textarea
               value={newPolicy.note}
@@ -550,16 +558,12 @@ function EditModal({ visible, onClose, customer, onSave }) {
   );
 }
 
-export default function CustomerDetailPage({
-  customerId,
-  onBack,
-  onNavigate,
-}) {
+export default function CustomerDetailPage({ customerId, onBack, onNavigate }) {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [selectedConsultation, setSelectedConsultation] = useState(null);
-  const [selectedRiskModal, setSelectedRiskModal] = useState(null); 
+  const [selectedRiskModal, setSelectedRiskModal] = useState(null);
   const [consultations, setConsultations] = useState([]);
   const [consultLoading, setConsultLoading] = useState(false);
   const [customerSchedules, setCustomerSchedules] = useState([]);
@@ -573,7 +577,26 @@ export default function CustomerDetailPage({
 
     try {
       const data = await customerService.get(customerId);
-      setCustomer(data);
+
+      let referrerName = '';
+
+      if (data?.referrer_app_id) {
+        try {
+          const list = await customerService.list({ status: '전체', search: '' });
+          const found = (list || []).find((c) => {
+            return String(c.app_customer_id || c.id || c.db_id) === String(data.referrer_app_id);
+          });
+
+          referrerName = found?.name || '';
+        } catch (e) {
+          console.error('소개자 조회 실패:', e);
+        }
+      }
+
+      setCustomer({
+        ...data,
+        referrer_name_display: referrerName,
+      });
 
       const realId = data?.db_id || data?.app_customer_id || data?.id;
 
@@ -583,10 +606,10 @@ export default function CustomerDetailPage({
         try {
           const consultationData = await consultationService.listByCustomer(realId);
           setConsultations(consultationData || []);
-          const scheduleData = await scheduleService.listByCustomer(data.name);
-setCustomerSchedules(scheduleData || []);
 
-                  } catch (consultError) {
+          const scheduleData = await scheduleService.listByCustomer(data.name);
+          setCustomerSchedules(scheduleData || []);
+        } catch (consultError) {
           console.error(consultError);
           setConsultations([]);
         } finally {
@@ -602,25 +625,18 @@ setCustomerSchedules(scheduleData || []);
     }
   }
 
-    async function handleDelete() {
-  if (!window.confirm('고객을 삭제하시겠습니까?')) return;
+  async function handleDelete() {
+    if (!window.confirm('고객을 삭제하시겠습니까?')) return;
 
-  try {
-    await customerService.remove(customer.db_id || customer.id);
-
-    alert('고객이 삭제되었습니다.');
-
-    onBack();
-  } catch (e) {
-    console.error(e);
-
-    alert(
-      e?.message ||
-      JSON.stringify(e) ||
-      '고객 삭제 실패'
-    );
+    try {
+      await customerService.remove(customer.db_id || customer.id);
+      alert('고객이 삭제되었습니다.');
+      onBack();
+    } catch (e) {
+      console.error(e);
+      alert(e?.message || JSON.stringify(e) || '고객 삭제 실패');
+    }
   }
-}
 
   if (loading) {
     return (
@@ -632,46 +648,42 @@ setCustomerSchedules(scheduleData || []);
 
   if (!customer) return null;
 
-  const val = (v) => (!v || v === 'EMPTY' || v === '') ? null : v;
+  const val = (v) => (!v || v === 'EMPTY' || v === '' ? null : v);
   const policies = Array.isArray(customer.policies) ? customer.policies : [];
+  const schedules = Array.isArray(customerSchedules) ? customerSchedules : [];
+  const medicalItems = consultations.flatMap((item) => item.medical_history || []);
+  const exclusionItems = consultations.flatMap((item) => item.exclusions || []);
+  const disclosureDone = consultations.some((item) => item?.disclosure_info?.checked);
 
-  const schedules = Array.isArray(customerSchedules)
-  ? customerSchedules
-  : [];
-  const medicalItems = consultations.flatMap(item => item.medical_history || []);
-  const exclusionItems = consultations.flatMap(item => item.exclusions || []);
-  const disclosureDone = consultations.some(item => item?.disclosure_info?.checked);
   const timelineItems = [
-  ...consultations.map((item) => ({
-    id: `consult-${item.id}`,
-    icon: '📝',
-    type: item.category || '상담',
-    title: item.content || '상담기록',
-    sub: item.next_action ? `다음 액션: ${item.next_action}` : '',
-    date: item.consulted_at || item.created_at,
-  })),
-
-  ...policies.map((policy, idx) => ({
-    id: `policy-${policy.id || idx}`,
-    icon: '📋',
-    type: '보험 이력',
-    title: `${policy.company || '보험사 미입력'} ${policy.product || ''}`.trim(),
-    sub: policy.premium ? `월 ${policy.premium}` : '',
-    date: policy.start_date || customer.created_at,
-  })),
-
-  ...schedules.map((schedule, idx) => ({
-    id: `schedule-${schedule.id || idx}`,
-    icon: schedule.schedule_icon || '📅',
-    type: '일정',
-    title: schedule.title || '등록된 일정',
-    sub: schedule.memo || '',
-    date: schedule.scheduled_at || schedule.created_at,
-  })),
-]
-  .filter((item) => item.title)
-  .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-  .slice(0, 10);
+    ...consultations.map((item) => ({
+      id: `consult-${item.id}`,
+      icon: '📝',
+      type: item.category || '상담',
+      title: item.content || '상담기록',
+      sub: item.next_action ? `다음 액션: ${item.next_action}` : '',
+      date: item.consulted_at || item.created_at,
+    })),
+    ...policies.map((policy, idx) => ({
+      id: `policy-${policy.id || idx}`,
+      icon: '📋',
+      type: '보험 이력',
+      title: `${policy.company || '보험사 미입력'} ${policy.product || ''}`.trim(),
+      sub: policy.premium ? `월 ${policy.premium}` : '',
+      date: policy.start_date || customer.created_at,
+    })),
+    ...schedules.map((schedule, idx) => ({
+      id: `schedule-${schedule.id || idx}`,
+      icon: schedule.schedule_icon || '📅',
+      type: '일정',
+      title: schedule.title || '등록된 일정',
+      sub: schedule.memo || '',
+      date: schedule.scheduled_at || schedule.created_at,
+    })),
+  ]
+    .filter((item) => item.title)
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+    .slice(0, 10);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -706,65 +718,26 @@ setCustomerSchedules(scheduleData || []);
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 20, color: COLORS.text }}>{customer.name}</div>
                 <div style={{ fontSize: 14, color: COLORS.textGray, marginTop: 4 }}>{customer.phone}</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-  {disclosureDone && (
-  <button
-    type="button"
-    onClick={() => setSelectedRiskModal('disclosure')}
-    style={{
-      border: 'none',
-      background: COLORS.primaryBg,
-      color: COLORS.primary,
-      borderRadius: 999,
-      padding: '5px 9px',
-      fontSize: 11,
-      fontWeight: 800,
-      cursor: 'pointer',
-    }}
-  >
-    📋 알릴의무 완료
-  </button>
-)}
 
-  {medicalItems.length > 0 && (
-  <button
-    type="button"
-    onClick={() => setSelectedRiskModal('medical')}
-    style={{
-      border: 'none',
-      background: COLORS.primaryBg,
-      color: COLORS.primary,
-      borderRadius: 999,
-      padding: '5px 9px',
-      fontSize: 11,
-      fontWeight: 800,
-      cursor: 'pointer',
-    }}
-  >
-    🏥 병력 {medicalItems.length}건
-  </button>
-)}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {disclosureDone && (
+                    <button type="button" onClick={() => setSelectedRiskModal('disclosure')} style={chipButtonStyle}>
+                      📋 알릴의무 완료
+                    </button>
+                  )}
 
-  {exclusionItems.length > 0 && (
-  <button
-    type="button"
-    onClick={() => setSelectedRiskModal('exclusion')}
-    style={{
-      border: 'none',
-      background: COLORS.primaryBg,
-      color: COLORS.primary,
-      borderRadius: 999,
-      padding: '5px 9px',
-      fontSize: 11,
-      fontWeight: 800,
-      cursor: 'pointer',
-    }}
-  >
-    🚫 부담보 {exclusionItems.length}건
-  </button>
-)}
-  
-</div>
+                  {medicalItems.length > 0 && (
+                    <button type="button" onClick={() => setSelectedRiskModal('medical')} style={chipButtonStyle}>
+                      🏥 병력 {medicalItems.length}건
+                    </button>
+                  )}
+
+                  {exclusionItems.length > 0 && (
+                    <button type="button" onClick={() => setSelectedRiskModal('exclusion')} style={chipButtonStyle}>
+                      🚫 부담보 {exclusionItems.length}건
+                    </button>
+                  )}
+                </div>
               </div>
 
               <StatusBadge status={customer.status} />
@@ -783,6 +756,7 @@ setCustomerSchedules(scheduleData || []);
             <InfoRow label="이메일" value={val(customer.email)} />
             <InfoRow label="직업" value={val(customer.job)} />
             <InfoRow label="주소" value={val(customer.address)} />
+            <InfoRow label="최초 소개자" value={val(customer.referrer_name)} />
             <InfoRow
               label="고객 유형"
               value={
@@ -799,97 +773,55 @@ setCustomerSchedules(scheduleData || []);
             <InfoRow label="등록일" value={formatDate(customer.created_at)} isLast />
           </Section>
 
-          {(val(customer.pet_name) || val(customer.baby_name) || val(customer.car_number) || val(customer.transfer_day)) && (
+          {(val(customer.pet_name) || val(customer.baby_name) || val(customer.car_number) || val(customer.transfer_day) || val(customer.car_expiry) || val(customer.due_date)) && (
             <Section title="추가 정보" icon="📋">
               {val(customer.pet_name) && <InfoRow label="🐶 반려동물" value={customer.pet_name} />}
-{val(customer.baby_name) && <InfoRow label="👶 태아/자녀" value={customer.baby_name} />}
-{val(customer.due_date) && <InfoRow label="🍼 출산예정일" value={customer.due_date} />}  {/* ✅ 추가 */}
-{val(customer.car_number) && <InfoRow label="🚗 차량번호" value={customer.car_number} />}
-{val(customer.car_expiry) && <InfoRow label="📅 자동차만기" value={customer.car_expiry} />}  {/* ✅ 추가 */}
-{val(customer.transfer_day) && <InfoRow label="💳 이체일" value={customer.transfer_day} isLast />}
+              {val(customer.baby_name) && <InfoRow label="👶 태아/자녀" value={customer.baby_name} />}
+              {val(customer.due_date) && <InfoRow label="🍼 출산예정일" value={customer.due_date} />}
+              {val(customer.car_number) && <InfoRow label="🚗 차량번호" value={customer.car_number} />}
+              {val(customer.car_expiry) && <InfoRow label="📅 자동차만기" value={customer.car_expiry} />}
+              {val(customer.transfer_day) && <InfoRow label="💳 이체일" value={customer.transfer_day} isLast />}
             </Section>
           )}
 
-<Section title="최근 활동" icon="🧭">
-  {timelineItems.length === 0 ? (
-    <div
-      style={{
-        fontSize: 13,
-        color: COLORS.textGray,
-        padding: '8px 0',
-      }}
-    >
-      최근 활동이 없습니다.
-    </div>
-  ) : (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {timelineItems.map((item) => (
-        <div
-  key={item.id}
-  style={{
-    display: 'flex',
-    gap: 12,
-    padding: '10px 0',
-    borderBottom: `1px solid ${COLORS.border}`,
-  }}
->
-  <div
-    style={{
-      width: 34,
-      height: 34,
-      borderRadius: 12,
-      background: COLORS.primaryBg,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-      fontSize: 16,
-    }}
-  >
-    {item.icon}
-  </div>
+          <Section title="최근 활동" icon="🧭">
+            {timelineItems.length === 0 ? (
+              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>최근 활동이 없습니다.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {timelineItems.map((item) => (
+                  <div key={item.id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 12,
+                        background: COLORS.primaryBg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        fontSize: 16,
+                      }}
+                    >
+                      {item.icon}
+                    </div>
 
-  <div style={{ flex: 1, minWidth: 0 }}>
-    <div
-      style={{
-        fontSize: 12,
-        fontWeight: 800,
-        color: COLORS.primary,
-      }}
-    >
-      {item.type}
-    </div>
-
-    <div
-      style={{
-        marginTop: 2,
-        fontSize: 13,
-        fontWeight: 700,
-        color: COLORS.text,
-        lineHeight: 1.4,
-        wordBreak: 'keep-all',
-      }}
-    >
-      {item.title}
-    </div>
-
-    <div
-      style={{
-        marginTop: 5,
-        fontSize: 11,
-        color: COLORS.textGray,
-      }}
-    >
-      {item.sub && `${item.sub} · `}
-      {formatDate(item.date)}
-    </div>
-  </div>
-</div>
-      
-      ))}
-    </div>
-  )}
-</Section>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.primary }}>{item.type}</div>
+                      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.4, wordBreak: 'keep-all' }}>
+                        {item.title}
+                      </div>
+                      <div style={{ marginTop: 5, fontSize: 11, color: COLORS.textGray }}>
+                        {item.sub && `${item.sub} · `}
+                        {formatDate(item.date)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
 
           <Section title="보험 이력" icon="📋">
             {policies.length === 0 ? (
@@ -905,94 +837,58 @@ setCustomerSchedules(scheduleData || []);
             )}
           </Section>
 
-
-
           <Section title="상담 기록" icon="📝">
-            <div
-  style={{
-    display: 'flex',
-    justifyContent: 'flex-end',
-    marginTop: -42,
-    marginBottom: 14,
-  }}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -42, marginBottom: 14 }}>
+              <button
+                onClick={() =>
+                  onNavigate?.('consulting', {
+                    initialCustomer: customer,
+                  })
+                }
+                style={{
+                  border: 'none',
+                  background: COLORS.primary,
+                  color: '#fff',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                + 상담기록 추가
+              </button>
+            </div>
 
->
-  <button
-    onClick={() =>
-      onNavigate?.('consulting', {
-        initialCustomer: customer,
-      })
-    }
-    style={{
-      border: 'none',
-      background: COLORS.primary,
-      color: '#fff',
-      borderRadius: 10,
-      padding: '10px 14px',
-      fontSize: 13,
-      fontWeight: 800,
-      cursor: 'pointer',
-    }}
-  >
-    + 상담기록 추가
-  </button>
-</div>
             {consultLoading ? (
               <LoadingSpinner />
             ) : consultations.length === 0 ? (
-              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
-                등록된 상담기록이 없습니다.
-              </div>
+              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>등록된 상담기록이 없습니다.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {consultations.map((item) => (
                   <div
-  key={item.id}
-  onClick={() => setSelectedConsultation(item)}
-  style={{
-    cursor: 'pointer',
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: 14,
-    padding: 14,
-    background: '#fff',
-  }}
->
+                    key={item.id}
+                    onClick={() => setSelectedConsultation(item)}
+                    style={{
+                      cursor: 'pointer',
+                      border: `1px solid ${COLORS.border}`,
+                      borderRadius: 14,
+                      padding: 14,
+                      background: '#fff',
+                    }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: COLORS.primary }}>
-                          {item.category || '상담'}
-                        </div>
-
-                        <div style={{ fontSize: 11, color: COLORS.textGray, marginTop: 3 }}>
-                          {formatDate(item.consulted_at || item.created_at)}
-                        </div>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: COLORS.primary }}>{item.category || '상담'}</div>
+                        <div style={{ fontSize: 11, color: COLORS.textGray, marginTop: 3 }}>{formatDate(item.consulted_at || item.created_at)}</div>
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        marginTop: 10,
-                        whiteSpace: 'pre-wrap',
-                        fontSize: 13,
-                        lineHeight: 1.55,
-                        color: COLORS.text,
-                      }}
-                    >
-                      {item.content}
-                    </div>
+                    <div style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.55, color: COLORS.text }}>{item.content}</div>
 
                     {item.next_action && (
-                      <div
-                        style={{
-                          marginTop: 10,
-                          background: COLORS.primaryBg,
-                          color: COLORS.primary,
-                          borderRadius: 10,
-                          padding: '8px 10px',
-                          fontSize: 12,
-                          fontWeight: 700,
-                        }}
-                      >
+                      <div style={{ marginTop: 10, background: COLORS.primaryBg, color: COLORS.primary, borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: 700 }}>
                         다음 액션: {item.next_action}
                       </div>
                     )}
@@ -1033,204 +929,125 @@ setCustomerSchedules(scheduleData || []);
         </div>
       </div>
 
-{selectedRiskModal && (
-  <Modal
-    visible={true}
-    onClose={() => setSelectedRiskModal(null)}
-    title={
-      selectedRiskModal === 'disclosure'
-        ? '📋 알릴의무'
-        : selectedRiskModal === 'medical'
-        ? '🏥 병력고지'
-        : '🚫 부담보'
-    }
-  >
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {selectedRiskModal === 'disclosure' && (
-        <div
-          style={{
-            background: COLORS.primaryBg,
-            color: COLORS.primary,
-            padding: 14,
-            borderRadius: 12,
-            fontWeight: 800,
-          }}
+      {selectedRiskModal && (
+        <Modal
+          visible={true}
+          onClose={() => setSelectedRiskModal(null)}
+          title={selectedRiskModal === 'disclosure' ? '📋 알릴의무' : selectedRiskModal === 'medical' ? '🏥 병력고지' : '🚫 부담보'}
         >
-          📋 알릴의무 확인완료
-        </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {selectedRiskModal === 'disclosure' && (
+              <div style={{ background: COLORS.primaryBg, color: COLORS.primary, padding: 14, borderRadius: 12, fontWeight: 800 }}>📋 알릴의무 확인완료</div>
+            )}
+
+            {selectedRiskModal === 'medical' &&
+              medicalItems.map((item, idx) => (
+                <div key={idx} style={{ background: '#F8FAFC', padding: 14, borderRadius: 12, lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 900 }}>🏥 {item.disease || '질병명 미입력'}</div>
+                  {item.diagnosed_at && <div>진단일: {item.diagnosed_at}</div>}
+                  {item.treatment_period && <div>치료기간: {item.treatment_period}</div>}
+                  {item.current_treatment && <div>현재 치료: {item.current_treatment}</div>}
+                  {item.medication && <div>복용약: {item.medication}</div>}
+                  {item.hospitalization && <div>입원: {item.hospitalization}</div>}
+                  {item.surgery && <div>수술: {item.surgery}</div>}
+                  {item.memo && <div>메모: {item.memo}</div>}
+                </div>
+              ))}
+
+            {selectedRiskModal === 'exclusion' &&
+              exclusionItems.map((item, idx) => (
+                <div key={idx} style={{ background: '#FEF2F2', color: '#991B1B', padding: 14, borderRadius: 12, lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 900 }}>🚫 {item.body_part || item.disease || '부담보 항목'}</div>
+                  {item.insurance_company && <div>보험사: {item.insurance_company}</div>}
+                  {item.product_name && <div>상품명: {item.product_name}</div>}
+                  {item.period && <div>기간: {item.period}</div>}
+                  {item.start_date && <div>시작일: {item.start_date}</div>}
+                  {item.end_date && <div>종료일: {item.end_date}</div>}
+                  {item.result && <div>심사결과: {item.result}</div>}
+                  {item.memo && <div>메모: {item.memo}</div>}
+                </div>
+              ))}
+          </div>
+        </Modal>
       )}
 
-      {selectedRiskModal === 'medical' && medicalItems.map((item, idx) => (
-        <div
-          key={idx}
-          style={{
-            background: '#F8FAFC',
-            padding: 14,
-            borderRadius: 12,
-            lineHeight: 1.6,
-          }}
-        >
-          <div style={{ fontWeight: 900 }}>🏥 {item.disease || '질병명 미입력'}</div>
-          {item.diagnosed_at && <div>진단일: {item.diagnosed_at}</div>}
-          {item.treatment_period && <div>치료기간: {item.treatment_period}</div>}
-          {item.current_treatment && <div>현재 치료: {item.current_treatment}</div>}
-          {item.medication && <div>복용약: {item.medication}</div>}
-          {item.hospitalization && <div>입원: {item.hospitalization}</div>}
-          {item.surgery && <div>수술: {item.surgery}</div>}
-          {item.memo && <div>메모: {item.memo}</div>}
-        </div>
-      ))}
+      <EditModal visible={showEdit} onClose={() => setShowEdit(false)} customer={customer} onSave={load} />
 
-      {selectedRiskModal === 'exclusion' && exclusionItems.map((item, idx) => (
-        <div
-          key={idx}
-          style={{
-            background: '#FEF2F2',
-            color: '#991B1B',
-            padding: 14,
-            borderRadius: 12,
-            lineHeight: 1.6,
-          }}
-        >
-          <div style={{ fontWeight: 900 }}>
-            🚫 {item.body_part || item.disease || '부담보 항목'}
-          </div>
-          {item.insurance_company && <div>보험사: {item.insurance_company}</div>}
-          {item.product_name && <div>상품명: {item.product_name}</div>}
-          {item.period && <div>기간: {item.period}</div>}
-          {item.start_date && <div>시작일: {item.start_date}</div>}
-          {item.end_date && <div>종료일: {item.end_date}</div>}
-          {item.result && <div>심사결과: {item.result}</div>}
-          {item.memo && <div>메모: {item.memo}</div>}
-        </div>
-      ))}
-    </div>
-  </Modal>
-)}
-
-      <EditModal
-        visible={showEdit}
-        onClose={() => setShowEdit(false)}
-        customer={customer}
-        onSave={load}
-      />
       {selectedConsultation && (
-  <Modal
-    visible={true}
-    onClose={() => setSelectedConsultation(null)}
-    title="상담기록 상세"
-  >
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
-        <div style={{ fontSize: 12, color: COLORS.textGray }}>카테고리</div>
-        <div style={{ fontWeight: 800, color: COLORS.primary }}>
-          {selectedConsultation.category || '상담'}
-        </div>
-      </div>
+        <Modal visible={true} onClose={() => setSelectedConsultation(null)} title="상담기록 상세">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: COLORS.textGray }}>카테고리</div>
+              <div style={{ fontWeight: 800, color: COLORS.primary }}>{selectedConsultation.category || '상담'}</div>
+            </div>
 
-      <div>
-        <div style={{ fontSize: 12, color: COLORS.textGray }}>상담일시</div>
-        <div>
-          {formatDate(selectedConsultation.consulted_at || selectedConsultation.created_at)}
-        </div>
-      </div>
+            <div>
+              <div style={{ fontSize: 12, color: COLORS.textGray }}>상담일시</div>
+              <div>{formatDate(selectedConsultation.consulted_at || selectedConsultation.created_at)}</div>
+            </div>
 
-      <div>
-        <div style={{ fontSize: 12, color: COLORS.textGray }}>상담내용</div>
-        <div
-          style={{
-            whiteSpace: 'pre-wrap',
-            lineHeight: 1.6,
-            background: '#FAFAFA',
-            padding: 14,
-            borderRadius: 12,
-          }}
-        >
-          {selectedConsultation.content}
-        </div>
-      </div>
+            <div>
+              <div style={{ fontSize: 12, color: COLORS.textGray }}>상담내용</div>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, background: '#FAFAFA', padding: 14, borderRadius: 12 }}>{selectedConsultation.content}</div>
+            </div>
 
-      {selectedConsultation?.disclosure_info?.checked && (
-        <div>
-          <div style={{ fontSize: 12, color: COLORS.textGray }}>알릴의무</div>
-          <div
-            style={{
-              background: COLORS.primaryBg,
-              color: COLORS.primary,
-              padding: 12,
-              borderRadius: 12,
-              fontWeight: 800,
-            }}
-          >
-            📋 확인완료
-          </div>
-        </div>
-      )}
-
-      {(selectedConsultation?.medical_history || []).length > 0 && (
-        <div>
-          <div style={{ fontSize: 12, color: COLORS.textGray }}>병력고지</div>
-          <div
-            style={{
-              background: '#F8FAFC',
-              padding: 12,
-              borderRadius: 12,
-              lineHeight: 1.6,
-            }}
-          >
-            {selectedConsultation.medical_history.map((item, idx) => (
-              <div key={idx}>
-                🏥 {item.disease || '질병명 미입력'}
-                {item.medication ? ` / 복용약: ${item.medication}` : ''}
-                {item.memo ? ` / 메모: ${item.memo}` : ''}
+            {selectedConsultation?.disclosure_info?.checked && (
+              <div>
+                <div style={{ fontSize: 12, color: COLORS.textGray }}>알릴의무</div>
+                <div style={{ background: COLORS.primaryBg, color: COLORS.primary, padding: 12, borderRadius: 12, fontWeight: 800 }}>📋 확인완료</div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
 
-      {(selectedConsultation?.exclusions || []).length > 0 && (
-        <div>
-          <div style={{ fontSize: 12, color: COLORS.textGray }}>부담보</div>
-          <div
-            style={{
-              background: '#FEF2F2',
-              color: '#991B1B',
-              padding: 12,
-              borderRadius: 12,
-              lineHeight: 1.6,
-            }}
-          >
-            {selectedConsultation.exclusions.map((item, idx) => (
-              <div key={idx}>
-                🚫 {item.body_part || item.disease || '부담보 항목'}
-                {item.period ? ` / 기간: ${item.period}` : ''}
-                {item.insurance_company ? ` / 보험사: ${item.insurance_company}` : ''}
+            {(selectedConsultation?.medical_history || []).length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, color: COLORS.textGray }}>병력고지</div>
+                <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 12, lineHeight: 1.6 }}>
+                  {selectedConsultation.medical_history.map((item, idx) => (
+                    <div key={idx}>
+                      🏥 {item.disease || '질병명 미입력'}
+                      {item.medication ? ` / 복용약: ${item.medication}` : ''}
+                      {item.memo ? ` / 메모: ${item.memo}` : ''}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
 
-      {selectedConsultation.next_action && (
-        <div>
-          <div style={{ fontSize: 12, color: COLORS.textGray }}>다음 액션</div>
-          <div
-            style={{
-              background: COLORS.primaryBg,
-              color: COLORS.primary,
-              padding: 12,
-              borderRadius: 12,
-              fontWeight: 700,
-            }}
-          >
-            {selectedConsultation.next_action}
+            {(selectedConsultation?.exclusions || []).length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, color: COLORS.textGray }}>부담보</div>
+                <div style={{ background: '#FEF2F2', color: '#991B1B', padding: 12, borderRadius: 12, lineHeight: 1.6 }}>
+                  {selectedConsultation.exclusions.map((item, idx) => (
+                    <div key={idx}>
+                      🚫 {item.body_part || item.disease || '부담보 항목'}
+                      {item.period ? ` / 기간: ${item.period}` : ''}
+                      {item.insurance_company ? ` / 보험사: ${item.insurance_company}` : ''}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedConsultation.next_action && (
+              <div>
+                <div style={{ fontSize: 12, color: COLORS.textGray }}>다음 액션</div>
+                <div style={{ background: COLORS.primaryBg, color: COLORS.primary, padding: 12, borderRadius: 12, fontWeight: 700 }}>{selectedConsultation.next_action}</div>
+              </div>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
-    </div>
-  </Modal>
-)}
     </div>
   );
 }
+
+const chipButtonStyle = {
+  border: 'none',
+  background: COLORS.primaryBg,
+  color: COLORS.primary,
+  borderRadius: 999,
+  padding: '5px 9px',
+  fontSize: 11,
+  fontWeight: 800,
+  cursor: 'pointer',
+};
