@@ -73,12 +73,12 @@ const roleService = {
     return data || [];
   },
 
-  approve: async (
-    id,
-    userId,
-    role,
-    { organization, branch, office, team } = {}
-  ) => {
+ approve: async (
+  id,
+  userId,
+  role,
+  { userName, organization, branch, office, team } = {}
+) => {
     const cleanText = (value, fallback = '') =>
       String(value || fallback)
         .replace(/\s+/g, '')
@@ -146,17 +146,68 @@ const roleService = {
 
     if (roleError) throw roleError;
 
-    // profiles 업데이트
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({
-        role: profileRole,
-        branch_id: branchId,
-        status: '상담중',
-      })
-      .eq('user_id', userId);
+    // 부모 조직 자동 연결
+let parentUserId = null;
+let roleName = '팀원';
 
-    if (profileError) throw profileError;
+if (role === 'office_head') {
+  roleName = '지점장';
+}
+
+if (role === 'team_leader') {
+  roleName = '팀장';
+}
+
+if (role === 'team_member') {
+  roleName = '팀원';
+
+  if (cleanTeam.includes('박하늘')) {
+    parentUserId = '51490728-b57d-4154-8aee-87a03d004760';
+  } else if (cleanTeam.includes('배세영')) {
+    parentUserId = '5726df75-011c-4944-9266-09f60250a816';
+  }
+}
+
+// 기존 프로필 조회
+const { data: existingProfile } = await supabase
+  .from('profiles')
+  .select('id')
+  .eq('user_id', userId)
+  .maybeSingle();
+
+let profileError = null;
+
+if (existingProfile) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+  name: userName,
+  role: profileRole,
+  role_name: roleName,
+  parent_user_id: parentUserId,
+  branch_id: branchId,
+  status: '상담중',
+})
+    .eq('user_id', userId);
+
+  profileError = error;
+} else {
+  const { error } = await supabase
+    .from('profiles')
+    .insert({
+  user_id: userId,
+  name: userName,
+  role: profileRole,
+  role_name: roleName,
+  parent_user_id: parentUserId,
+  branch_id: branchId,
+  status: '상담중',
+});
+
+  profileError = error;
+}
+
+if (profileError) throw profileError;
 
     // 신청 승인 처리
     const { error } = await supabase

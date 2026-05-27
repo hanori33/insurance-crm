@@ -115,19 +115,21 @@ export default function RoleRequestPage({ user }) {
     }
   }
 
-  async function handleApprove(req) {
-    try {
-      await roleService.approve(req.id, req.user_id, req.requested_role, {
-        organization: req.organization,
-        branch: req.branch,
-        office: req.office,
-        team: req.team,
-      });
-      await load();
-    } catch (e) {
-      alert(e.message || '승인 실패');
-    }
+ async function handleApprove(req) {
+  try {
+    await roleService.approve(req.id, req.user_id, req.requested_role, {
+      userName: req.user_name,
+      organization: req.organization,
+      branch: req.branch,
+      office: req.office,
+      team: req.team,
+    });
+
+    await load();
+  } catch (e) {
+    alert(e.message || '승인 실패');
   }
+}
 
   async function handleReject(req) {
     if (!window.confirm('거절하시겠습니까?')) return;
