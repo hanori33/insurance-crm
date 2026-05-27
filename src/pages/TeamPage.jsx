@@ -313,7 +313,7 @@ function TeamPage({ onBack }) {
 
     const { data: myProfile, error: myProfileError } = await supabase
       .from("profiles")
-      .select("id, user_id, name, role, role_name, parent_user_id, branch_id, status, photo_url")
+      .select("id, user_id, name, role, role_name, parent_user_id, branch_id, status, photo_url, created_at, last_seen")
       .eq("user_id", user.id)
       .single();
 
@@ -350,7 +350,7 @@ function TeamPage({ onBack }) {
 
     const { data: allProfilesData, error: allProfilesError } = await supabase
       .from("profiles")
-      .select("id, user_id, name, role, role_name, parent_user_id, branch_id, status, photo_url, created_at")
+      .select("id, user_id, name, role, role_name, parent_user_id, branch_id, status, photo_url, created_at, last_seen")
       .order("created_at", { ascending: true });
 
     if (allProfilesError) throw allProfilesError;
@@ -423,7 +423,11 @@ function TeamPage({ onBack }) {
         scheduleCount: 0,
         customerCount: 0,
         profile: (m.name || "?").charAt(0),
-        lastSeen: m.user_id === user.id ? "접속중" : "미접속",
+        lastSeen:
+  m.last_seen &&
+  Date.now() - new Date(m.last_seen).getTime() < 5 * 60 * 1000
+    ? "접속중"
+    : "미접속",
         branch_id: m.branch_id,
       };
     });
