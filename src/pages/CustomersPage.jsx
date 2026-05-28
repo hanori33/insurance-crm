@@ -410,15 +410,103 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
           />
         ) : (
           <Card style={{ padding: 0, marginTop: 4 }}>
-            {filteredCustomers.map((c, i) => (
-              <CustomerCard
-                key={c.db_id || c.id || c.app_customer_id || i}
-                customer={c}
-                isLast={i === filteredCustomers.length - 1}
-                onClick={() => onNavigate('customerDetail', { id: c.db_id || c.id })}
-              />
-            ))}
-          </Card>
+  {filteredCustomers.map((c, i) => (
+    <div
+      key={c.db_id || c.id || c.app_customer_id || i}
+      style={{
+        borderBottom:
+          i === filteredCustomers.length - 1
+            ? 'none'
+            : `1px solid ${COLORS.border}`,
+      }}
+    >
+      <CustomerCard
+        customer={c}
+        isLast={i === filteredCustomers.length - 1}
+        onClick={() =>
+          onNavigate('customerDetail', {
+            id: c.db_id || c.id,
+          })
+        }
+      />
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          padding: '0 14px 14px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() =>
+            onNavigate('customerDetail', {
+              id: c.db_id || c.id,
+              tab: 'consultation',
+            })
+          }
+          style={{
+            border: 'none',
+            background: COLORS.primaryBg,
+            color: COLORS.primary,
+            borderRadius: 999,
+            padding: '6px 12px',
+            fontSize: 11,
+            fontWeight: 800,
+            cursor: 'pointer',
+          }}
+        >
+          🩺 상담기록
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            onNavigate('customerDetail', {
+              id: c.db_id || c.id,
+              tab: 'medical',
+            })
+          }
+          style={{
+            border: 'none',
+            background: '#FEF3C7',
+            color: '#D97706',
+            borderRadius: 999,
+            padding: '6px 12px',
+            fontSize: 11,
+            fontWeight: 800,
+            cursor: 'pointer',
+          }}
+        >
+          💊 병력
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            onNavigate('customerDetail', {
+              id: c.db_id || c.id,
+              tab: 'exclusion',
+            })
+          }
+          style={{
+            border: 'none',
+            background: '#FEE2E2',
+            color: '#DC2626',
+            borderRadius: 999,
+            padding: '6px 12px',
+            fontSize: 11,
+            fontWeight: 800,
+            cursor: 'pointer',
+          }}
+        >
+          🚫 부담보
+        </button>
+      </div>
+    </div>
+  ))}
+</Card>
         )}
       </div>
 
