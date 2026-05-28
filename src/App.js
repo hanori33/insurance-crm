@@ -561,10 +561,11 @@ if (page === 'adminInquiry') {
       case 'customerDetail':
         return (
           <CustomerDetailPage
-            customerId={current.payload?.id}
-            onBack={goBack}
-            onNavigate={navigate}
-          />
+  customerId={current.payload?.id}
+  initialTab={current.payload?.tab}
+  onBack={goBack}
+  onNavigate={navigate}
+/>
         );
 
       case 'sales':

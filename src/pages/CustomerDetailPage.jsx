@@ -558,7 +558,12 @@ function EditModal({ visible, onClose, customer, onSave }) {
   );
 }
 
-export default function CustomerDetailPage({ customerId, onBack, onNavigate }) {
+export default function CustomerDetailPage({
+  customerId,
+  initialTab,
+  onBack,
+  onNavigate,
+}) {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
