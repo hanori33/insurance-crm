@@ -118,7 +118,8 @@ function EditModal({ visible, onClose, customer, onSave }) {
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   useEffect(() => {
-    if (!customer) return;
+    if (!customer) return;    
+
 
     setForm({
       name: customer.name || '',
@@ -572,10 +573,28 @@ export default function CustomerDetailPage({
   const [consultations, setConsultations] = useState([]);
   const [consultLoading, setConsultLoading] = useState(false);
   const [customerSchedules, setCustomerSchedules] = useState([]);
-
+  const [activeQuickTab, setActiveQuickTab] = useState(initialTab || '');
+  
   useEffect(() => {
     load();
   }, [customerId]);
+
+  useEffect(() => {
+  if (!activeQuickTab || loading) return;
+
+  const timer = setTimeout(() => {
+    const el = document.getElementById(`quick-section-${activeQuickTab}`);
+
+    if (el) {
+      el.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  }, 300);
+
+  return () => clearTimeout(timer);
+}, [activeQuickTab, loading, consultations]);
 
   async function load() {
     setLoading(true);
@@ -658,6 +677,7 @@ export default function CustomerDetailPage({
   const schedules = Array.isArray(customerSchedules) ? customerSchedules : [];
   const medicalItems = consultations.flatMap((item) => item.medical_history || []);
   const exclusionItems = consultations.flatMap((item) => item.exclusions || []);
+ 
   const disclosureDone = consultations.some((item) => item?.disclosure_info?.checked);
 
   const timelineItems = [
@@ -755,7 +775,8 @@ export default function CustomerDetailPage({
             )}
           </Card>
 
-          <Section title="기본 정보" icon="👤">
+          <div id="quick-section-medical">
+            <Section title="기본 정보" icon="👤">
             <InfoRow label="생년월일" value={val(customer.birth)} />
             <InfoRow label="주민번호" value={val(customer.ssn_masked)} />
             <InfoRow label="이메일" value={val(customer.email)} />
@@ -777,6 +798,7 @@ export default function CustomerDetailPage({
             <InfoRow label="관계" value={val(customer.relation_type)} />
             <InfoRow label="등록일" value={formatDate(customer.created_at)} isLast />
           </Section>
+          </div>
 
           {(val(customer.pet_name) || val(customer.baby_name) || val(customer.car_number) || val(customer.transfer_day) || val(customer.car_expiry) || val(customer.due_date)) && (
             <Section title="추가 정보" icon="📋">
@@ -828,7 +850,8 @@ export default function CustomerDetailPage({
             )}
           </Section>
 
-          <Section title="보험 이력" icon="📋">
+          <div id="quick-section-exclusion">
+  <Section title="보험 이력" icon="📋">
             {policies.length === 0 ? (
               <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
                 등록된 보험 이력이 없습니다. 편집에서 보험 이력을 추가하세요.
@@ -841,8 +864,10 @@ export default function CustomerDetailPage({
               </div>
             )}
           </Section>
+          </div>
 
-          <Section title="상담 기록" icon="📝">
+          <div id="quick-section-consultation">
+              <Section title="상담 기록" icon="📝">
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -42, marginBottom: 14 }}>
               <button
                 onClick={() =>
@@ -902,6 +927,7 @@ export default function CustomerDetailPage({
               </div>
             )}
           </Section>
+          </div>
 
           {customer.tags && customer.tags.length > 0 && (
             <Section title="태그" icon="🏷️">
