@@ -779,8 +779,7 @@ useEffect(() => {
             )}
           </Card>
 
-          <div id="quick-section-medical">
-            <Section title="기본 정보" icon="👤">
+          <Section title="기본 정보" icon="👤">
             <InfoRow label="생년월일" value={val(customer.birth)} />
             <InfoRow label="주민번호" value={val(customer.ssn_masked)} />
             <InfoRow label="이메일" value={val(customer.email)} />
@@ -802,6 +801,55 @@ useEffect(() => {
             <InfoRow label="관계" value={val(customer.relation_type)} />
             <InfoRow label="등록일" value={formatDate(customer.created_at)} isLast />
           </Section>
+
+          <div id="quick-section-medical">
+            <Section title="병력 / 알릴의무" icon="💊">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div
+                  style={{
+                    background: disclosureDone ? COLORS.primaryBg : '#F8FAFC',
+                    color: disclosureDone ? COLORS.primary : COLORS.textGray,
+                    padding: 14,
+                    borderRadius: 12,
+                    fontSize: 13,
+                    fontWeight: 800,
+                  }}
+                >
+                  {disclosureDone ? '📋 알릴의무 확인완료' : '📋 등록된 알릴의무 확인 정보가 없습니다.'}
+                </div>
+
+                {medicalItems.length > 0 ? (
+                  medicalItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: '#F8FAFC',
+                        padding: 14,
+                        borderRadius: 12,
+                        lineHeight: 1.6,
+                        fontSize: 13,
+                        color: COLORS.text,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, marginBottom: 4 }}>
+                        🏥 {item.disease || '질병명 미입력'}
+                      </div>
+                      {item.diagnosed_at && <div>진단일: {item.diagnosed_at}</div>}
+                      {item.treatment_period && <div>치료기간: {item.treatment_period}</div>}
+                      {item.current_treatment && <div>현재 치료: {item.current_treatment}</div>}
+                      {item.medication && <div>복용약: {item.medication}</div>}
+                      {item.hospitalization && <div>입원: {item.hospitalization}</div>}
+                      {item.surgery && <div>수술: {item.surgery}</div>}
+                      {item.memo && <div>메모: {item.memo}</div>}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
+                    등록된 병력 정보가 없습니다.
+                  </div>
+                )}
+              </div>
+            </Section>
           </div>
 
           {(val(customer.pet_name) || val(customer.baby_name) || val(customer.car_number) || val(customer.transfer_day) || val(customer.car_expiry) || val(customer.due_date)) && (
@@ -855,7 +903,43 @@ useEffect(() => {
           </Section>
 
           <div id="quick-section-exclusion">
-  <Section title="보험 이력" icon="📋">
+            <Section title="부담보" icon="🚫">
+              {exclusionItems.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {exclusionItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: '#FEF2F2',
+                        color: '#991B1B',
+                        padding: 14,
+                        borderRadius: 12,
+                        lineHeight: 1.6,
+                        fontSize: 13,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, marginBottom: 4 }}>
+                        🚫 {item.body_part || item.disease || '부담보 항목'}
+                      </div>
+                      {item.insurance_company && <div>보험사: {item.insurance_company}</div>}
+                      {item.product_name && <div>상품명: {item.product_name}</div>}
+                      {item.period && <div>기간: {item.period}</div>}
+                      {item.start_date && <div>시작일: {item.start_date}</div>}
+                      {item.end_date && <div>종료일: {item.end_date}</div>}
+                      {item.result && <div>심사결과: {item.result}</div>}
+                      {item.memo && <div>메모: {item.memo}</div>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
+                  등록된 부담보 정보가 없습니다.
+                </div>
+              )}
+            </Section>
+          </div>
+
+          <Section title="보험 이력" icon="📋">
             {policies.length === 0 ? (
               <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
                 등록된 보험 이력이 없습니다. 편집에서 보험 이력을 추가하세요.
@@ -868,7 +952,6 @@ useEffect(() => {
               </div>
             )}
           </Section>
-          </div>
 
           <div id="quick-section-consultation">
               <Section title="상담 기록" icon="📝">
