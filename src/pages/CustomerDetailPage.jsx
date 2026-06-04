@@ -575,6 +575,10 @@ export default function CustomerDetailPage({
   const [customerSchedules, setCustomerSchedules] = useState([]);
   const [activeQuickTab, setActiveQuickTab] = useState(initialTab || '');
   
+useEffect(() => {
+  setActiveQuickTab(initialTab || '');
+}, [initialTab, customerId]);
+
   useEffect(() => {
     load();
   }, [customerId]);
