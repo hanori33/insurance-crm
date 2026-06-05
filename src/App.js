@@ -31,6 +31,7 @@ import AdminInquiryPage from './pages/AdminInquiryPage';
 import { getToken, onMessage } from 'firebase/messaging';
 import { getFirebaseMessaging, VAPID_KEY } from './firebase';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import FaxClaimPage from './pages/FaxClaimPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -674,11 +675,7 @@ if (page === 'adminInquiry') {
         );
 
       case 'fax':
-        return (
-          <div style={{ padding: 40, color: COLORS.text, fontSize: 16 }}>
-            보험팩스청구 준비 중입니다.
-          </div>
-        );
+  return <FaxClaimPage onBack={() => setActiveTab('home')} />;
 
       case 'roleRequest':
         return <RoleRequestPage user={user} />;

@@ -684,6 +684,24 @@ useEffect(() => {
  
   const disclosureDone = consultations.some((item) => item?.disclosure_info?.checked);
 
+    let faxClaims = [];
+
+  try {
+    faxClaims = JSON.parse(localStorage.getItem('boplan_fax_claims') || '[]');
+  } catch {
+    faxClaims = [];
+  }
+
+  const customerFaxClaims = faxClaims.filter((claim) => {
+    const customerKeys = [
+      customer.db_id,
+      customer.app_customer_id,
+      customer.id,
+    ].filter(Boolean).map(String);
+
+    return customerKeys.includes(String(claim.customer_id));
+  });
+
   const timelineItems = [
     ...consultations.map((item) => ({
       id: `consult-${item.id}`,
@@ -708,6 +726,14 @@ useEffect(() => {
       title: schedule.title || '등록된 일정',
       sub: schedule.memo || '',
       date: schedule.scheduled_at || schedule.created_at,
+    })),
+        ...customerFaxClaims.map((claim) => ({
+      id: `fax-${claim.id}`,
+      icon: '📠',
+      type: '보험금 청구',
+      title: `${claim.insurance_company || '보험사 미입력'} / ${claim.claim_type || '청구유형 미입력'}`,
+      sub: claim.memo ? `메모: ${claim.memo}` : '',
+      date: claim.created_at,
     })),
   ]
     .filter((item) => item.title)
@@ -802,6 +828,31 @@ useEffect(() => {
             <InfoRow label="등록일" value={formatDate(customer.created_at)} isLast />
           </Section>
 
+          {(val(customer.pet_name) || val(customer.baby_name) || val(customer.car_number) || val(customer.transfer_day) || val(customer.car_expiry) || val(customer.due_date)) && (
+            <Section title="추가 정보" icon="📋">
+              {val(customer.pet_name) && <InfoRow label="🐶 반려동물" value={customer.pet_name} />}
+              {val(customer.baby_name) && <InfoRow label="👶 태아/자녀" value={customer.baby_name} />}
+              {val(customer.due_date) && <InfoRow label="🍼 출산예정일" value={customer.due_date} />}
+              {val(customer.car_number) && <InfoRow label="🚗 차량번호" value={customer.car_number} />}
+              {val(customer.car_expiry) && <InfoRow label="📅 자동차만기" value={customer.car_expiry} />}
+              {val(customer.transfer_day) && <InfoRow label="💳 이체일" value={customer.transfer_day} isLast />}
+            </Section>
+          )}
+
+          <Section title="보험 이력" icon="📋">
+            {policies.length === 0 ? (
+              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
+                등록된 보험 이력이 없습니다. 편집에서 보험 이력을 추가하세요.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {policies.map((policy, idx) => (
+                  <PolicyCard key={policy.id || idx} policy={policy} />
+                ))}
+              </div>
+            )}
+          </Section>
+
           <div id="quick-section-medical">
             <Section title="병력 / 알릴의무" icon="💊">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -852,56 +903,6 @@ useEffect(() => {
             </Section>
           </div>
 
-          {(val(customer.pet_name) || val(customer.baby_name) || val(customer.car_number) || val(customer.transfer_day) || val(customer.car_expiry) || val(customer.due_date)) && (
-            <Section title="추가 정보" icon="📋">
-              {val(customer.pet_name) && <InfoRow label="🐶 반려동물" value={customer.pet_name} />}
-              {val(customer.baby_name) && <InfoRow label="👶 태아/자녀" value={customer.baby_name} />}
-              {val(customer.due_date) && <InfoRow label="🍼 출산예정일" value={customer.due_date} />}
-              {val(customer.car_number) && <InfoRow label="🚗 차량번호" value={customer.car_number} />}
-              {val(customer.car_expiry) && <InfoRow label="📅 자동차만기" value={customer.car_expiry} />}
-              {val(customer.transfer_day) && <InfoRow label="💳 이체일" value={customer.transfer_day} isLast />}
-            </Section>
-          )}
-
-          <Section title="최근 활동" icon="🧭">
-            {timelineItems.length === 0 ? (
-              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>최근 활동이 없습니다.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {timelineItems.map((item) => (
-                  <div key={item.id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: `1px solid ${COLORS.border}` }}>
-                    <div
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 12,
-                        background: COLORS.primaryBg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        fontSize: 16,
-                      }}
-                    >
-                      {item.icon}
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.primary }}>{item.type}</div>
-                      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.4, wordBreak: 'keep-all' }}>
-                        {item.title}
-                      </div>
-                      <div style={{ marginTop: 5, fontSize: 11, color: COLORS.textGray }}>
-                        {item.sub && `${item.sub} · `}
-                        {formatDate(item.date)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
-
           <div id="quick-section-exclusion">
             <Section title="부담보" icon="🚫">
               {exclusionItems.length > 0 ? (
@@ -938,20 +939,6 @@ useEffect(() => {
               )}
             </Section>
           </div>
-
-          <Section title="보험 이력" icon="📋">
-            {policies.length === 0 ? (
-              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
-                등록된 보험 이력이 없습니다. 편집에서 보험 이력을 추가하세요.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {policies.map((policy, idx) => (
-                  <PolicyCard key={policy.id || idx} policy={policy} />
-                ))}
-              </div>
-            )}
-          </Section>
 
           <div id="quick-section-consultation">
               <Section title="상담 기록" icon="📝">
@@ -1015,6 +1002,45 @@ useEffect(() => {
             )}
           </Section>
           </div>
+
+          <Section title="최근 활동" icon="🧭">
+            {timelineItems.length === 0 ? (
+              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>최근 활동이 없습니다.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {timelineItems.map((item) => (
+                  <div key={item.id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: `1px solid ${COLORS.border}` }}>
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 12,
+                        background: COLORS.primaryBg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        fontSize: 16,
+                      }}
+                    >
+                      {item.icon}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.primary }}>{item.type}</div>
+                      <div style={{ marginTop: 2, fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.4, wordBreak: 'keep-all' }}>
+                        {item.title}
+                      </div>
+                      <div style={{ marginTop: 5, fontSize: 11, color: COLORS.textGray }}>
+                        {item.sub && `${item.sub} · `}
+                        {formatDate(item.date)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
 
           {customer.tags && customer.tags.length > 0 && (
             <Section title="태그" icon="🏷️">
