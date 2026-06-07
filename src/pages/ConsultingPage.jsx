@@ -4,6 +4,7 @@ import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import Modal from '../components/Modal';
+import { supabase } from '../supabaseClient';
 
 const CATEGORY_OPTIONS = ['상담', '계약', '보완', '청구', '관리', '리모델링', '해지방어', '기타'];
 
@@ -81,6 +82,10 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
   const [showDisclosureModal, setShowDisclosureModal] = useState(false);
   const [showMedicalModal, setShowMedicalModal] = useState(false);
   const [showExclusionModal, setShowExclusionModal] = useState(false);
+
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
 
   const recognitionRef = useRef(null);
 
@@ -327,6 +332,89 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       .join(', ');
   }
 
+  function hasAiAnalysisInput() {
+    const disclosureMemo = form.disclosure_info?.memo || '';
+    const medicalList = form.medical_history || [];
+    const exclusionList = form.exclusions || [];
+
+    const hasDisclosure =
+      !!form.disclosure_info?.checked ||
+      !!disclosureMemo.trim() ||
+      !!form.disclosure_info?.recent3m?.treatment ||
+      !!form.disclosure_info?.recent3m?.test ||
+      !!form.disclosure_info?.recent3m?.medication ||
+      !!form.disclosure_info?.recent1y?.additional_test ||
+      !!form.disclosure_info?.recent1y?.recheck ||
+      !!form.disclosure_info?.recent5y?.hospitalization ||
+      !!form.disclosure_info?.recent5y?.surgery ||
+      !!form.disclosure_info?.recent5y?.long_treatment ||
+      !!form.disclosure_info?.recent5y?.long_medication ||
+      !!form.disclosure_info?.risk_job ||
+      !!form.disclosure_info?.risk_hobby ||
+      !!form.disclosure_info?.driving ||
+      !!form.disclosure_info?.pregnancy;
+
+    const hasMedical = medicalList.some(item =>
+      Object.values(item || {}).some(value => String(value || '').trim())
+    );
+
+    const hasExclusion = exclusionList.some(item =>
+      Object.values(item || {}).some(value => String(value || '').trim())
+    );
+
+    return hasDisclosure || hasMedical || hasExclusion;
+  }
+
+  function normalizeAiResult(data) {
+    const result = data?.result || data || {};
+
+    return {
+      medicalSummary: result.medicalSummary || result.medical_summary || result['병력 요약'] || '',
+      additionalQuestions: result.additionalQuestions || result.additional_questions || result['추가 확인 질문'] || '',
+      disclosureCheckPoints: result.disclosureCheckPoints || result.disclosure_check_points || result['알릴의무 체크 포인트'] || '',
+      underwritingNotes: result.underwritingNotes || result.underwriting_notes || result['심사 참고사항'] || '',
+      customerScript: result.customerScript || result.customer_script || result['고객 상담 멘트'] || '',
+    };
+  }
+
+  async function handleAiAnalyze() {
+    if (!hasAiAnalysisInput()) {
+      alert('AI 분석할 알릴의무, 병력고지 또는 부담보 내용을 먼저 입력해주세요.');
+      return;
+    }
+
+    setAiAnalyzing(true);
+
+    try {
+      const payload = {
+        customer_name: form.customer_name || '',
+        category: form.category || '상담',
+        consultation_content: form.content || '',
+        next_action: form.next_action || '',
+        disclosure_info: form.disclosure_info || {},
+        medical_history: form.medical_history || [],
+        exclusions: form.exclusions || [],
+      };
+
+      const { data, error } = await supabase.functions.invoke('boplan-ai-analysis', {
+        body: payload,
+      });
+
+      if (error) throw error;
+
+      setAiResult(normalizeAiResult(data));
+      setShowAiModal(true);
+    } catch (e) {
+      console.error(e);
+      alert(
+        'AI 분석에 실패했습니다. Supabase Edge Function(boplan-ai-analysis) 설정을 확인해주세요.\n' +
+        (e.message || JSON.stringify(e))
+      );
+    } finally {
+      setAiAnalyzing(false);
+    }
+  }
+
   async function handleSave() {
     if (!form.customer_name.trim()) {
       alert('고객명을 선택하거나 직접 입력해주세요.');
@@ -381,7 +469,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       category: item.category || '상담',
       content: item.content || '',
       next_action: item.next_action || '',
-      disclosure_info: item.disclosure_info || emptyForm.disclosure_info,
+      disclosure_info: item.disclosure_info || createEmptyForm().disclosure_info,
       medical_history: item.medical_history || [],
       exclusions: item.exclusions || [],
     });
@@ -595,12 +683,25 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
                 style={inputStyle}
               />
 
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={saveButtonWrapStyle}>
                 {editingId && (
                   <button onClick={resetForm} style={cancelButtonStyle}>
                     취소
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handleAiAnalyze}
+                  disabled={aiAnalyzing}
+                  style={{
+                    ...aiAnalyzeButtonStyle,
+                    opacity: aiAnalyzing ? 0.6 : 1,
+                    cursor: aiAnalyzing ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {aiAnalyzing ? '분석 중...' : '🧠 AI 분석'}
+                </button>
 
                 <button
                   onClick={handleSave}
@@ -1107,6 +1208,52 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
 </button>
         </div>
       </Modal>
+
+      <Modal
+        visible={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        title="🧠 AI 상담 분석"
+      >
+        <div style={modalBodyStyle}>
+          <div style={aiNoticeStyle}>
+            ※ AI 분석은 상담 보조용입니다. 실제 고지의무 판단, 인수심사 결과, 보험금 지급 여부는 각 보험사 기준과 약관에 따라 달라질 수 있어요.
+          </div>
+
+          <AiResultSection
+            number="1"
+            title="병력 요약"
+            content={aiResult?.medicalSummary}
+          />
+          <AiResultSection
+            number="2"
+            title="추가 확인 질문"
+            content={aiResult?.additionalQuestions}
+          />
+          <AiResultSection
+            number="3"
+            title="알릴의무 체크 포인트"
+            content={aiResult?.disclosureCheckPoints}
+          />
+          <AiResultSection
+            number="4"
+            title="심사 참고사항"
+            content={aiResult?.underwritingNotes}
+          />
+          <AiResultSection
+            number="5"
+            title="고객 상담 멘트"
+            content={aiResult?.customerScript}
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowAiModal(false)}
+            style={primaryFullButtonStyle}
+          >
+            닫기
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }
@@ -1141,6 +1288,19 @@ function CheckItem({ label, checked, onChange }) {
       />
       {label}
     </label>
+  );
+}
+
+function AiResultSection({ number, title, content }) {
+  return (
+    <div style={aiSectionStyle}>
+      <div style={aiSectionTitleStyle}>
+        {number}. {title}
+      </div>
+      <div style={aiSectionContentStyle}>
+        {content ? String(content) : '분석 결과가 없습니다.'}
+      </div>
+    </div>
   );
 }
 
@@ -1235,6 +1395,25 @@ const modalOpenButtonStyle = {
   cursor: 'pointer',
   fontWeight: 800,
   fontSize: 12,
+};
+
+const saveButtonWrapStyle = {
+  display: 'flex',
+  gap: 8,
+  alignItems: 'stretch',
+  flexWrap: 'wrap',
+};
+
+const aiAnalyzeButtonStyle = {
+  flex: 1,
+  minWidth: 120,
+  border: 'none',
+  background: '#111827',
+  color: '#fff',
+  borderRadius: 12,
+  padding: '13px 0',
+  fontWeight: 900,
+  fontSize: 14,
 };
 
 const cancelButtonStyle = {
@@ -1342,4 +1521,36 @@ const summaryChipStyle = {
   padding: '6px 9px',
   fontSize: 11,
   fontWeight: 800,
+};
+
+const aiNoticeStyle = {
+  background: '#EEF2FF',
+  color: '#3730A3',
+  border: '1px solid #C7D2FE',
+  borderRadius: 12,
+  padding: '10px 11px',
+  fontSize: 12,
+  fontWeight: 800,
+  lineHeight: 1.5,
+};
+
+const aiSectionStyle = {
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 14,
+  padding: 12,
+  background: '#fff',
+};
+
+const aiSectionTitleStyle = {
+  fontSize: 13,
+  fontWeight: 900,
+  color: COLORS.text,
+  marginBottom: 7,
+};
+
+const aiSectionContentStyle = {
+  whiteSpace: 'pre-wrap',
+  fontSize: 13,
+  color: COLORS.text,
+  lineHeight: 1.6,
 };
