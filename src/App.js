@@ -32,6 +32,7 @@ import { getToken, onMessage } from 'firebase/messaging';
 import { getFirebaseMessaging, VAPID_KEY } from './firebase';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import FaxClaimPage from './pages/FaxClaimPage';
+import DiseaseDictionaryPage from './pages/DiseaseDictionaryPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -434,10 +435,17 @@ useEffect(() => {
       return;
     }
 
+    if (page === 'diseaseDictionary') {
+  setStack([]);
+  setActiveTab('diseaseDictionary');
+  return;
+}
+
     if (page === 'consulting') {
       setStack([]);
       setActiveTab('consulting');
 
+      
       if (payload?.initialCustomer) {
         setStack([{ page: 'consulting', payload }]);
       }
@@ -604,6 +612,13 @@ if (page === 'adminInquiry') {
           />
         );
 
+        case 'diseaseDictionary':
+  return (
+    <DiseaseDictionaryPage
+      onBack={() => setActiveTab('consulting')}
+    />
+  );
+
       default:
         return null;
     }
@@ -673,6 +688,13 @@ if (page === 'adminInquiry') {
             onNavigate={navigate}
           />
         );
+
+        case 'diseaseDictionary':
+  return (
+    <DiseaseDictionaryPage
+      onBack={() => setActiveTab('consulting')}
+    />
+  );
 
       case 'fax':
   return <FaxClaimPage onBack={() => setActiveTab('home')} />;
@@ -860,6 +882,7 @@ if (!session) {
             { id: 'customers', icon: '👥', label: '고객 관리' },
             { id: 'schedule', icon: '📅', label: '일정 관리' },
             { id: 'consulting', icon: '📝', label: '상담 기록' },
+            { id: 'diseaseDictionary', icon: '📚', label: '병력사전' },
             { id: 'sales', icon: '📊', label: '통계 / 분석' },
             { id: 'tree', icon: '🌳', label: '소개 트리' },
             { id: 'team', icon: '👨‍👩‍👧', label: '팀 관리' },
