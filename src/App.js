@@ -33,6 +33,7 @@ import { getFirebaseMessaging, VAPID_KEY } from './firebase';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import FaxClaimPage from './pages/FaxClaimPage';
 import DiseaseDictionaryPage from './pages/DiseaseDictionaryPage';
+import TermsPage from './pages/TermsPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -519,6 +520,12 @@ useEffect(() => {
   return;
 }
 
+if (page === 'terms') {
+  setStack([]);
+  setActiveTab('terms');
+  return;
+}
+
 if (page === 'deleteAccount') {
   setStack([]);
   setActiveTab('deleteAccount');
@@ -729,6 +736,13 @@ case 'adminInquiry':
     />
   );
 
+  case 'terms':
+  return (
+    <TermsPage
+      onBack={() => setActiveTab('more')}
+    />
+  );
+
 case 'deleteAccount':
   return (
     <DeleteAccountPage
@@ -882,7 +896,6 @@ if (!session) {
             { id: 'customers', icon: '👥', label: '고객 관리' },
             { id: 'schedule', icon: '📅', label: '일정 관리' },
             { id: 'consulting', icon: '📝', label: '상담 기록' },
-            { id: 'diseaseDictionary', icon: '📚', label: '병력사전' },
             { id: 'sales', icon: '📊', label: '통계 / 분석' },
             { id: 'tree', icon: '🌳', label: '소개 트리' },
             { id: 'team', icon: '👨‍👩‍👧', label: '팀 관리' },
@@ -890,6 +903,15 @@ if (!session) {
             { id: 'insuranceContact', icon: '📞', label: '보험사 연락처' },
             { id: 'roleRequest', icon: '🔑', label: '권한 신청' },
             { id: 'more', icon: '⚙️', label: '설정' },
+            ...(session?.user?.email === 'gksmf629@naver.com'
+  ? [
+      {
+        id: 'diseaseDictionary',
+        icon: '📚',
+        label: '보험사전',
+      },
+    ]
+  : []),
           ].map(tab => (
             <button
               key={tab.id}

@@ -398,6 +398,11 @@ export default function MorePage({ user, onNavigate }) {
       onClick: () => onNavigate('privacyPolicy'),
     },
     {
+  icon: '📜',
+  label: '이용약관',
+  onClick: () => onNavigate('terms'),
+},
+    {
       icon: '🗑️',
       label: '계정 삭제',
       onClick: () => onNavigate('deleteAccount'),

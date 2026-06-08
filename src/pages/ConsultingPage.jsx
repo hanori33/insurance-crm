@@ -5,6 +5,7 @@ import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import Modal from '../components/Modal';
 import { supabase } from '../supabaseClient';
+import diseaseDictionaryService from '../services/diseaseDictionaryService';
 
 const CATEGORY_OPTIONS = ['상담', '계약', '보완', '청구', '관리', '리모델링', '해지방어', '기타'];
 
@@ -377,7 +378,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
     };
   }
 
-  async function handleAiAnalyze() {
+   async function handleAiAnalyze() {
     if (!hasAiAnalysisInput()) {
       alert('AI 분석할 알릴의무, 병력고지 또는 부담보 내용을 먼저 입력해주세요.');
       return;
@@ -396,6 +397,8 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
         exclusions: form.exclusions || [],
       };
 
+      
+
       const { data, error } = await supabase.functions.invoke('boplan-ai-analysis', {
         body: payload,
       });
@@ -412,6 +415,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       );
     } finally {
       setAiAnalyzing(false);
+    
     }
   }
 
@@ -700,7 +704,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
                     cursor: aiAnalyzing ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {aiAnalyzing ? '분석 중...' : '🧠 AI 분석'}
+                  {aiAnalyzing ? '분석 중...' : '🧠 AI 병력 분석'}
                 </button>
 
                 <button
@@ -1212,46 +1216,56 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       <Modal
         visible={showAiModal}
         onClose={() => setShowAiModal(false)}
-        title="🧠 AI 상담 분석"
+        title="🧠 AI 병력분석 결과"
       >
-        <div style={modalBodyStyle}>
-          <div style={aiNoticeStyle}>
-            ※ AI 분석은 상담 보조용입니다. 실제 고지의무 판단, 인수심사 결과, 보험금 지급 여부는 각 보험사 기준과 약관에 따라 달라질 수 있어요.
-          </div>
+ 
+  <div style={modalBodyStyle}>
+    <div style={aiNoticeStyle}>
+      ※ AI병력분석은 상담 보조용입니다.
+      실제 고지의무 판단, 인수심사 결과 및 보험금 지급 여부는
+      보험사 기준과 약관에 따라 달라질 수 있습니다.
+    </div>
 
-          <AiResultSection
-            number="1"
-            title="병력 요약"
-            content={aiResult?.medicalSummary}
-          />
-          <AiResultSection
-            number="2"
-            title="추가 확인 질문"
-            content={aiResult?.additionalQuestions}
-          />
-          <AiResultSection
-            number="3"
-            title="알릴의무 체크 포인트"
-            content={aiResult?.disclosureCheckPoints}
-          />
-          <AiResultSection
-            number="4"
-            title="심사 참고사항"
-            content={aiResult?.underwritingNotes}
-          />
-          <AiResultSection
-            number="5"
-            title="고객 상담 멘트"
-            content={aiResult?.customerScript}
-          />
 
-          <button
-            type="button"
-            onClick={() => setShowAiModal(false)}
-            style={primaryFullButtonStyle}
-          >
-            닫기
-          </button>
+<AiResultSection
+  number="📌"
+  title="고객 상태 요약"
+  content={aiResult?.medicalSummary}
+/>
+
+<AiResultSection
+  number="❓"
+  title="추가 확인할 질문"
+  content={aiResult?.additionalQuestions}
+/>
+
+<AiResultSection
+  number="⚠️"
+  title="알릴의무 체크"
+  content={aiResult?.disclosureCheckPoints}
+/>
+
+<AiResultSection
+  number="🏥"
+  title="심사 참고"
+  content={aiResult?.underwritingNotes}
+/>
+
+<AiResultSection
+  number="💬"
+  title="고객 설명 멘트"
+  content={aiResult?.customerScript}
+/>
+
+<button
+  type="button"
+  onClick={() => setShowAiModal(false)}
+  style={primaryFullButtonStyle}
+>
+  닫기
+</button>
+
+
         </div>
       </Modal>
     </>

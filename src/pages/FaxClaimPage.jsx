@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
+import faxHistoryService from '../services/faxHistoryService';
 
 const STORAGE_KEY = 'boplan_fax_claims';
 
@@ -113,19 +114,15 @@ export default function FaxClaimPage({ onBack }) {
     }
   }
 
-  function loadClaims() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      setClaims(Array.isArray(saved) ? saved : []);
-    } catch {
-      setClaims([]);
-    }
+  async function loadClaims() {
+  try {
+    const data = await faxHistoryService.list();
+    setClaims(data || []);
+  } catch (e) {
+    console.error(e);
+    alert('팩스 이력을 불러오지 못했습니다.');
   }
-
-  function saveClaims(next) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setClaims(next);
-  }
+}
 
   function handleCompanyChange(name) {
     setSelectedCompany(name);
@@ -172,7 +169,7 @@ export default function FaxClaimPage({ onBack }) {
     setSelectedFiles([]);
   }
 
-  function handleSaveClaim() {
+  async function handleSaveClaim() {
     if (!selectedCustomer) {
       alert('고객을 선택해주세요.');
       return;
@@ -201,17 +198,26 @@ export default function FaxClaimPage({ onBack }) {
       updated_at: now,
     };
 
-    const next = [item, ...claims];
-    saveClaims(next);
-    alert('청구이력이 저장되었습니다.');
-    resetForm();
-  }
+    await faxHistoryService.create(item);
 
-  function handleDeleteClaim(id) {
-    if (!window.confirm('이 청구이력을 삭제할까요?')) return;
-    const next = claims.filter((item) => item.id !== id);
-    saveClaims(next);
+await loadClaims();
+
+alert('팩스 청구이력이 저장되었습니다.');
+
+resetForm();
+}
+
+  async function handleDeleteClaim(id) {
+  if (!window.confirm('이 청구이력을 삭제할까요?')) return;
+
+  try {
+    await faxHistoryService.remove(id);
+    await loadClaims();
+  } catch (e) {
+    console.error(e);
+    alert('청구이력 삭제 실패');
   }
+}
 
   function openClaimForm() {
     if (!selectedCompanyInfo?.pdf) {
