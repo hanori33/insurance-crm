@@ -209,7 +209,7 @@ export default function FaxClaimPage({ onBack }) {
 
     const item = {
       id: `fax-${Date.now()}`,
-      customer_id: String(selectedCustomer.app_customer_id || selectedCustomer.id || selectedCustomer.db_id || ''),
+      customer_id: String(selectedCustomer.db_id || selectedCustomer.id || ''),
       customer_name: selectedCustomer.name || '',
       customer_phone: selectedCustomer.phone || '',
       insurance_company: selectedCompany,
