@@ -4,7 +4,7 @@ import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
 import faxHistoryService from '../services/faxHistoryService';
-
+import consultationService from '../services/consultationService';
 const STORAGE_KEY = 'boplan_fax_claims';
 
 const CLAIM_TYPES = ['실손', '진단비', '수술비', '입원비', '운전자', '치아', '기타'];
@@ -228,11 +228,26 @@ export default function FaxClaimPage({ onBack }) {
       updated_at: now,
     };
 
-    await faxHistoryService.create(item);
-    await loadClaims();
+   await faxHistoryService.create(item);
 
-    alert(`팩스 발송 완료!\n접수번호: ${result.receiptNum}`);
-    resetForm();
+await consultationService.create({
+  customer_id: item.customer_id,
+  customer_name: item.customer_name,
+  category: '보험금청구',
+  content: `[보험금청구]
+보험사: ${selectedCompany}
+청구유형: ${claimType}
+팩스번호: ${faxNumber}
+접수번호: ${result.receiptNum}
+첨부파일: ${selectedFiles.map((file) => file.name).join(', ') || '-'}
+메모: ${memo.trim() || '-'}`,
+  consulted_at: now,
+});
+
+await loadClaims();
+
+alert(`팩스 발송 완료!\n접수번호: ${result.receiptNum}`);
+resetForm();
   } catch (e) {
     console.error(e);
     alert('팩스 발송 중 오류가 발생했습니다: ' + (e.message || '알 수 없는 오류'));
