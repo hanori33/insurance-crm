@@ -1,4 +1,4 @@
-const formidable = require('formidable');
+const { IncomingForm } = require('formidable');
 const popbill = require('popbill');
 
 popbill.config({
@@ -13,11 +13,11 @@ popbill.config({
 const faxService = popbill.FaxService();
 
 function parseForm(req) {
-  const form = formidable({
-    multiples: true,
-    keepExtensions: true,
-    uploadDir: '/tmp',
-  });
+  const form = new IncomingForm({
+  multiples: true,
+  keepExtensions: true,
+  uploadDir: '/tmp',
+});
 
   return new Promise((resolve, reject) => {
     form.parse(req, (err, fields, files) => {
