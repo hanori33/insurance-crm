@@ -85,11 +85,15 @@ module.exports = async function handler(req, res) {
         });
       },
       (error) => {
-        return res.status(500).json({
-          error: error.message,
-          code: error.code,
-        });
-      }
+  console.log('POPBILL ERROR');
+  console.log(error);
+
+  return res.status(500).json({
+    error: error.message,
+    code: error.code,
+    detail: JSON.stringify(error),
+  });
+}
     );
   } catch (e) {
     return res.status(500).json({ error: e.message || '팩스 발송 실패' });
