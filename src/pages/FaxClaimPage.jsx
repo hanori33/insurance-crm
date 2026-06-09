@@ -136,15 +136,10 @@ export default function FaxClaimPage({ onBack }) {
     setFaxNumber(found.faxType === 'manual' ? '' : found.fax || '');
   }
 
-  function handleFileChange(e) {
-    const files = Array.from(e.target.files || []);
-    const nextFiles = files.map((file) => ({
-      name: file.name,
-      size: file.size,
-      type: file.type,
-    }));
-    setSelectedFiles(nextFiles);
-  }
+ function handleFileChange(e) {
+  const files = Array.from(e.target.files || []);
+  setSelectedFiles(files);
+}
 
   async function copyFaxNumber() {
     if (!faxNumber) {
@@ -169,21 +164,49 @@ export default function FaxClaimPage({ onBack }) {
     setSelectedFiles([]);
   }
 
-  async function handleSaveClaim() {
-    if (!selectedCustomer) {
-      alert('고객을 선택해주세요.');
-      return;
-    }
-    if (!selectedCompany) {
-      alert('보험사를 선택해주세요.');
-      return;
-    }
-    if (!faxNumber) {
-      alert('팩스번호를 입력하거나 보험사를 선택해주세요.');
-      return;
+  async function handleSendFax() {
+  if (!selectedCustomer) {
+    alert('고객을 선택해주세요.');
+    return;
+  }
+  if (!selectedCompany) {
+    alert('보험사를 선택해주세요.');
+    return;
+  }
+  if (!faxNumber) {
+    alert('팩스번호를 입력하거나 보험사를 선택해주세요.');
+    return;
+  }
+  if (selectedFiles.length === 0) {
+    alert('팩스로 발송할 첨부파일을 선택해주세요.');
+    return;
+  }
+
+  if (!window.confirm(`${selectedCompany}로 팩스를 발송할까요?`)) return;
+
+  try {
+    const formData = new FormData();
+    formData.append('receiverNum', faxNumber);
+    formData.append('receiverName', selectedCompany);
+    formData.append('title', `${selectedCustomer.name || '고객'} ${claimType} 보험금 청구`);
+
+    selectedFiles.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    const response = await fetch('/api/send-fax', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || '팩스 발송 실패');
     }
 
     const now = new Date().toISOString();
+
     const item = {
       id: `fax-${Date.now()}`,
       customer_id: selectedCustomer.db_id || selectedCustomer.app_customer_id || selectedCustomer.id || '',
@@ -193,18 +216,27 @@ export default function FaxClaimPage({ onBack }) {
       fax_number: faxNumber,
       claim_type: claimType,
       memo: memo.trim(),
-      files: selectedFiles,
+      files: selectedFiles.map((file) => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      })),
+      status: '발송완료',
+      receipt_num: result.receiptNum,
+      request_num: result.requestNum,
       created_at: now,
       updated_at: now,
     };
 
     await faxHistoryService.create(item);
+    await loadClaims();
 
-await loadClaims();
-
-alert('팩스 청구이력이 저장되었습니다.');
-
-resetForm();
+    alert(`팩스 발송 완료!\n접수번호: ${result.receiptNum}`);
+    resetForm();
+  } catch (e) {
+    console.error(e);
+    alert('팩스 발송 중 오류가 발생했습니다: ' + (e.message || '알 수 없는 오류'));
+  }
 }
 
   async function handleDeleteClaim(id) {
@@ -419,11 +451,11 @@ resetForm();
           style={styles.textarea}
         />
 
-        <button type="button" onClick={handleSaveClaim} style={styles.primaryButton}>
-          청구이력 저장
-        </button>
+        <button type="button" onClick={handleSendFax} style={styles.primaryButton}>
+  📠 팩스 발송
+</button>
 
-        <div style={styles.helpText}>※ 실제 팩스 발송은 아직 하지 않습니다. 나중에 팝빌 / 바로빌 / 엔팩스 API 연결 시 발송 버튼을 추가할 수 있습니다.</div>
+        <div style={styles.helpText}>※ 팩스 발송 완료 후 접수번호와 함께 청구이력이 저장됩니다.</div>
       </Card>
     );
   }
@@ -505,11 +537,15 @@ resetForm();
 
         <Card>
           <div style={{ background: 'linear-gradient(135deg,#7C3AED,#A78BFA)', color: '#fff', borderRadius: 16, padding: isMobile ? 14 : 16 }}>
-            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 6 }}>1단계 테스트 모드</div>
-            <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.95 }}>
-              현재는 실제 팩스 발송 API 연동 전입니다. 고객 선택, 보험사 선택, 첨부파일명, 청구메모를 저장하는 용도입니다.
-              저장된 청구이력은 고객상세 최근활동에 표시할 수 있습니다.
-            </div>
+           <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 6 }}>
+  📠 보험금 팩스청구
+</div>
+<div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.95 }}>
+  고객 선택, 보험사 선택, 청구서류 첨부 후 팩스를 발송할 수 있습니다.
+  발송이 완료되면 청구이력이 자동으로 저장됩니다.
+  <br />
+  ※ 발송 전 보험사 팩스번호와 첨부서류를 꼭 확인해주세요.
+</div>
           </div>
         </Card>
 
