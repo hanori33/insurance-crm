@@ -1,3 +1,5 @@
+console.log('SEND-FAX VERSION 2');
+
 const { IncomingForm } = require('formidable');
 const popbill = require('popbill');
 
