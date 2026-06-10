@@ -239,7 +239,6 @@ await consultationService.create({
 청구유형: ${claimType}
 팩스번호: ${faxNumber}
 접수번호: ${result.receiptNum}
-첨부파일: ${selectedFiles.map((file) => file.name).join(', ') || '-'}
 메모: ${memo.trim() || '-'}`,
   consulted_at: now,
 });

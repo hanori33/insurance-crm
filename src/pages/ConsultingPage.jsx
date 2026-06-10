@@ -89,6 +89,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
   const [aiResult, setAiResult] = useState(null);
 
   const recognitionRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     load();
@@ -196,12 +197,22 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
   }
 
   function stopVoiceRecord() {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
+  if (recognitionRef.current) {
+    recognitionRef.current.stop();
+    recognitionRef.current = null;
   }
 
+  setIsRecording(false);
+}
+function toggleVoiceRecord() {
+  if (isRecording) {
+    stopVoiceRecord();
+    setIsRecording(false);
+  } else {
+    startVoiceRecord();
+    setIsRecording(true);
+  }
+}
   function selectCustomer(c) {
     setForm(prev => ({
       ...prev,
@@ -624,20 +635,19 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
 
               <div style={voiceWrapStyle}>
                 <button
-                  type="button"
-                  onMouseDown={startVoiceRecord}
-                  onMouseUp={stopVoiceRecord}
-                  onMouseLeave={stopVoiceRecord}
-                  onTouchStart={startVoiceRecord}
-                  onTouchEnd={stopVoiceRecord}
-                  style={voiceButtonStyle}
-                >
-                  🎤 음성 입력
-                </button>
+  type="button"
+  onClick={toggleVoiceRecord}
+  style={{
+    ...voiceButtonStyle,
+    background: isRecording ? '#DC2626' : COLORS.primary,
+  }}
+>
+  {isRecording ? '⏹ 녹음 종료' : '🎤 음성 입력'}
+</button>
 
                 <span style={voiceHelpStyle}>
-                  길게 누르고 말하면 자동 입력돼요
-                </span>
+  {isRecording ? '녹음 중입니다. 다시 누르면 종료돼요' : '한 번 누르면 녹음 시작, 다시 누르면 종료돼요'}
+</span>
               </div>
 
               <textarea
