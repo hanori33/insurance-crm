@@ -88,6 +88,10 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
   const [showAiModal, setShowAiModal] = useState(false);
   const [aiResult, setAiResult] = useState(null);
 
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [summaryResult, setSummaryResult] = useState(null);
+
   const recognitionRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
 
@@ -388,8 +392,7 @@ function toggleVoiceRecord() {
       customerScript: result.customerScript || result.customer_script || result['고객 상담 멘트'] || '',
     };
   }
-
-   async function handleAiAnalyze() {
+  async function handleAiAnalyze() {
     if (!hasAiAnalysisInput()) {
       alert('AI 분석할 알릴의무, 병력고지 또는 부담보 내용을 먼저 입력해주세요.');
       return;
@@ -408,11 +411,12 @@ function toggleVoiceRecord() {
         exclusions: form.exclusions || [],
       };
 
-      
-
-      const { data, error } = await supabase.functions.invoke('boplan-ai-analysis', {
-        body: payload,
-      });
+      const { data, error } = await supabase.functions.invoke(
+        'boplan-ai-analysis',
+        {
+          body: payload,
+        }
+      );
 
       if (error) throw error;
 
@@ -421,13 +425,76 @@ function toggleVoiceRecord() {
     } catch (e) {
       console.error(e);
       alert(
-        'AI 분석에 실패했습니다. Supabase Edge Function(boplan-ai-analysis) 설정을 확인해주세요.\n' +
+        'AI 분석에 실패했습니다.\n' +
         (e.message || JSON.stringify(e))
       );
     } finally {
       setAiAnalyzing(false);
-    
     }
+  }
+
+  async function handleConsultationSummary() {
+    if (!form.content.trim()) {
+      alert('상담내용을 먼저 입력해주세요.');
+      return;
+    }
+
+    setSummaryLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'boplan-consultation-summary',
+        {
+          body: {
+            customer_name: form.customer_name || '',
+            content: form.content || '',
+            next_action: form.next_action || '',
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      setSummaryResult(data);
+      setShowSummaryModal(true);
+    } catch (e) {
+      console.error(e);
+      alert(
+        '상담요약 실패 : ' +
+        (e.message || JSON.stringify(e))
+      );
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  function applySummaryToContent() {
+    if (!summaryResult) return;
+
+    const needs = Array.isArray(summaryResult.customerNeeds)
+      ? summaryResult.customerNeeds
+      : [];
+
+    const actions = Array.isArray(summaryResult.nextActions)
+      ? summaryResult.nextActions
+      : [];
+
+    const summaryText = `[상담요약]
+${summaryResult.summary || '-'}
+
+[고객 니즈]
+${needs.length ? needs.map(item => `- ${item}`).join('\n') : '- 없음'}
+
+[다음 액션]
+${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
+
+    setForm(prev => ({
+      ...prev,
+      content: summaryText,
+      next_action: actions[0] || prev.next_action,
+    }));
+
+    setShowSummaryModal(false);
   }
 
   async function handleSave() {
@@ -717,11 +784,24 @@ function toggleVoiceRecord() {
                   {aiAnalyzing ? '분석 중...' : '🧠 AI 병력 분석'}
                 </button>
 
+<button
+  type="button"
+  onClick={handleConsultationSummary}
+  disabled={summaryLoading}
+  style={{
+    ...aiAnalyzeButtonStyle,
+    background: '#2563EB',
+    opacity: summaryLoading ? 0.6 : 1,
+  }}
+>
+  {summaryLoading ? '요약 중...' : '📝 상담요약'}
+</button>
+
                 <button
                   onClick={handleSave}
                   disabled={saving}
                   style={{
-                    flex: 2,
+                    gridColumn: '1 / -1',
                     border: 'none',
                     background: COLORS.primary,
                     color: '#fff',
@@ -1228,54 +1308,99 @@ function toggleVoiceRecord() {
         onClose={() => setShowAiModal(false)}
         title="🧠 AI 병력분석 결과"
       >
- 
-  <div style={modalBodyStyle}>
-    <div style={aiNoticeStyle}>
-      ※ AI병력분석은 상담 보조용입니다.
-      실제 고지의무 판단, 인수심사 결과 및 보험금 지급 여부는
-      보험사 기준과 약관에 따라 달라질 수 있습니다.
-    </div>
+        <div style={modalBodyStyle}>
+          <div style={aiNoticeStyle}>
+            ※ AI병력분석은 상담 보조용입니다.
+            실제 고지의무 판단, 인수심사 결과 및 보험금 지급 여부는
+            보험사 기준과 약관에 따라 달라질 수 있습니다.
+          </div>
 
+          <AiResultSection
+            number="📌"
+            title="고객 상태 요약"
+            content={aiResult?.medicalSummary}
+          />
 
-<AiResultSection
-  number="📌"
-  title="고객 상태 요약"
-  content={aiResult?.medicalSummary}
-/>
+          <AiResultSection
+            number="❓"
+            title="추가 확인할 질문"
+            content={aiResult?.additionalQuestions}
+          />
 
-<AiResultSection
-  number="❓"
-  title="추가 확인할 질문"
-  content={aiResult?.additionalQuestions}
-/>
+          <AiResultSection
+            number="⚠️"
+            title="알릴의무 체크"
+            content={aiResult?.disclosureCheckPoints}
+          />
 
-<AiResultSection
-  number="⚠️"
-  title="알릴의무 체크"
-  content={aiResult?.disclosureCheckPoints}
-/>
+          <AiResultSection
+            number="🏥"
+            title="심사 참고"
+            content={aiResult?.underwritingNotes}
+          />
 
-<AiResultSection
-  number="🏥"
-  title="심사 참고"
-  content={aiResult?.underwritingNotes}
-/>
+          <AiResultSection
+            number="💬"
+            title="고객 설명 멘트"
+            content={aiResult?.customerScript}
+          />
 
-<AiResultSection
-  number="💬"
-  title="고객 설명 멘트"
-  content={aiResult?.customerScript}
-/>
+          <button
+            type="button"
+            onClick={() => setShowAiModal(false)}
+            style={primaryFullButtonStyle}
+          >
+            닫기
+          </button>
+        </div>
+      </Modal>
 
-<button
-  type="button"
-  onClick={() => setShowAiModal(false)}
-  style={primaryFullButtonStyle}
->
-  닫기
-</button>
+      <Modal
+        visible={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+        title="📝 AI 상담요약"
+      >
+        <div style={modalBodyStyle}>
+          <div style={aiSectionStyle}>
+            <div style={aiSectionTitleStyle}>상담 요약</div>
+            <div style={aiSectionContentStyle}>
+              {summaryResult?.summary || '-'}
+            </div>
+          </div>
 
+          <div style={aiSectionStyle}>
+            <div style={aiSectionTitleStyle}>고객 니즈</div>
+            <div style={aiSectionContentStyle}>
+              {Array.isArray(summaryResult?.customerNeeds) && summaryResult.customerNeeds.length
+                ? summaryResult.customerNeeds.map(item => `- ${item}`).join('\n')
+                : '- 없음'}
+            </div>
+          </div>
 
+          <div style={aiSectionStyle}>
+            <div style={aiSectionTitleStyle}>다음 액션</div>
+            <div style={aiSectionContentStyle}>
+              {Array.isArray(summaryResult?.nextActions) && summaryResult.nextActions.length
+                ? summaryResult.nextActions.map(item => `- ${item}`).join('\n')
+                : '- 없음'}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={applySummaryToContent}
+            style={primaryFullButtonStyle}
+          >
+            상담내용에 반영
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowSummaryModal(false)}
+            style={secondaryFullButtonStyle}
+          >
+            닫기
+          </button>
         </div>
       </Modal>
     </>
@@ -1315,6 +1440,14 @@ function CheckItem({ label, checked, onChange }) {
   );
 }
 
+function formatContent(content) {
+  if (Array.isArray(content)) {
+    return content.length ? content.map(item => `- ${item}`).join('\n') : '';
+  }
+
+  return content ? String(content) : '';
+}
+
 function AiResultSection({ number, title, content }) {
   return (
     <div style={aiSectionStyle}>
@@ -1322,7 +1455,7 @@ function AiResultSection({ number, title, content }) {
         {number}. {title}
       </div>
       <div style={aiSectionContentStyle}>
-        {content ? String(content) : '분석 결과가 없습니다.'}
+        {formatContent(content) || '분석 결과가 없습니다.'}
       </div>
     </div>
   );
@@ -1422,10 +1555,10 @@ const modalOpenButtonStyle = {
 };
 
 const saveButtonWrapStyle = {
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
   gap: 8,
   alignItems: 'stretch',
-  flexWrap: 'wrap',
 };
 
 const aiAnalyzeButtonStyle = {
@@ -1519,6 +1652,14 @@ const secondaryFullButtonStyle = {
   fontWeight: 900,
   fontSize: 14,
   cursor: 'pointer',
+};
+
+const modalGuideTextStyle = {
+  fontSize: 12,
+  color: COLORS.textGray,
+  textAlign: 'center',
+  marginTop: 8,
+  marginBottom: 8,
 };
 
 const emptyBoxStyle = {

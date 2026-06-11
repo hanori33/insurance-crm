@@ -13,6 +13,7 @@ import scheduleService from '../services/scheduleService';
 import { toTimeStr, todayStr } from '../utils';
 import noticeService from '../services/noticeService';
 import NoticeForm from '../components/NoticeForm';
+import Modal from '../components/Modal';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -223,7 +224,7 @@ function CustomerMiniRow({ customer, isLast, onClick }) {
   );
 }
 
-function QuickButton({ icon, label, onClick }) {
+function QuickButton({ icon, label, onClick, compact = false }) {
   return (
     <button
       type="button"
@@ -231,15 +232,342 @@ function QuickButton({ icon, label, onClick }) {
       style={{
         border: `1px solid ${COLORS.border}`,
         background: '#fff',
-        borderRadius: 16,
-        padding: '14px 10px',
+        borderRadius: compact ? 14 : 16,
+        padding: compact ? '10px 4px' : '14px 10px',
         cursor: 'pointer',
         boxShadow: '0 8px 18px rgba(124,92,252,0.06)',
+        minHeight: compact ? 70 : 86,
       }}
     >
-      <div style={{ fontSize: 24, marginBottom: 7 }}>{icon}</div>
-      <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.text }}>{label}</div>
+      <div style={{ fontSize: compact ? 20 : 24, marginBottom: compact ? 5 : 7 }}>{icon}</div>
+      <div style={{ fontSize: compact ? 10.5 : 12, fontWeight: 800, color: COLORS.text, wordBreak: 'keep-all' }}>{label}</div>
     </button>
+  );
+}
+
+const QUICK_MENU_OPTIONS = [
+  {
+    id: 'customers',
+    icon: '👤',
+    label: '고객등록',
+    action: ({ onNavigate }) => onNavigate('customers'),
+  },
+  {
+    id: 'consulting',
+    icon: '💬',
+    label: '상담기록',
+    action: ({ onNavigate }) => onNavigate('consulting'),
+  },
+  {
+    id: 'fax',
+    icon: '📠',
+    label: '팩스청구',
+    action: ({ onNavigate }) => onNavigate('fax'),
+  },
+  {
+    id: 'insuranceContact',
+    icon: '📞',
+    label: '보험사',
+    action: ({ onNavigate }) => onNavigate('insuranceContact'),
+  },
+  {
+    id: 'scheduleAdd',
+    icon: '📅',
+    label: '일정등록',
+    action: ({ setShowScheduleForm }) => setShowScheduleForm(true),
+  },
+  {
+    id: 'schedule',
+    icon: '🗓️',
+    label: '일정관리',
+    action: ({ onNavigate }) => onNavigate('schedule'),
+  },
+  {
+    id: 'tree',
+    icon: '🌳',
+    label: '소개트리',
+    action: ({ onNavigate }) => onNavigate('tree'),
+  },
+  {
+    id: 'sales',
+    icon: '📊',
+    label: '통계분석',
+    action: ({ onNavigate }) => onNavigate('sales'),
+  },
+  {
+    id: 'notices',
+    icon: '📢',
+    label: '공지사항',
+    action: ({ onNavigate }) => onNavigate('notices'),
+  },
+  {
+    id: 'notifications',
+    icon: '🔔',
+    label: '알림센터',
+    action: ({ onNavigate }) => onNavigate('notifications'),
+  },
+  {
+    id: 'team',
+    icon: '👨‍👩‍👧',
+    label: '팀관리',
+    action: ({ onNavigate }) => onNavigate('team'),
+  },
+  {
+    id: 'aiCenter',
+    icon: '🤖',
+    label: 'AI센터',
+    action: () => window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer'),
+  },
+  {
+    id: 'gemini',
+    icon: '✨',
+    label: 'Gemini',
+    action: () => window.open('https://gemini.google.com', '_blank', 'noopener,noreferrer'),
+  },
+  {
+    id: 'claude',
+    icon: '📄',
+    label: 'Claude',
+    action: () => window.open('https://claude.ai', '_blank', 'noopener,noreferrer'),
+  },
+];
+
+const quickEditSmallButtonStyle = {
+  border: 'none',
+  background: '#EEF2FF',
+  color: '#4338CA',
+  borderRadius: 8,
+  padding: '4px 8px',
+  fontSize: 11,
+  fontWeight: 700,
+  cursor: 'pointer',
+  minWidth: 28,
+};
+
+const DEFAULT_QUICK_MENU_IDS = [
+  'customers',
+  'consulting',
+  'fax',
+  'insuranceContact',
+  'scheduleAdd',
+  'tree',
+  'sales',
+  'aiCenter',
+];
+
+function QuickMenuSection({ isMobile = false, onNavigate, setShowScheduleForm }) {
+  const storageKey = 'boplan_quick_menu_ids_v1';
+  const [showEdit, setShowEdit] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (Array.isArray(saved) && saved.length > 0) return saved;
+    } catch (_e) {}
+
+    return DEFAULT_QUICK_MENU_IDS;
+  });
+
+  const visibleMenus = selectedIds
+    .map(id => QUICK_MENU_OPTIONS.find(menu => menu.id === id))
+    .filter(Boolean);
+
+  function toggleMenu(id) {
+    setSelectedIds(prev => {
+      if (prev.includes(id)) return prev.filter(item => item !== id);
+      return [...prev, id];
+    });
+  }
+
+  function moveMenu(id, direction) {
+    setSelectedIds(prev => {
+      const index = prev.indexOf(id);
+      if (index < 0) return prev;
+
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[nextIndex];
+      next[nextIndex] = temp;
+      return next;
+    });
+  }
+
+  function resetQuickMenus() {
+    setSelectedIds(DEFAULT_QUICK_MENU_IDS);
+  }
+
+  function saveQuickMenus() {
+    if (selectedIds.length === 0) {
+      alert('빠른메뉴를 최소 1개 이상 선택해주세요.');
+      return;
+    }
+
+    localStorage.setItem(storageKey, JSON.stringify(selectedIds));
+    setShowEdit(false);
+  }
+
+  return (
+    <>
+      <DashboardSection
+        title="빠른 메뉴"
+        icon="⚡"
+        right={
+          <button
+            type="button"
+            onClick={() => setShowEdit(true)}
+            style={{
+              border: 'none',
+              background: COLORS.primaryBg,
+              color: COLORS.primary,
+              borderRadius: 999,
+              padding: '7px 11px',
+              fontSize: 12,
+              fontWeight: 900,
+              cursor: 'pointer',
+            }}
+          >
+            ⚙️ 편집
+          </button>
+        }
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(4, 1fr)',
+            gap: isMobile ? 8 : 12,
+          }}
+        >
+          {visibleMenus.map(menu => (
+            <QuickButton
+              key={menu.id}
+              icon={menu.icon}
+              label={menu.label}
+              compact={isMobile}
+              onClick={() => menu.action({ onNavigate, setShowScheduleForm })}
+            />
+          ))}
+        </div>
+      </DashboardSection>
+
+      <Modal
+        visible={showEdit}
+        onClose={() => setShowEdit(false)}
+        title="⚡ 빠른메뉴 편집"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div
+            style={{
+              background: COLORS.primaryBg,
+              color: COLORS.primary,
+              borderRadius: 12,
+              padding: '10px 11px',
+              fontSize: 12,
+              fontWeight: 800,
+              lineHeight: 1.45,
+            }}
+          >
+            체크한 메뉴만 홈에 보여요. 위/아래 버튼으로 순서도 바꿀 수 있어요.
+          </div>
+
+          {QUICK_MENU_OPTIONS.map(menu => {
+            const checked = selectedIds.includes(menu.id);
+            const order = selectedIds.indexOf(menu.id);
+
+            return (
+              <div
+                key={menu.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 12,
+                  padding: '10px 11px',
+                  background: checked ? '#fff' : '#F8FAFC',
+                }}
+              >
+                <label
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 850,
+                    color: COLORS.text,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleMenu(menu.id)}
+                  />
+                  <span style={{ fontSize: 18 }}>{menu.icon}</span>
+                  {menu.label}
+                </label>
+
+                {checked && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => moveMenu(menu.id, -1)}
+                      disabled={order <= 0}
+                      style={{ ...quickEditSmallButtonStyle, opacity: order <= 0 ? 0.35 : 1 }}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveMenu(menu.id, 1)}
+                      disabled={order === selectedIds.length - 1}
+                      style={{ ...quickEditSmallButtonStyle, opacity: order === selectedIds.length - 1 ? 0.35 : 1 }}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+            <button
+              type="button"
+              onClick={resetQuickMenus}
+              style={{
+                border: 'none',
+                background: COLORS.primaryBg,
+                color: COLORS.primary,
+                borderRadius: 12,
+                padding: '12px 0',
+                fontWeight: 900,
+                cursor: 'pointer',
+              }}
+            >
+              기본값
+            </button>
+            <button
+              type="button"
+              onClick={saveQuickMenus}
+              style={{
+                border: 'none',
+                background: COLORS.primary,
+                color: '#fff',
+                borderRadius: 12,
+                padding: '12px 0',
+                fontWeight: 900,
+                cursor: 'pointer',
+              }}
+            >
+              저장
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
 
@@ -540,6 +868,12 @@ function MobileDashboard({
         </div>
       </div>
 
+      <QuickMenuSection
+        isMobile
+        onNavigate={onNavigate}
+        setShowScheduleForm={setShowScheduleForm}
+      />
+
       <DashboardSection
         title="오늘의 주요 일정"
         icon="📅"
@@ -792,14 +1126,10 @@ function PcDashboard({
           )}
         </DashboardSection>
 
-        <DashboardSection title="빠른 메뉴" icon="⚡">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            <QuickButton icon="👤" label="고객 등록" onClick={() => onNavigate('customers')} />
-            <QuickButton icon="📅" label="일정 등록" onClick={() => setShowScheduleForm(true)} />
-            <QuickButton icon="🌳" label="소개트리" onClick={() => onNavigate('tree')} />
-            <QuickButton icon="📞" label="보험사 연락처" onClick={() => onNavigate('insuranceContact')} />
-          </div>
-        </DashboardSection>
+        <QuickMenuSection
+          onNavigate={onNavigate}
+          setShowScheduleForm={setShowScheduleForm}
+        />
       </div>
 
       <DashboardSection
