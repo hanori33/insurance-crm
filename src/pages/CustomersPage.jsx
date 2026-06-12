@@ -814,6 +814,41 @@ async function generateAiKakaoMessage() {
     >
       📋 복사하기
     </button>
+    <button
+  type="button"
+  onClick={async () => {
+    if (!selectedCustomer || !kakaoMessage.trim()) return;
+
+    try {
+      await consultationService.create({
+        customer_id: selectedCustomer.db_id || selectedCustomer.id,
+        customer_name: selectedCustomer.name,
+        content: kakaoMessage,
+        category: 'AI 카톡',
+        memo: 'AI 카톡 멘트 생성',
+      });
+
+      alert('상담기록에 저장되었습니다 😊');
+      load();
+    } catch (err) {
+      console.error(err);
+      alert('저장 중 오류가 발생했습니다.');
+    }
+  }}
+  style={{
+    width: '100%',
+    marginTop: 10,
+    padding: '12px',
+    border: 'none',
+    borderRadius: 12,
+    background: '#10B981',
+    color: '#fff',
+    fontWeight: 800,
+    cursor: 'pointer',
+  }}
+>
+  💾 상담기록에 저장
+</button>
   </>
 )}
   </div>
