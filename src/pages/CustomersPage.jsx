@@ -822,7 +822,7 @@ async function generateAiKakaoMessage() {
       await navigator.clipboard.writeText(kakaoMessage);
     }
 
-    const opened = window.open('kakaotalk://', '_self');
+    window.location.href = 'kakaotalk://';
 
     setTimeout(() => {
       alert('카톡 멘트가 복사되었습니다 😊\n카카오톡이 열리지 않으면 직접 카톡을 실행해주세요.');
