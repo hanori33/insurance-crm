@@ -5,8 +5,10 @@ import { Card, LoadingSpinner, FilterChip } from '../components/Common';
 import EmptyState from '../components/EmptyState';
 import CustomerCard from '../components/CustomerCard';
 import CustomerForm from '../components/CustomerForm';
+import Modal from '../components/Modal';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
+import { supabase } from '../supabaseClient';
 
 const EXCEL_HEADERS = [
   '이름', '전화번호', '생년월일', '성별', '상태', '고객유형',
@@ -103,6 +105,11 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
   const [consultations, setConsultations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
+  const [showKakaoModal, setShowKakaoModal] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [kakaoMessage, setKakaoMessage] = useState('');
+
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -234,6 +241,113 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
       e.target.value = '';
     }
   }
+  
+
+ function generateMessage(type) {
+  const rawName = selectedCustomer?.name || '';
+  const name = rawName ? `${rawName} 고객님` : '고객님';
+
+  const templates = {
+    first: `안녕하세요 ${name} 😊
+
+처음 인사드립니다.
+
+보험 관련 궁금하신 부분이나
+보장 점검이 필요하시면
+언제든 편하게 말씀주세요.`,
+
+    review: `안녕하세요 ${name} 😊
+
+기존 가입하신 보험 보장 점검차
+연락드렸습니다.
+
+최근 보장 변경사항이나
+보험료 절감 가능 여부를
+함께 확인해드릴 수 있습니다.
+
+편하실 때 연락 부탁드립니다.`,
+
+    car: `안녕하세요 ${name} 😊
+
+자동차보험 만기가 다가와
+안내드리려고 연락드렸습니다.
+
+현재 조건보다 유리한 상품이
+있는지 비교 도와드리겠습니다.
+
+편하실 때 연락 부탁드립니다.`,
+
+    birthday: `${name} 생일 진심으로 축하드립니다 🎂
+
+오늘 하루 행복하게 보내시고
+늘 건강하시길 바랍니다 😊`,
+
+    claim: `안녕하세요 ${name} 😊
+
+보험금 청구 관련 진행이 완료되어
+안내드립니다.
+
+확인 후 궁금하신 점 있으시면
+편하게 말씀주세요.`,
+
+    reconnect: `안녕하세요 ${name} 😊
+
+오랜만에 안부 인사드립니다.
+
+최근 보장 변경이나
+궁금하신 부분은 없으신지
+확인차 연락드렸습니다.
+
+필요하신 내용 있으시면
+편하게 말씀주세요.`,
+  };
+
+      setKakaoMessage(templates[type] || '');
+  }
+
+async function generateAiKakaoMessage() {
+  if (!selectedCustomer) return;
+
+  try {
+    setKakaoMessage('AI가 고객 맞춤 멘트를 생성중입니다... ✨');
+
+    const { data, error } = await supabase.functions.invoke(
+      'boplan-kakao-message',
+      {
+        body: {
+          customerName: selectedCustomer.name,
+          status: '보험 점검 및 안부 연락',
+          recentConsultation:
+  consultations
+    .filter(item =>
+      String(item.customer_id || '') === String(selectedCustomer.db_id || selectedCustomer.id || '') ||
+      String(item.customer_name || '') === String(selectedCustomer.name || '')
+    )
+    .sort((a, b) => new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0))
+    .slice(0, 1)
+    .map(item =>
+      [
+        item.content,
+        item.memo,
+        item.summary,
+        item.next_action,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    )
+    .join('\n'),
+        },
+      }
+    );
+
+    if (error) throw error;
+
+    setKakaoMessage(data?.message || '');
+  } catch (err) {
+    console.error(err);
+    setKakaoMessage('AI 카톡 멘트 생성 중 오류가 발생했습니다.');
+  }
+}
 
   return (
     <div
@@ -409,7 +523,8 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
             actionLabel="고객 추가"
           />
         ) : (
-          <Card style={{ padding: 0, marginTop: 4 }}>
+          
+    <Card style={{ padding: 0, marginTop: 4 }}>
   {filteredCustomers.map((c, i) => (
     <div
       key={c.db_id || c.id || c.app_customer_id || i}
@@ -503,12 +618,206 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
         >
           🚫 부담보
         </button>
+
+        <div style={{ width: '100%', marginTop: 6 }}>
+          <button
+            type="button"
+           onClick={() => {
+  setSelectedCustomer(c);
+  setShowKakaoModal(true);
+}}
+            style={{
+              width: '100%',
+              border: `1px solid ${COLORS.primary}`,
+              background: '#F8F5FF',
+              color: COLORS.primary,
+              borderRadius: 12,
+              padding: '10px',
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            💬 AI 카톡 멘트 만들기
+          </button>
+        </div>
       </div>
     </div>
   ))}
 </Card>
         )}
       </div>
+
+<Modal
+  visible={showKakaoModal}
+  onClose={() => setShowKakaoModal(false)}
+  title="💬 AI 카톡 멘트"
+>
+  {selectedCustomer && (
+  <div
+    style={{
+      marginBottom: 12,
+      padding: 12,
+      background: '#F8F5FF',
+      borderRadius: 12,
+      border: `1px solid ${COLORS.border}`,
+      fontWeight: 700,
+    }}
+  >
+    👤 고객 : {selectedCustomer.name}
+  </div>
+)}
+  <div
+    style={{
+      display: 'grid',
+      gap: 10,
+    }}
+  >
+    <button
+      onClick={() => generateMessage('first')}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      👋 첫 인사
+    </button>
+
+    <button
+      onClick={() => generateMessage('review')}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      📋 보험 점검
+    </button>
+
+    <button
+      onClick={() => generateMessage('car')}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      🚗 자동차 만기
+    </button>
+
+    <button
+      onClick={() => generateMessage('birthday')}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      🎂 생일 축하
+    </button>
+
+    <button
+      onClick={() => generateMessage('claim')}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      📄 청구 완료
+    </button>
+
+    <button
+      onClick={() => generateMessage('reconnect')}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        cursor: 'pointer',
+      }}
+    >
+      📞 오랜만에 연락
+    </button>
+    <button
+  onClick={generateAiKakaoMessage}
+  style={{
+    padding: 12,
+    borderRadius: 12,
+    border: 'none',
+    background: '#FEE500',
+    color: '#191919',
+    fontWeight: 700,
+    cursor: 'pointer',
+  }}
+>
+  ✨ AI 맞춤 생성
+</button>
+
+    {kakaoMessage && (
+  <>
+    <div
+      style={{
+        marginTop: 8,
+        marginBottom: 8,
+        fontSize: 13,
+        fontWeight: 800,
+      }}
+    >
+      📄 생성된 멘트
+    </div>
+
+      <textarea
+  value={kakaoMessage}
+  onChange={(e) => setKakaoMessage(e.target.value)}
+      style={{
+        width: '100%',
+        minHeight: 180,
+        marginTop: 16,
+        borderRadius: 12,
+        border: `1px solid ${COLORS.border}`,
+        padding: 12,
+        fontSize: 13,
+        resize: 'none',
+        boxSizing: 'border-box',
+      }}
+    />
+
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(kakaoMessage);
+        alert('카톡 멘트가 복사되었습니다 😊');
+      }}
+      style={{
+        width: '100%',
+        marginTop: 10,
+        padding: '12px',
+        border: 'none',
+        borderRadius: 12,
+        background: COLORS.primary,
+        color: '#fff',
+        fontWeight: 800,
+        cursor: 'pointer',
+      }}
+    >
+      📋 복사하기
+    </button>
+  </>
+)}
+  </div>
+</Modal>
 
       <CustomerForm
         visible={showForm}
