@@ -6,8 +6,10 @@ import Modal from '../components/Modal';
 import Field from '../components/Field';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
+import policyFileService from '../services/policyFileService';
 import { formatDate } from '../utils';
 import scheduleService from '../services/scheduleService';
+import { supabase } from '../supabaseClient';
 
 const RELATION_OPTIONS = ['가족', '지인', '친구', '동료', '고객', '고객소개', '기타'];
 
@@ -25,13 +27,26 @@ function InfoRow({ label, value, isLast }) {
   );
 }
 
-function Section({ title, icon, children }) {
+function Section({ title, icon, action, children }) {
   return (
     <Card>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 18 }}>{icon}</span>
-        <span style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>{title}</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 18 }}>{icon}</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: COLORS.text }}>{title}</span>
+        </div>
+
+        {action}
       </div>
+
       {children}
     </Card>
   );
@@ -573,6 +588,11 @@ export default function CustomerDetailPage({
   const [consultations, setConsultations] = useState([]);
   const [consultLoading, setConsultLoading] = useState(false);
   const [customerSchedules, setCustomerSchedules] = useState([]);
+  const [policyFiles, setPolicyFiles] = useState([]);
+  const [policyFileUploading, setPolicyFileUploading] = useState(false);
+  const [policyAnalyzing, setPolicyAnalyzing] = useState(false);
+  const [showPolicyAnalysisModal, setShowPolicyAnalysisModal] = useState(false);
+  const [policyAnalysisResult, setPolicyAnalysisResult] = useState(null);
   const [activeQuickTab, setActiveQuickTab] = useState(initialTab || '');
   
 useEffect(() => {
@@ -632,14 +652,20 @@ useEffect(() => {
         setConsultLoading(true);
 
         try {
-          const consultationData = await consultationService.listByCustomer(realId);
-          setConsultations(consultationData || []);
+          
+const consultationData = await consultationService.listByCustomer(realId);
+setConsultations(consultationData || []);
 
-          const scheduleData = await scheduleService.listByCustomer(data.name);
-          setCustomerSchedules(scheduleData || []);
+const scheduleData = await scheduleService.listByCustomer(data.name);
+setCustomerSchedules(scheduleData || []);
+
+const policyFileData = await policyFileService.listByCustomer(realId);
+setPolicyFiles(policyFileData || []);
+        
         } catch (consultError) {
           console.error(consultError);
           setConsultations([]);
+          setPolicyFiles([]);
         } finally {
           setConsultLoading(false);
         }
@@ -666,7 +692,99 @@ useEffect(() => {
     }
   }
 
-  if (loading) {
+  async function handlePolicyFileUpload(event) {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  try {
+    setPolicyFileUploading(true);
+
+    const realId =
+      customer?.db_id ||
+      customer?.app_customer_id ||
+      customer?.id;
+
+    await policyFileService.upload(realId, file);
+
+    const files =
+      await policyFileService.listByCustomer(realId);
+
+    setPolicyFiles(files);
+
+    alert('증권이 등록되었습니다 😊');
+  } catch (e) {
+    console.error(e);
+    alert('증권 등록 실패: ' + (e.message || JSON.stringify(e)));
+  } finally {
+    setPolicyFileUploading(false);
+    event.target.value = '';
+  }
+}
+async function handlePolicyAnalysis(file) {
+  try {
+    setPolicyAnalyzing(true);
+
+    const signedUrl =
+      await policyFileService.getSignedUrl(file.file_url);
+
+    const { data, error } =
+      await supabase.functions.invoke(
+        'boplan-policy-analysis',
+        {
+          body: {
+            customer_name: customer?.name || '',
+            file_name: file.file_name || '',
+            file_url: signedUrl,
+          },
+        }
+      );
+
+    if (error) throw error;
+
+    setPolicyAnalysisResult(data);
+    setShowPolicyAnalysisModal(true);
+  } catch (e) {
+    console.error(e);
+    alert('AI 증권분석 실패: ' + (e.message || JSON.stringify(e)));
+  } finally {
+    setPolicyAnalyzing(false);
+  }
+}
+
+  async function handlePolicyFileView(file) {
+    try {
+      const signedUrl = await policyFileService.getSignedUrl(file.file_url);
+
+      if (signedUrl) {
+        window.open(signedUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        alert('파일을 열 수 없습니다.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('증권 열기 실패: ' + (e.message || JSON.stringify(e)));
+    }
+  }
+
+  async function handlePolicyFileDelete(file) {
+    if (!window.confirm('증권 파일을 삭제할까요?')) return;
+
+    try {
+      await policyFileService.remove(file.id, file.file_url);
+
+      setPolicyFiles((prev) =>
+        prev.filter((item) => item.id !== file.id)
+      );
+
+      alert('증권이 삭제되었습니다 😊');
+    } catch (e) {
+      console.error(e);
+      alert('증권 삭제 실패: ' + (e.message || JSON.stringify(e)));
+    }
+  }
+
+    if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <LoadingSpinner />
@@ -735,6 +853,15 @@ useEffect(() => {
       sub: claim.memo ? `메모: ${claim.memo}` : '',
       date: claim.created_at,
     })),
+
+    ...policyFiles.map((file) => ({
+  id: `policy-file-${file.id}`,
+  icon: '📄',
+  type: '증권 등록',
+  title: file.file_name || '증권 파일',
+  sub: '',
+  date: file.created_at,
+})),
   ]
     .filter((item) => item.title)
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
@@ -851,6 +978,182 @@ useEffect(() => {
                 ))}
               </div>
             )}
+          </Section>
+
+          <Section
+            title="증권 관리"
+            icon="📄"
+            action={
+              <label
+                style={{
+                  border: 'none',
+                  background: COLORS.primary,
+                  color: '#fff',
+                  borderRadius: 999,
+                  padding: '6px 11px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: policyFileUploading ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  opacity: policyFileUploading ? 0.65 : 1,
+                }}
+              >
+                {policyFileUploading ? '업로드 중...' : '+ 등록'}
+
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={handlePolicyFileUpload}
+                  disabled={policyFileUploading}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            }
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              {policyAnalyzing && (
+  <div
+    style={{
+      background: '#EEF2FF',
+      border: '1px solid #C7D2FE',
+      color: '#3730A3',
+      padding: 12,
+      borderRadius: 12,
+      fontSize: 13,
+      fontWeight: 700,
+      textAlign: 'center',
+    }}
+  >
+    🤖 AI가 증권을 분석하고 있습니다...
+    <br />
+    잠시만 기다려주세요 😊
+  </div>
+)}
+
+              {policyFiles.length === 0 ? (
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: COLORS.textGray,
+                    padding: '8px 0',
+                  }}
+                >
+                  등록된 증권이 없습니다.
+                </div>
+              ) : (
+                policyFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    style={{
+                      border: `1px solid ${COLORS.border}`,
+                      borderRadius: 12,
+                      padding: 12,
+                      background: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                    }}
+                  >
+                    <div
+  style={{
+    flex: 1,
+  }}
+>
+  <div
+    style={{
+      fontWeight: 700,
+      fontSize: 13,
+      color: COLORS.text,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    }}
+  >
+    📄 {file.file_name}
+  </div>
+
+  <div
+    style={{
+      fontSize: 11,
+      color: COLORS.textGray,
+      marginTop: 4,
+    }}
+  >
+    등록일 {formatDate(file.created_at)}
+  </div>
+</div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 6,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handlePolicyFileView(file)}
+                        style={{
+                          border: 'none',
+                          background: COLORS.primaryBg,
+                          color: COLORS.primary,
+                          borderRadius: 999,
+                          padding: '6px 10px',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        보기
+                      </button>
+
+                      <button
+  type="button"
+  onClick={() => handlePolicyAnalysis(file)}
+  disabled={policyAnalyzing}
+  style={{
+    border: 'none',
+    background: '#F3E8FF',
+    color: '#7C3AED',
+    borderRadius: 8,
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: policyAnalyzing ? 'not-allowed' : 'pointer',
+    opacity: policyAnalyzing ? 0.6 : 1,
+  }}
+>
+  🤖 분석
+</button>
+
+                      <button
+                        type="button"
+                        onClick={() => handlePolicyFileDelete(file)}
+                        style={{
+                          border: 'none',
+                          background: '#FEE2E2',
+                          color: '#DC2626',
+                          borderRadius: 999,
+                          padding: '6px 10px',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </Section>
 
           <div id="quick-section-medical">
@@ -1116,6 +1419,44 @@ useEffect(() => {
       )}
 
       <EditModal visible={showEdit} onClose={() => setShowEdit(false)} customer={customer} onSave={load} />
+
+{showPolicyAnalysisModal && (
+  <Modal
+    visible={showPolicyAnalysisModal}
+    onClose={() => setShowPolicyAnalysisModal(false)}
+    title="🤖 AI 증권분석"
+  >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div><b>보험사</b><br />{policyAnalysisResult?.company || '확인 필요'}</div>
+      <div><b>상품명</b><br />{policyAnalysisResult?.productName || '확인 필요'}</div>
+      <div><b>계약자</b><br />{policyAnalysisResult?.contractor || '확인 필요'}</div>
+      <div><b>피보험자</b><br />{policyAnalysisResult?.insured || '확인 필요'}</div>
+      <div><b>보험료</b><br />{policyAnalysisResult?.premium || '확인 필요'}</div>
+      <div><b>보험기간</b><br />{policyAnalysisResult?.policyPeriod || '확인 필요'}</div>
+
+      <div>
+        <b>주요 보장 요약</b>
+        <div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>
+          {Array.isArray(policyAnalysisResult?.coverageSummary)
+            ? policyAnalysisResult.coverageSummary.map(x => `- ${x}`).join('\n')
+            : '확인 필요'}
+        </div>
+      </div>
+
+      <div>
+        <b>추가 확인 필요</b>
+        <div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>
+          {Array.isArray(policyAnalysisResult?.missingChecks)
+            ? policyAnalysisResult.missingChecks.map(x => `- ${x}`).join('\n')
+            : '확인 필요'}
+        </div>
+      </div>
+
+      <div><b>상담 포인트</b><br />{policyAnalysisResult?.salesPoint || '확인 필요'}</div>
+      <div><b>고객 설명 멘트</b><br />{policyAnalysisResult?.customerScript || '확인 필요'}</div>
+    </div>
+  </Modal>
+)}
 
       {selectedConsultation && (
         <Modal visible={true} onClose={() => setSelectedConsultation(null)} title="상담기록 상세">
