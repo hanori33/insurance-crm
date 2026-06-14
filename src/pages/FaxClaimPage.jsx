@@ -233,7 +233,7 @@ export default function FaxClaimPage({ onBack }) {
 await consultationService.create({
   customer_id: item.customer_id,
   customer_name: item.customer_name,
-  category: '보험금청구',
+  category: '청구',
   content: `[보험금청구]
 보험사: ${selectedCompany}
 청구유형: ${claimType}

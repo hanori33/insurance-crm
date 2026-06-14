@@ -92,6 +92,10 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [summaryResult, setSummaryResult] = useState(null);
 
+  const [salesCoachLoading, setSalesCoachLoading] = useState(false);
+  const [showSalesCoachModal, setShowSalesCoachModal] = useState(false);
+  const [salesCoachResult, setSalesCoachResult] = useState(null);
+
   const recognitionRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
 
@@ -147,7 +151,11 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
     const q = search.trim();
 
     return consultations.filter(item => {
-      const categoryOk = categoryFilter === '전체' || item.category === categoryFilter;
+      const categoryOk =
+        categoryFilter === '전체' ||
+        item.category === categoryFilter ||
+        (categoryFilter === '청구' && item.category === '보험금청구');
+
       if (!categoryOk) return false;
       if (!q) return true;
 
@@ -201,22 +209,24 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
   }
 
   function stopVoiceRecord() {
-  if (recognitionRef.current) {
-    recognitionRef.current.stop();
-    recognitionRef.current = null;
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+
+    setIsRecording(false);
   }
 
-  setIsRecording(false);
-}
-function toggleVoiceRecord() {
-  if (isRecording) {
-    stopVoiceRecord();
-    setIsRecording(false);
-  } else {
-    startVoiceRecord();
-    setIsRecording(true);
+  function toggleVoiceRecord() {
+    if (isRecording) {
+      stopVoiceRecord();
+      setIsRecording(false);
+    } else {
+      startVoiceRecord();
+      setIsRecording(true);
+    }
   }
-}
+
   function selectCustomer(c) {
     setForm(prev => ({
       ...prev,
@@ -392,6 +402,7 @@ function toggleVoiceRecord() {
       customerScript: result.customerScript || result.customer_script || result['고객 상담 멘트'] || '',
     };
   }
+
   async function handleAiAnalyze() {
     if (!hasAiAnalysisInput()) {
       alert('AI 분석할 알릴의무, 병력고지 또는 부담보 내용을 먼저 입력해주세요.');
@@ -468,6 +479,44 @@ function toggleVoiceRecord() {
     }
   }
 
+  async function handleSalesCoach() {
+    if (!form.content?.trim()) {
+      alert('상담내용을 먼저 입력해주세요.');
+      return;
+    }
+
+    setSalesCoachLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'boplan-sales-coach',
+        {
+          body: {
+            customer_name: form.customer_name || '',
+            category: form.category || '',
+            content: form.content || '',
+            next_action: form.next_action || '',
+            medical_history: form.medical_history || [],
+            exclusions: form.exclusions || [],
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      setSalesCoachResult(data);
+      setShowSalesCoachModal(true);
+    } catch (err) {
+      console.error(err);
+      alert(
+        'AI 영업코치 분석 실패 : ' +
+        (err.message || JSON.stringify(err))
+      );
+    } finally {
+      setSalesCoachLoading(false);
+    }
+  }
+
   function applySummaryToContent() {
     if (!summaryResult) return;
 
@@ -510,20 +559,19 @@ ${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
 
     setSaving(true);
 
-   try {
-  const payload = {
-    customer_id: form.customer_id || null,
-    customer_name: form.customer_name.trim(),
-    category: form.category || '상담',
-    content: form.content.trim(),
-    next_action: form.next_action.trim(),
-    disclosure_info: form.disclosure_info || {},
-    medical_history: form.medical_history || [],
-    exclusions: form.exclusions || [],
-  };
+    try {
+      const payload = {
+        customer_id: form.customer_id || null,
+        customer_name: form.customer_name.trim(),
+        category: form.category || '상담',
+        content: form.content.trim(),
+        next_action: form.next_action.trim(),
+        disclosure_info: form.disclosure_info || {},
+        medical_history: form.medical_history || [],
+        exclusions: form.exclusions || [],
+      };
 
-  
-  if (editingId) {
+      if (editingId) {
         await consultationService.update(editingId, payload);
       } else {
         await consultationService.create(payload);
@@ -611,8 +659,8 @@ ${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
           }}
         >
           <Card>
-            <div style={{ fontWeight: 900, fontSize: 15, color: COLORS.text, marginBottom: 12 }}>
-              {editingId ? '상담기록 수정' : '새 상담기록'}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+             
             </div>
 
             <div style={noticeStyle}>
@@ -700,22 +748,46 @@ ${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
                 ))}
               </select>
 
-              <div style={voiceWrapStyle}>
-                <button
-  type="button"
-  onClick={toggleVoiceRecord}
-  style={{
-    ...voiceButtonStyle,
-    background: isRecording ? '#DC2626' : COLORS.primary,
-  }}
->
-  {isRecording ? '⏹ 녹음 종료' : '🎤 음성 입력'}
-</button>
+           <div style={voiceWrapStyle}>
+  <button
+    type="button"
+    onClick={toggleVoiceRecord}
+    style={{
+      ...voiceButtonStyle,
+      background: isRecording ? '#DC2626' : COLORS.primary,
+    }}
+  >
+    {isRecording ? '⏹ 녹음 종료' : '🎤 음성 입력'}
+  </button>
 
-                <span style={voiceHelpStyle}>
-  {isRecording ? '녹음 중입니다. 다시 누르면 종료돼요' : '한 번 누르면 녹음 시작, 다시 누르면 종료돼요'}
-</span>
-              </div>
+  <span style={voiceHelpStyle}>
+    {isRecording
+      ? '녹음 중입니다. 다시 누르면 종료돼요'
+      : '한 번 누르면 녹음 시작, 다시 누르면 종료돼요'}
+  </span>
+
+  <button
+    type="button"
+    onClick={() =>
+      alert(`상담기록 작성 가이드
+
+1. 고객 상황
+예: 기존 보험료 부담으로 리모델링 상담
+
+2. 고객 니즈
+예: 암/뇌/심장 보장 강화 희망
+
+3. 확인한 내용
+예: 기존 실손 유지, 운전자보험 미가입
+
+4. 다음 액션
+예: 다음주 설계안 발송 후 재통화`)
+    }
+    style={guideButtonStyle}
+  >
+    ❓ 작성가이드
+  </button>
+</div>
 
               <textarea
                 value={form.content}
@@ -771,49 +843,77 @@ ${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleAiAnalyze}
-                  disabled={aiAnalyzing}
-                  style={{
-                    ...aiAnalyzeButtonStyle,
-                    opacity: aiAnalyzing ? 0.6 : 1,
-                    cursor: aiAnalyzing ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {aiAnalyzing ? '분석 중...' : '🧠 AI 병력 분석'}
-                </button>
+                <div style={aiToolGridStyle}>
+                  <button
+                    type="button"
+                    onClick={handleAiAnalyze}
+                    disabled={aiAnalyzing}
+                    style={{
+                      ...aiToolCardStyle,
+                      opacity: aiAnalyzing ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={aiIconBoxStyle}>🧠</span>
+                    <div>
+                      <div style={aiToolTitleStyle}>AI 병력분석</div>
+                      <div style={aiToolSubTextStyle}>병력·부담보 분석</div>
+                    </div>
+                  </button>
 
-<button
-  type="button"
-  onClick={handleConsultationSummary}
-  disabled={summaryLoading}
-  style={{
-    ...aiAnalyzeButtonStyle,
-    background: '#2563EB',
-    opacity: summaryLoading ? 0.6 : 1,
-  }}
->
-  {summaryLoading ? '요약 중...' : '📝 상담요약'}
-</button>
+                  <button
+                    type="button"
+                    onClick={handleConsultationSummary}
+                    disabled={summaryLoading}
+                    style={{
+                      ...aiToolCardStyle,
+                      background: '#EFF6FF',
+                      color: '#2563EB',
+                      opacity: summaryLoading ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={{ ...aiIconBoxStyle, background: '#DBEAFE' }}>📝</span>
+                    <div>
+                      <div style={aiToolTitleStyle}>상담요약</div>
+                      <div style={aiToolSubTextStyle}>핵심내용 정리</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSalesCoach}
+                    disabled={salesCoachLoading}
+                    style={{
+                      ...aiToolCardStyle,
+                      background: '#FAF5FF',
+                      color: '#7C3AED',
+                      opacity: salesCoachLoading ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={{ ...aiIconBoxStyle, background: '#F3E8FF' }}>🤖</span>
+                    <div>
+                      <div style={aiToolTitleStyle}>영업코치</div>
+                      <div style={aiToolSubTextStyle}>전략·질문 추천</div>
+                    </div>
+                  </button>
+                </div>
 
                 <button
                   onClick={handleSave}
                   disabled={saving}
                   style={{
-                    gridColumn: '1 / -1',
                     border: 'none',
-                    background: COLORS.primary,
+                    background: 'linear-gradient(135deg, #7C3AED, #6D28D9)',
                     color: '#fff',
-                    borderRadius: 12,
-                    padding: '13px 0',
+                    borderRadius: 16,
+                    padding: '14px 0',
                     fontWeight: 900,
                     fontSize: 14,
                     cursor: saving ? 'not-allowed' : 'pointer',
                     opacity: saving ? 0.6 : 1,
+                    boxShadow: '0 8px 18px rgba(124, 58, 237, 0.24)',
                   }}
                 >
-                  {saving ? '저장 중...' : editingId ? '수정 저장' : '+ 상담기록 저장'}
+                  {saving ? '저장 중...' : editingId ? '수정 저장' : '💾 상담기록 저장'}
                 </button>
               </div>
             </div>
@@ -1158,17 +1258,9 @@ ${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
             + 병력 추가
           </button>
 
-<div
-  style={{
-    fontSize: 12,
-    color: COLORS.textGray,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-  }}
->
-  ※ 입력 후 아래 "상담기록 저장" 버튼을 눌러야 최종 저장됩니다.
-</div>
+          <div style={modalGuideTextStyle}>
+            ※ 입력 후 아래 "상담기록 저장" 버튼을 눌러야 최종 저장됩니다.
+          </div>
 
           <button
             type="button"
@@ -1274,32 +1366,26 @@ ${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
               />
             </div>
           ))}
-<button
-  type="button"
-  onClick={addExclusion}
-  style={secondaryFullButtonStyle}
->
-  + 부담보 추가
-</button>
-          <div
-  style={{
-    fontSize: 12,
-    color: COLORS.textGray,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-  }}
->
-  ※ 입력 후 아래 "상담기록 저장" 버튼을 눌러야 최종 저장됩니다.
-</div>
 
-<button
-  type="button"
-  onClick={() => setShowExclusionModal(false)}
-  style={primaryFullButtonStyle}
->
-  입력 완료
-</button>
+          <button
+            type="button"
+            onClick={addExclusion}
+            style={secondaryFullButtonStyle}
+          >
+            + 부담보 추가
+          </button>
+
+          <div style={modalGuideTextStyle}>
+            ※ 입력 후 아래 "상담기록 저장" 버튼을 눌러야 최종 저장됩니다.
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowExclusionModal(false)}
+            style={primaryFullButtonStyle}
+          >
+            입력 완료
+          </button>
         </div>
       </Modal>
 
@@ -1403,6 +1489,59 @@ ${actions.length ? actions.map(item => `- ${item}`).join('\n') : '- 없음'}`;
           </button>
         </div>
       </Modal>
+
+      <Modal
+        visible={showSalesCoachModal}
+        onClose={() => setShowSalesCoachModal(false)}
+        title="🤖 AI 영업코치"
+      >
+        <div style={modalBodyStyle}>
+          <div style={aiNoticeStyle}>
+            ※ AI 영업코치는 상담 보조용입니다.
+            실제 가입 가능 여부, 심사 결과 및 보장 내용은 보험사 기준에 따라 달라질 수 있습니다.
+          </div>
+
+          <AiResultSection
+            number="🔥"
+            title="고객온도"
+            content={`${salesCoachResult?.customerTemperature || '-'} ${
+              salesCoachResult?.score !== undefined ? `(${salesCoachResult.score}점)` : ''
+            }`}
+          />
+
+          <AiResultSection
+            number="🎯"
+            title="추천상품 / 보장방향"
+            content={salesCoachResult?.recommendedProducts}
+          />
+
+          <AiResultSection
+            number="💡"
+            title="추천 접근법"
+            content={salesCoachResult?.approachStrategy}
+          />
+
+          <AiResultSection
+            number="❓"
+            title="추천 질문"
+            content={salesCoachResult?.recommendedQuestions}
+          />
+
+          <AiResultSection
+            number="📞"
+            title="다음 행동"
+            content={salesCoachResult?.nextAction}
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowSalesCoachModal(false)}
+            style={primaryFullButtonStyle}
+          >
+            닫기
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }
@@ -1452,7 +1591,7 @@ function AiResultSection({ number, title, content }) {
   return (
     <div style={aiSectionStyle}>
       <div style={aiSectionTitleStyle}>
-        {number}. {title}
+        {number} {title}
       </div>
       <div style={aiSectionContentStyle}>
         {formatContent(content) || '분석 결과가 없습니다.'}
@@ -1494,6 +1633,18 @@ const smallButtonStyle = {
   fontWeight: 800,
   cursor: 'pointer',
   height: 28,
+};
+
+const guideButtonStyle = {
+  border: 'none',
+  background: COLORS.primaryBg,
+  color: COLORS.primary,
+  borderRadius: 999,
+  padding: '7px 10px',
+  fontSize: 11,
+  fontWeight: 900,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
 };
 
 const noticeStyle = {
@@ -1555,10 +1706,57 @@ const modalOpenButtonStyle = {
 };
 
 const saveButtonWrapStyle = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 8,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
   alignItems: 'stretch',
+};
+
+const aiToolGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 8,
+};
+
+const aiToolCardStyle = {
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 18,
+  padding: '12px 8px',
+  background: '#F8F5FF',
+  color: '#4C1D95',
+  cursor: 'pointer',
+  textAlign: 'center',
+  minHeight: 86,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+};
+
+const aiIconBoxStyle = {
+  width: 38,
+  height: 38,
+  borderRadius: 14,
+  background: '#EDE9FE',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 22,
+  flexShrink: 0,
+};
+
+const aiToolTitleStyle = {
+  fontWeight: 900,
+  fontSize: 12,
+  whiteSpace: 'nowrap',
+};
+
+const aiToolSubTextStyle = {
+  fontSize: 10,
+  color: COLORS.textGray,
+  marginTop: 3,
+  whiteSpace: 'nowrap',
 };
 
 const aiAnalyzeButtonStyle = {
