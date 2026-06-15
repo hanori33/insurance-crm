@@ -5,6 +5,8 @@ import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
 import faxHistoryService from '../services/faxHistoryService';
 import consultationService from '../services/consultationService';
+import { supabase } from '../supabaseClient';
+
 const STORAGE_KEY = 'boplan_fax_claims';
 
 const CLAIM_TYPES = ['실손', '진단비', '수술비', '입원비', '운전자', '치아', '기타'];
@@ -56,7 +58,7 @@ function fileSizeText(size) {
   return `${(size / 1024 / 1024).toFixed(1)}MB`;
 }
 
-export default function FaxClaimPage({ onBack }) {
+export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const [customers, setCustomers] = useState([]);
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -164,11 +166,17 @@ export default function FaxClaimPage({ onBack }) {
     setSelectedFiles([]);
   }
 
-  async function handleSendFax() {
+ async function handleSendFax() {
+  if ((profile?.fax_credit ?? 0) <= 0) {
+    alert('팩스 크레딧이 부족합니다.');
+    return;
+  }
+
   if (!selectedCustomer) {
     alert('고객을 선택해주세요.');
     return;
   }
+
   if (!selectedCompany) {
     alert('보험사를 선택해주세요.');
     return;
@@ -242,6 +250,26 @@ await consultationService.create({
 메모: ${memo.trim() || '-'}`,
   consulted_at: now,
 });
+await supabase
+  .from('profiles')
+  .update({
+    fax_credit: Math.max(
+      0,
+      (profile?.fax_credit ?? 0) - 1
+    ),
+  })
+  .eq(
+    'user_id',
+    (await supabase.auth.getUser()).data.user.id
+  );
+
+setProfile(prev => ({
+  ...prev,
+  fax_credit: Math.max(
+    0,
+    (prev?.fax_credit ?? 0) - 1
+  ),
+}));
 
 await loadClaims();
 
