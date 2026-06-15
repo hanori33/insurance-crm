@@ -110,7 +110,7 @@ export default function App() {
   const [notifCount, setNotifCount] = useState(0);
   const [profile, setProfile] = useState(null);
   const [showProModal, setShowProModal] = useState(false);
-
+  const [showProInfoModal, setShowProInfoModal] = useState(false);
   useEffect(() => {
     authService.getSession().then(s => setSession(s));
 
@@ -1348,9 +1348,12 @@ if (!session) {
         잔여 팩스 : {profile?.fax_credit ?? 0}건
       </div>
 
-      <button
-        onClick={() => alert('결제 기능은 준비중입니다.')}
-        style={{
+     <button
+  onClick={() => {
+    setShowProModal(false);
+    setShowProInfoModal(true);
+  }}
+  style={{
           marginTop: 14,
           width: '100%',
           border: 'none',
@@ -1376,6 +1379,122 @@ if (!session) {
           borderRadius: 12,
           padding: '11px 0',
           fontWeight: 800,
+          cursor: 'pointer',
+        }}
+      >
+        닫기
+      </button>
+    </div>
+  </div>
+)}
+
+{showProInfoModal && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.45)',
+      zIndex: 10000,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 20,
+        padding: 24,
+        width: '100%',
+        maxWidth: 420,
+      }}
+    >
+      <h2 style={{ marginTop: 0 }}>
+        🚀 BOPLAN PRO
+      </h2>
+
+      <div style={{ lineHeight: 1.8 }}>
+        ✅ AI 상담요약<br/>
+        ✅ AI 증권분석<br/>
+        ✅ AI 병력분석<br/>
+        ✅ AI 영업코치<br/>
+        ✅ 팩스 50건 포함<br/>
+        ✅ 지속 업데이트
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          padding: 14,
+          background: '#F8FAFC',
+          borderRadius: 12,
+          textAlign: 'center',
+          fontWeight: 800,
+          fontSize: 18,
+        }}
+      >
+        월 9,900원
+      </div>
+
+      <button
+        onClick={() => setShowProInfoModal(false)}
+        style={{
+          marginTop: 16,
+          width: '100%',
+          border: 'none',
+          background: COLORS.primary,
+          color: '#fff',
+          borderRadius: 12,
+          padding: '13px 0',
+          fontWeight: 900,
+          cursor: 'pointer',
+        }}
+      >
+        PRO 구독하기
+      </button>
+<div style={{ marginTop: 18 }}>
+  <div style={{ fontWeight: 900, marginBottom: 10 }}>
+    📠 팩스 추가 충전
+  </div>
+
+  {[
+    { count: 100, price: '7,900원' },
+    { count: 300, price: '19,900원' },
+    { count: 500, price: '29,900원' },
+  ].map(item => (
+    <button
+      key={item.count}
+      onClick={() => alert(`${item.count}건 충전 결제 준비중`)}
+      style={{
+        width: '100%',
+        border: `1px solid ${COLORS.border}`,
+        background: '#fff',
+        borderRadius: 12,
+        padding: '12px 14px',
+        marginBottom: 8,
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontWeight: 800,
+        cursor: 'pointer',
+      }}
+    >
+      <span>{item.count}건</span>
+      <span style={{ color: COLORS.primary }}>{item.price}</span>
+    </button>
+  ))}
+</div>
+
+      <button
+        onClick={() => setShowProInfoModal(false)}
+        style={{
+          marginTop: 8,
+          width: '100%',
+          border: 'none',
+          background: '#F3F4F6',
+          borderRadius: 12,
+          padding: '12px 0',
+          fontWeight: 700,
           cursor: 'pointer',
         }}
       >
