@@ -40,18 +40,25 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     const customerName = safeText(body.customerName || body.customer_name);
-    const content = safeText(body.content);
+    const content = safeText(
+      body.content ||
+      body.consultation_content ||
+      body.consultationContent
+    );
     const nextAction = safeText(body.nextAction || body.next_action);
     const disclosureInfo = body.disclosureInfo || body.disclosure_info || {};
     const medicalHistory = Array.isArray(body.medicalHistory || body.medical_history)
       ? body.medicalHistory || body.medical_history
       : [];
     const exclusions = Array.isArray(body.exclusions) ? body.exclusions : [];
+    const diseaseDictionaryMatches = Array.isArray(body.disease_dictionary_matches)
+      ? body.disease_dictionary_matches
+      : [];
 
     const prompt = `
 너는 보험설계사용 CRM "보플랜"의 AI 상담 분석 도우미다.
 
-아래 상담기록을 바탕으로 보험 알릴의무, 병력고지, 부담보 상담에 필요한 내용을 정리해라.
+아래 상담기록과 병력사전 참고자료를 바탕으로 보험 알릴의무, 병력고지, 부담보 상담에 필요한 내용을 정리해라.
 
 반드시 지켜야 할 원칙:
 - 보험사 심사 결과를 확정적으로 말하지 마라.
@@ -60,6 +67,9 @@ Deno.serve(async (req) => {
 - 주민등록번호, 계좌번호, 카드번호 등 민감정보 입력을 유도하지 마라.
 - 모든 내용은 한국어로 작성해라.
 - 결과는 반드시 JSON 형식으로만 반환해라.
+- 병력사전 참고자료가 있으면 그 내용을 우선 반영해라.
+- 병력사전에 있는 추가질문, 알릴의무 체크 포인트, 심사 참고사항을 고객 상담 분석에 자연스럽게 합쳐라.
+- 병력사전에 없는 내용은 추측하지 말고 “추가 확인 필요”로 표현해라.
 
 고객명:
 ${customerName || "미입력"}
@@ -78,6 +88,9 @@ ${JSON.stringify(medicalHistory, null, 2)}
 
 부담보 정보:
 ${JSON.stringify(exclusions, null, 2)}
+
+병력사전 참고자료:
+${JSON.stringify(diseaseDictionaryMatches, null, 2)}
 
 반환 JSON 형식:
 {
@@ -136,22 +149,22 @@ ${JSON.stringify(exclusions, null, 2)}
 
     let parsed;
 
-try {
-  const cleanedText = text
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+    try {
+      const cleanedText = text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
 
-  parsed = JSON.parse(cleanedText);
-} catch (_e) {
-  parsed = {
-    medicalSummary: text || "분석 결과를 정리하지 못했습니다.",
-    additionalQuestions: [],
-    disclosureCheckPoints: [],
-    underwritingNotes: [],
-    customerScript: "",
-  };
-}
+      parsed = JSON.parse(cleanedText);
+    } catch (_e) {
+      parsed = {
+        medicalSummary: text || "분석 결과를 정리하지 못했습니다.",
+        additionalQuestions: [],
+        disclosureCheckPoints: [],
+        underwritingNotes: [],
+        customerScript: "",
+      };
+    }
 
     return jsonResponse(parsed);
   } catch (error) {
