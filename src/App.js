@@ -108,6 +108,8 @@ export default function App() {
   const [headerSearch, setHeaderSearch] = useState('');
   const [customersSearch, setCustomersSearch] = useState('');
   const [notifCount, setNotifCount] = useState(0);
+  const [profile, setProfile] = useState(null);
+  const [showProModal, setShowProModal] = useState(false);
 
   useEffect(() => {
     authService.getSession().then(s => setSession(s));
@@ -252,6 +254,52 @@ useEffect(() => {
 
   return () => clearInterval(interval);
 }, [session]);
+
+useEffect(() => {
+  loadProfile();
+}, [session]);
+
+async function loadProfile() {
+  if (!session?.user) return;
+
+  const { data, error } = await supabase
+  .from('profiles')
+  .select('pro_plan, pro_expire_at, fax_credit, trial_used, pro_trial_start, pro_trial_end')
+  .eq('user_id', session.user.id)
+  .single();
+
+if (error) {
+  console.error(error);
+  return;
+}
+
+let nextProfile = data;
+
+if (!data.trial_used && !data.pro_trial_end) {
+  const now = new Date();
+  const trialEnd = new Date(
+    now.getTime() + 7 * 24 * 60 * 60 * 1000
+  );
+
+  const { data: updatedProfile, error: updateError } = await supabase
+    .from('profiles')
+    .update({
+      trial_used: true,
+      pro_trial_start: now.toISOString(),
+      pro_trial_end: trialEnd.toISOString(),
+      fax_credit: Math.max(data.fax_credit ?? 0, 20),
+    })
+    .eq('user_id', session.user.id)
+    .select('pro_plan, pro_expire_at, fax_credit, trial_used, pro_trial_start, pro_trial_end')
+    .single();
+
+  if (!updateError && updatedProfile) {
+    nextProfile = updatedProfile;
+  }
+}
+
+setProfile(nextProfile);
+}
 
 useEffect(() => {
   if (!session?.user) return;
@@ -704,7 +752,13 @@ if (page === 'adminInquiry') {
   );
 
       case 'fax':
-  return <FaxClaimPage onBack={() => setActiveTab('home')} />;
+  return (
+    <FaxClaimPage
+      onBack={() => setActiveTab('home')}
+      profile={profile}
+      setProfile={setProfile}
+    />
+  );
 
       case 'roleRequest':
         return <RoleRequestPage user={user} />;
@@ -957,46 +1011,73 @@ if (!session) {
           ))}
         </div>
 
-        <div
-          style={{
-            margin: '0 12px 12px',
-            background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
-            borderRadius: 12,
-            padding: '10px 14px',
-            color: '#fff',
-          }}
-        >
-          <div style={{ fontWeight: 900, fontSize: 12, marginBottom: 2 }}>
-            보플랜 PRO
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              opacity: 0.85,
-              marginBottom: 8,
-              lineHeight: 1.3,
-            }}
-          >
-            팀 협업 기능을
-            <br />
-            사용해보세요!
-          </div>
-          <button
-            style={{
-              background: '#fff',
-              color: COLORS.primary,
-              border: 'none',
-              borderRadius: 6,
-              padding: '5px 10px',
-              fontSize: 11,
-              fontWeight: 800,
-              cursor: 'pointer',
-              width: '100%',
-            }}
-          >
-            자세히 보기 &gt;
-          </button>
-        </div>
+       <div
+  style={{
+    margin: '0 12px 12px',
+    background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
+    borderRadius: 12,
+    padding: '12px 14px',
+    color: '#fff',
+  }}
+>
+  <div
+    style={{
+      fontWeight: 900,
+      fontSize: 13,
+      marginBottom: 6,
+    }}
+  >
+    🚀 보플랜 PRO
+  </div>
+
+  <div
+    style={{
+      fontSize: 11,
+      lineHeight: 1.5,
+      opacity: 0.95,
+      marginBottom: 10,
+    }}
+  >
+    {profile?.pro_plan ? (
+  <>
+    현재 상태 : PRO 이용중
+  </>
+) : profile?.pro_trial_end && new Date(profile.pro_trial_end) > new Date() ? (
+  <>
+    🎁 PRO 무료체험중
+    <br />
+    남은기간 : {Math.ceil((new Date(profile.pro_trial_end) - new Date()) / (1000 * 60 * 60 * 24))}일
+  </>
+) : (
+  <>
+    현재 상태 : 무료회원
+  </>
+)}
+
+<br />
+
+잔여 팩스 :
+{profile?.fax_credit ?? 0}건
+  </div>
+
+  
+  <button
+  onClick={() => setShowProModal(true)}
+  style={{
+    background: '#fff',
+    color: COLORS.primary,
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 10px',
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: 'pointer',
+    width: '100%',
+  }}
+>
+  자세히 보기 &gt;
+</button>
+</div>
 
         <div
           style={{
@@ -1223,6 +1304,86 @@ if (!session) {
           {hasStack ? renderStack() : renderTab()}
         </div>
       </div>
+      {showProModal && (
+  <div
+    onClick={() => setShowProModal(false)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(15,23,42,0.45)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        width: 360,
+        background: '#fff',
+        borderRadius: 20,
+        padding: 22,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+      }}
+    >
+      <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.text }}>
+        🚀 보플랜 PRO
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 13, color: COLORS.textGray, lineHeight: 1.6 }}>
+        AI 기능과 팩스청구를 더 편하게 사용할 수 있어요.
+      </div>
+
+      <div style={{ marginTop: 16, fontSize: 13, lineHeight: 1.8, color: COLORS.text }}>
+        ✓ AI 증권분석<br />
+        ✓ AI 상담요약<br />
+        ✓ AI 병력분석<br />
+        ✓ AI 영업코치<br />
+        ✓ 상담기록 AI 저장<br />
+        ✓ 증권분석 결과 저장
+      </div>
+
+      <div style={{ marginTop: 16, padding: 12, borderRadius: 14, background: COLORS.primaryBg, color: COLORS.primary, fontWeight: 900 }}>
+        잔여 팩스 : {profile?.fax_credit ?? 0}건
+      </div>
+
+      <button
+        onClick={() => alert('결제 기능은 준비중입니다.')}
+        style={{
+          marginTop: 14,
+          width: '100%',
+          border: 'none',
+          background: COLORS.primary,
+          color: '#fff',
+          borderRadius: 12,
+          padding: '12px 0',
+          fontWeight: 900,
+          cursor: 'pointer',
+        }}
+      >
+        PRO 시작하기
+      </button>
+
+      <button
+        onClick={() => setShowProModal(false)}
+        style={{
+          marginTop: 8,
+          width: '100%',
+          border: 'none',
+          background: '#F3F4F6',
+          color: COLORS.textGray,
+          borderRadius: 12,
+          padding: '11px 0',
+          fontWeight: 800,
+          cursor: 'pointer',
+        }}
+      >
+        닫기
+      </button>
+    </div>
+  </div>
+)}
     </WebShell>
   );
 }

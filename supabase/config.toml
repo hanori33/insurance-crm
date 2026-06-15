@@ -434,24 +434,13 @@ entrypoint = "./functions/boplan-disease-draft/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/boplan-disease-draft/*.html" ]
 
-[functions.boplan-sales-coach]
+[functions.boplan-kakao-message]
 enabled = true
 verify_jwt = false
-import_map = "./functions/boplan-sales-coach/deno.json"
+import_map = "./functions/boplan-kakao-message/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/boplan-sales-coach/index.ts"
+entrypoint = "./functions/boplan-kakao-message/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/boplan-sales-coach/*.html" ]
-
-[functions.boplan-policy-analysis]
-enabled = true
-verify_jwt = false
-import_map = "./functions/boplan-policy-analysis/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/boplan-policy-analysis/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/boplan-policy-analysis/*.html" ]
+# static_files = [ "./functions/boplan-kakao-message/*.html" ]

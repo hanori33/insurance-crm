@@ -725,22 +725,28 @@ async function handlePolicyAnalysis(file) {
   try {
     setPolicyAnalyzing(true);
 
-    const signedUrl =
-      await policyFileService.getSignedUrl(file.file_url);
+    const signedUrl = await policyFileService.getSignedUrl(file.file_url);
 
-    const { data, error } =
-      await supabase.functions.invoke(
-        'boplan-policy-analysis',
-        {
-          body: {
-            customer_name: customer?.name || '',
-            file_name: file.file_name || '',
-            file_url: signedUrl,
-          },
-        }
-      );
+    const { data, error } = await supabase.functions.invoke(
+      'boplan-policy-analysis',
+      {
+        body: {
+          customer_name: customer?.name || '',
+          file_name: file.file_name || '',
+          file_url: signedUrl,
+        },
+      }
+    );
 
     if (error) throw error;
+
+    const savedFile = await policyFileService.saveAnalysis(file.id, data);
+
+    setPolicyFiles((prev) =>
+      prev.map((item) =>
+        item.id === file.id ? savedFile : item
+      )
+    );
 
     setPolicyAnalysisResult(data);
     setShowPolicyAnalysisModal(true);
@@ -750,6 +756,16 @@ async function handlePolicyAnalysis(file) {
   } finally {
     setPolicyAnalyzing(false);
   }
+}
+
+function handlePolicyAnalysisView(file) {
+  if (!file.analysis_result) {
+    alert('저장된 AI 분석 결과가 없습니다.');
+    return;
+  }
+
+  setPolicyAnalysisResult(file.analysis_result);
+  setShowPolicyAnalysisModal(true);
 }
 
   async function handlePolicyFileView(file) {
@@ -1011,6 +1027,28 @@ async function handlePolicyAnalysis(file) {
             }
           >
             <div
+    style={{
+      background: '#F5F3FF',
+      border: '1px solid #DDD6FE',
+      color: '#7C3AED',
+      padding: '10px 12px',
+      borderRadius: 10,
+      fontSize: 12,
+      fontWeight: 600,
+      marginBottom: 10,
+    }}
+  >
+    🤖 증권을 등록하면 AI가 보장내용을 분석하고 상담 포인트를 자동으로 정리해드립니다.
+  </div>
+
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
+    }}
+  ></div>
+            <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -1067,17 +1105,56 @@ async function handlePolicyAnalysis(file) {
   }}
 >
   <div
+  style={{
+    fontWeight: 700,
+    fontSize: 13,
+    color: COLORS.text,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  }}
+>
+  📄 {file.file_name}
+</div>
+
+{file.analysis_result?.company && (
+  <div
     style={{
+      marginTop: 4,
+      fontSize: 12,
       fontWeight: 700,
-      fontSize: 13,
-      color: COLORS.text,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
+      color: COLORS.primary,
     }}
   >
-    📄 {file.file_name}
+    🏢 {file.analysis_result.company}
   </div>
+)}
+
+{file.analysis_result?.productName && (
+  <div
+    style={{
+      fontSize: 11,
+      color: COLORS.textGray,
+      marginTop: 2,
+    }}
+  >
+    {file.analysis_result.productName}
+  </div>
+)}
+
+{file.analysis_result && (
+  <div
+    style={{
+      marginTop: 4,
+      fontSize: 11,
+      color: '#15803D',
+      fontWeight: 700,
+    }}
+  >
+    ✅ AI 분석 완료
+  </div>
+)}
+  
 
   <div
     style={{
@@ -1114,24 +1191,43 @@ async function handlePolicyAnalysis(file) {
                         보기
                       </button>
 
-                      <button
-  type="button"
-  onClick={() => handlePolicyAnalysis(file)}
-  disabled={policyAnalyzing}
-  style={{
-    border: 'none',
-    background: '#F3E8FF',
-    color: '#7C3AED',
-    borderRadius: 8,
-    padding: '6px 10px',
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: policyAnalyzing ? 'not-allowed' : 'pointer',
-    opacity: policyAnalyzing ? 0.6 : 1,
-  }}
->
-  🤖 분석
-</button>
+                     {file.analysis_result ? (
+  <button
+    type="button"
+    onClick={() => handlePolicyAnalysisView(file)}
+    style={{
+      border: 'none',
+      background: '#DCFCE7',
+      color: '#15803D',
+      borderRadius: 8,
+      padding: '6px 10px',
+      fontSize: 12,
+      fontWeight: 800,
+      cursor: 'pointer',
+    }}
+  >
+    📋 결과보기
+  </button>
+) : (
+  <button
+    type="button"
+    onClick={() => handlePolicyAnalysis(file)}
+    disabled={policyAnalyzing}
+    style={{
+      border: 'none',
+      background: '#F3E8FF',
+      color: '#7C3AED',
+      borderRadius: 8,
+      padding: '6px 10px',
+      fontSize: 12,
+      fontWeight: 800,
+      cursor: policyAnalyzing ? 'not-allowed' : 'pointer',
+      opacity: policyAnalyzing ? 0.6 : 1,
+    }}
+  >
+    🤖 분석
+  </button>
+)}
 
                       <button
                         type="button"
@@ -1287,11 +1383,27 @@ async function handlePolicyAnalysis(file) {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: COLORS.primary }}>{item.category || '상담'}</div>
-                        <div style={{ fontSize: 11, color: COLORS.textGray, marginTop: 3 }}>{formatDate(item.consulted_at || item.created_at)}</div>
-                      </div>
-                    </div>
+  <div style={{
+    fontWeight: 800,
+    fontSize: 13,
+    color: item.category === '증권분석'
+      ? '#7C3AED'
+      : COLORS.primary
+  }}>
+    {item.category === '증권분석'
+      ? '🤖 AI 증권분석'
+      : item.category || '상담'}
+  </div>
 
+  <div style={{
+    fontSize: 11,
+    color: COLORS.textGray,
+    marginTop: 3,
+  }}>
+    {formatDate(item.consulted_at || item.created_at)}
+  </div>
+</div>
+</div>
                     <div style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.55, color: COLORS.text }}>{item.content}</div>
 
                     {item.next_action && (
@@ -1454,6 +1566,72 @@ async function handlePolicyAnalysis(file) {
 
       <div><b>상담 포인트</b><br />{policyAnalysisResult?.salesPoint || '확인 필요'}</div>
       <div><b>고객 설명 멘트</b><br />{policyAnalysisResult?.customerScript || '확인 필요'}</div>
+
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            const realId =
+              customer?.db_id ||
+              customer?.app_customer_id ||
+              customer?.id;
+
+            const content = `AI 증권분석 결과
+
+보험사: ${policyAnalysisResult?.company || '확인 필요'}
+상품명: ${policyAnalysisResult?.productName || '확인 필요'}
+계약자: ${policyAnalysisResult?.contractor || '확인 필요'}
+피보험자: ${policyAnalysisResult?.insured || '확인 필요'}
+보험료: ${policyAnalysisResult?.premium || '확인 필요'}
+보험기간: ${policyAnalysisResult?.policyPeriod || '확인 필요'}
+
+주요 보장 요약:
+${Array.isArray(policyAnalysisResult?.coverageSummary)
+  ? policyAnalysisResult.coverageSummary.map(x => `- ${x}`).join('\n')
+  : '확인 필요'}
+
+추가 확인 필요:
+${Array.isArray(policyAnalysisResult?.missingChecks)
+  ? policyAnalysisResult.missingChecks.map(x => `- ${x}`).join('\n')
+  : '확인 필요'}
+
+상담 포인트:
+${policyAnalysisResult?.salesPoint || '확인 필요'}
+
+고객 설명 멘트:
+${policyAnalysisResult?.customerScript || '확인 필요'}`;
+
+            await consultationService.create({
+              customer_id: realId,
+              customer_name: customer?.name || '',
+              category: '증권분석',
+              content,
+              next_action: 'AI 증권분석 결과 확인 후 보완 상담 진행',
+            });
+
+            alert('상담기록에 저장되었습니다 😊');
+            setShowPolicyAnalysisModal(false);
+            load();
+          } catch (e) {
+            console.error(e);
+            alert('상담기록 저장 실패: ' + (e.message || JSON.stringify(e)));
+          }
+        }}
+        style={{
+          width: '100%',
+          border: 'none',
+          background: COLORS.primary,
+          color: '#fff',
+          borderRadius: 12,
+          padding: '12px 0',
+          fontSize: 14,
+          fontWeight: 900,
+          cursor: 'pointer',
+          marginTop: 8,
+        }}
+      >
+        💾 상담기록에 저장
+      </button>
     </div>
   </Modal>
 )}
