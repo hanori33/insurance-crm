@@ -434,6 +434,64 @@ export default function MorePage({ user, onNavigate }) {
               paddingBottom: 120,
             }}
           >
+
+            <div
+  style={{
+    background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)',
+    borderRadius: 16,
+    padding: 20,
+    color: '#fff',
+    boxShadow: '0 8px 24px rgba(124,58,237,0.25)',
+  }}
+>
+  <div
+    style={{
+      fontSize: 22,
+      fontWeight: 900,
+      marginBottom: 6,
+    }}
+  >
+    🚀 BOPLAN PRO
+  </div>
+
+  <div
+    style={{
+      fontSize: 13,
+      opacity: 0.9,
+      lineHeight: 1.6,
+    }}
+  >
+    AI 상담요약 · AI 증권분석 · AI 병력분석<br />
+    AI 영업코치 · 팩스청구 기능 제공
+  </div>
+
+  <div
+    style={{
+      marginTop: 12,
+      fontSize: 14,
+      fontWeight: 800,
+    }}
+  >
+    🎁 신규회원 7일 무료체험
+  </div>
+
+  <button
+    onClick={() => alert('결제 기능 준비중')}
+    style={{
+      marginTop: 14,
+      width: '100%',
+      border: 'none',
+      borderRadius: 12,
+      padding: '12px 0',
+      background: '#fff',
+      color: '#7C3AED',
+      fontWeight: 900,
+      cursor: 'pointer',
+    }}
+  >
+    PRO 구독하기
+  </button>
+</div>
             <div
               onClick={() => setShowEdit(true)}
               style={{
