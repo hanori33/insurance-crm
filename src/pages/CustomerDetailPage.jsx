@@ -725,22 +725,28 @@ async function handlePolicyAnalysis(file) {
   try {
     setPolicyAnalyzing(true);
 
-    const signedUrl =
-      await policyFileService.getSignedUrl(file.file_url);
+    const signedUrl = await policyFileService.getSignedUrl(file.file_url);
 
-    const { data, error } =
-      await supabase.functions.invoke(
-        'boplan-policy-analysis',
-        {
-          body: {
-            customer_name: customer?.name || '',
-            file_name: file.file_name || '',
-            file_url: signedUrl,
-          },
-        }
-      );
+    const { data, error } = await supabase.functions.invoke(
+      'boplan-policy-analysis',
+      {
+        body: {
+          customer_name: customer?.name || '',
+          file_name: file.file_name || '',
+          file_url: signedUrl,
+        },
+      }
+    );
 
     if (error) throw error;
+
+    const savedFile = await policyFileService.saveAnalysis(file.id, data);
+
+    setPolicyFiles((prev) =>
+      prev.map((item) =>
+        item.id === file.id ? savedFile : item
+      )
+    );
 
     setPolicyAnalysisResult(data);
     setShowPolicyAnalysisModal(true);
@@ -750,6 +756,16 @@ async function handlePolicyAnalysis(file) {
   } finally {
     setPolicyAnalyzing(false);
   }
+}
+
+function handlePolicyAnalysisView(file) {
+  if (!file.analysis_result) {
+    alert('저장된 AI 분석 결과가 없습니다.');
+    return;
+  }
+
+  setPolicyAnalysisResult(file.analysis_result);
+  setShowPolicyAnalysisModal(true);
 }
 
   async function handlePolicyFileView(file) {
@@ -1011,6 +1027,28 @@ async function handlePolicyAnalysis(file) {
             }
           >
             <div
+    style={{
+      background: '#F5F3FF',
+      border: '1px solid #DDD6FE',
+      color: '#7C3AED',
+      padding: '10px 12px',
+      borderRadius: 10,
+      fontSize: 12,
+      fontWeight: 600,
+      marginBottom: 10,
+    }}
+  >
+    🤖 증권을 등록하면 AI가 보장내용을 분석하고 상담 포인트를 자동으로 정리해드립니다.
+  </div>
+
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
+    }}
+  ></div>
+            <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -1114,24 +1152,43 @@ async function handlePolicyAnalysis(file) {
                         보기
                       </button>
 
-                      <button
-  type="button"
-  onClick={() => handlePolicyAnalysis(file)}
-  disabled={policyAnalyzing}
-  style={{
-    border: 'none',
-    background: '#F3E8FF',
-    color: '#7C3AED',
-    borderRadius: 8,
-    padding: '6px 10px',
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: policyAnalyzing ? 'not-allowed' : 'pointer',
-    opacity: policyAnalyzing ? 0.6 : 1,
-  }}
->
-  🤖 분석
-</button>
+                     {file.analysis_result ? (
+  <button
+    type="button"
+    onClick={() => handlePolicyAnalysisView(file)}
+    style={{
+      border: 'none',
+      background: '#DCFCE7',
+      color: '#15803D',
+      borderRadius: 8,
+      padding: '6px 10px',
+      fontSize: 12,
+      fontWeight: 800,
+      cursor: 'pointer',
+    }}
+  >
+    📋 결과보기
+  </button>
+) : (
+  <button
+    type="button"
+    onClick={() => handlePolicyAnalysis(file)}
+    disabled={policyAnalyzing}
+    style={{
+      border: 'none',
+      background: '#F3E8FF',
+      color: '#7C3AED',
+      borderRadius: 8,
+      padding: '6px 10px',
+      fontSize: 12,
+      fontWeight: 800,
+      cursor: policyAnalyzing ? 'not-allowed' : 'pointer',
+      opacity: policyAnalyzing ? 0.6 : 1,
+    }}
+  >
+    🤖 분석
+  </button>
+)}
 
                       <button
                         type="button"
