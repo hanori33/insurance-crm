@@ -1,12 +1,49 @@
 // src/services/roleService.js
 import { supabase } from '../supabaseClient';
 
+export const ADMIN_ROLES = ['admin', 'superadmin'];
+
+export function isAdminRole(role) {
+  return ADMIN_ROLES.includes(role);
+}
+
+async function getCurrentRole() {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) return null;
+
+  const [{ data: userRole, error: userRoleError }, { data: profile, error: profileError }] =
+    await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle(),
+      supabase.from('profiles').select('role').eq('user_id', user.id).maybeSingle(),
+    ]);
+
+  if (userRoleError) throw userRoleError;
+  if (profileError) throw profileError;
+
+  const roles = [userRole?.role, profile?.role].filter(Boolean);
+  return roles.find(isAdminRole) || roles[0] || 'agent';
+}
+
+async function assertAdmin() {
+  const role = await getCurrentRole();
+  if (!isAdminRole(role)) throw new Error('관리자 권한이 필요합니다.');
+  return role;
+}
+
 function mapToProfileRole(role) {
   if (role === 'team_member') return 'staff';
   return 'manager';
 }
 
 const roleService = {
+  getCurrentRole,
+  isAdmin: async () => isAdminRole(await getCurrentRole()),
+  assertAdmin,
   request: async ({
     userName,
     requestedRole,
@@ -63,6 +100,8 @@ const roleService = {
   },
 
   listAll: async () => {
+    await assertAdmin();
+    // TODO: Enforce admin/superadmin access with Supabase RLS or a dedicated RPC.
     const { data, error } = await supabase
       .from('role_requests')
       .select('*')
@@ -79,6 +118,8 @@ const roleService = {
   role,
   { userName, organization, branch, office, team } = {}
 ) => {
+    await assertAdmin();
+    // TODO: Move approval to a SECURITY DEFINER RPC and enforce admin/superadmin in DB RLS.
     const cleanText = (value, fallback = '') =>
       String(value || fallback)
         .replace(/\s+/g, '')
@@ -222,6 +263,8 @@ if (profileError) throw profileError;
   },
 
   reject: async (id) => {
+    await assertAdmin();
+    // TODO: Move rejection to a SECURITY DEFINER RPC and enforce admin/superadmin in DB RLS.
     const { error } = await supabase
       .from('role_requests')
       .update({

@@ -4,6 +4,7 @@ import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
 import { supabase } from '../supabaseClient';
+import { isAdminRole } from '../services/roleService';
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -34,7 +35,7 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}일 전`;
 }
 
-export default function NotificationsPage({ onBack, onRead, onReadOne }) {
+export default function NotificationsPage({ onBack, onRead, onReadOne, currentRole }) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [readNotifIds, setReadNotifIds] = useState(() => {
@@ -44,7 +45,7 @@ export default function NotificationsPage({ onBack, onRead, onReadOne }) {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [currentRole]);
 
   async function load() {
     setLoading(true);
@@ -150,8 +151,7 @@ customers.forEach(c => {
         });
 
         // ✅ 관리자면 권한 신청 대기 건수 추가
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.email === 'gksmf629@naver.com') {
+    if (isAdminRole(currentRole)) {
       const { data: requests } = await supabase
         .from('role_requests')
         .select('*')

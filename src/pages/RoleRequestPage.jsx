@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import Field from '../components/Field';
-import roleService from '../services/roleService';
+import roleService, { isAdminRole } from '../services/roleService';
 import noticeService from '../services/noticeService';
 
 const ROLE_OPTIONS = [
@@ -60,7 +60,7 @@ export default function RoleRequestPage({ user }) {
       setMyRequest(myReq);
       setMyRole(role || 'agent');
 
-      if (role === 'superadmin') {
+      if (isAdminRole(role)) {
         const all = await roleService.listAll().catch(() => []);
         setAllRequests(all);
       }
@@ -72,7 +72,7 @@ export default function RoleRequestPage({ user }) {
   const hasActiveRequest =
     myRequest && (myRequest.status === 'pending' || myRequest.status === 'approved');
 
-  const canShowForm = !hasActiveRequest && myRole !== 'superadmin';
+  const canShowForm = !hasActiveRequest && !isAdminRole(myRole);
 
   async function handleSubmit() {
     if (!form.userName.trim()) {
@@ -345,7 +345,7 @@ export default function RoleRequestPage({ user }) {
           </Card>
         )}
 
-        {myRole === 'superadmin' && (
+        {isAdminRole(myRole) && (
           <Card>
             <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text, marginBottom: 16 }}>
               권한 신청 목록

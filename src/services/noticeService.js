@@ -1,5 +1,6 @@
 // src/services/noticeService.js
 import { supabase } from '../supabaseClient';
+import roleService from './roleService';
 
 const noticeService = {
   list: async () => {
@@ -93,22 +94,7 @@ const noticeService = {
   },
 
   getMyRole: async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return null;
-
-    if (user.email === 'gksmf629@naver.com') return 'superadmin';
-
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) return 'agent';
-    return data?.role || 'agent';
+    return (await roleService.getCurrentRole()) || 'agent';
   },
 };
 

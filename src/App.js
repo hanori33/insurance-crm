@@ -34,6 +34,8 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import FaxClaimPage from './pages/FaxClaimPage';
 import DiseaseDictionaryPage from './pages/DiseaseDictionaryPage';
 import TermsPage from './pages/TermsPage';
+import roleService, { isAdminRole } from './services/roleService';
+import DeleteAccountPublicPage from './pages/DeleteAccountPublicPage';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -101,6 +103,8 @@ export default function App() {
   window.location.hash.includes('type=recovery') ||
   window.location.hash.includes('access_token') ||
   window.location.search.includes('type=recovery');
+  const isPublicPrivacyPolicy = window.location.pathname === '/privacy-policy';
+  const isPublicDeleteAccount = window.location.pathname === '/delete-account';
   const [activeTab, setActiveTab] = useState('home');
   const [stack, setStack] = useState([]);
   const [notifiedIds, setNotifiedIds] = useState([]);
@@ -109,6 +113,7 @@ export default function App() {
   const [customersSearch, setCustomersSearch] = useState('');
   const [notifCount, setNotifCount] = useState(0);
   const [profile, setProfile] = useState(null);
+  const [currentRole, setCurrentRole] = useState(null);
   const [showProModal, setShowProModal] = useState(false);
   const [showProInfoModal, setShowProInfoModal] = useState(false);
   useEffect(() => {
@@ -230,7 +235,7 @@ useEffect(() => {
   const interval = setInterval(loadNotifCount, 30 * 1000);
 
   return () => clearInterval(interval);
-}, [session]);
+}, [session, currentRole]);
 
 useEffect(() => {
   if (!session?.user) return;
@@ -258,6 +263,28 @@ useEffect(() => {
 useEffect(() => {
   loadProfile();
 }, [session]);
+
+useEffect(() => {
+  let cancelled = false;
+
+  if (!session?.user?.id) {
+    setCurrentRole(null);
+    return undefined;
+  }
+
+  roleService.getCurrentRole()
+    .then((role) => {
+      if (!cancelled) setCurrentRole(role);
+    })
+    .catch((error) => {
+      console.error('Failed to load current role:', error);
+      if (!cancelled) setCurrentRole('agent');
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [session?.user?.id]);
 
 async function loadProfile() {
   if (!session?.user) return;
@@ -427,7 +454,7 @@ useEffect(() => {
         });
       }
 
-      if (session?.user?.email === 'gksmf629@naver.com') {
+      if (isAdminRole(currentRole)) {
         const { data: requests } = await supabase
           .from('role_requests')
           .select('id')
@@ -641,6 +668,7 @@ if (page === 'adminInquiry') {
             onBack={goBack}
             onRead={clearNotifCount}
             onReadOne={decreaseNotifCount}
+            currentRole={currentRole}
           />
         );
 
@@ -716,7 +744,7 @@ if (page === 'adminInquiry') {
         return <TeamPage />;
 
       case 'more':
-        return <MorePage user={user} onNavigate={navigate} />;
+        return <MorePage user={user} currentRole={currentRole} onNavigate={navigate} />;
 
       case 'sales':
         return <SalesPage onBack={() => setActiveTab('home')} />;
@@ -727,6 +755,7 @@ if (page === 'adminInquiry') {
             onBack={() => setActiveTab('home')}
             onRead={clearNotifCount}
             onReadOne={decreaseNotifCount}
+            currentRole={currentRole}
           />
         );
 
@@ -781,7 +810,9 @@ if (page === 'adminInquiry') {
   return <InquiryPage user={user} onBack={() => setActiveTab('more')} />;
 
 case 'adminInquiry':
-  return <AdminInquiryPage onBack={() => setActiveTab('more')} />;
+  return isAdminRole(currentRole)
+    ? <AdminInquiryPage onBack={() => setActiveTab('more')} />
+    : <DashboardPage user={user} onNavigate={navigate} />;
 
         case 'privacyPolicy':
   return (
@@ -809,6 +840,14 @@ case 'deleteAccount':
     }
   }
 
+  if (isPublicPrivacyPolicy) {
+    return <PrivacyPolicyPage />;
+  }
+  
+  if (isPublicDeleteAccount) {
+  return <DeleteAccountPublicPage />;
+}
+  
   if (isResetPassword) {
   const Shell = isMobile ? MobileShell : WebShell;
 
@@ -957,7 +996,7 @@ if (!session) {
             { id: 'insuranceContact', icon: '📞', label: '보험사 연락처' },
             { id: 'roleRequest', icon: '🔑', label: '권한 신청' },
             { id: 'more', icon: '⚙️', label: '설정' },
-            ...(session?.user?.email === 'gksmf629@naver.com'
+            ...(isAdminRole(currentRole)
   ? [
       {
         id: 'diseaseDictionary',

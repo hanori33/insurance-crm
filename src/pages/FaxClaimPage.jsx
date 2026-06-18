@@ -260,6 +260,8 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     .substring(2, 8)
     .toUpperCase()}`;
 
+    faxRequestIdRef.current = requestId;
+
     const uploadedFiles = [];
     try {
       for (const file of selectedFiles) {
