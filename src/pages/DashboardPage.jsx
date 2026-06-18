@@ -12,6 +12,7 @@ import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
 import { toTimeStr, todayStr } from '../utils';
 import noticeService from '../services/noticeService';
+import contactRecommendationService from '../services/contactRecommendationService';
 import NoticeForm from '../components/NoticeForm';
 import Modal from '../components/Modal';
 
@@ -221,6 +222,96 @@ function CustomerMiniRow({ customer, isLast, onClick }) {
       </button>
       {!isLast && <Divider />}
     </>
+  );
+}
+
+function AiContactRecommendationSection({ loading, contactRecommendations = [], onNavigate, compact = false }) {
+  const visibleRecommendations = contactRecommendations.slice(0, compact ? 3 : 5);
+
+  return (
+    <DashboardSection title="AI 연락 추천 고객" icon="🔥">
+      {loading ? (
+        <LoadingSpinner />
+      ) : visibleRecommendations.length === 0 ? (
+        <EmptyState icon="🤖" message="오늘 추천할 고객이 없습니다" />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 8 : 10 }}>
+          {visibleRecommendations.map((item, i) => {
+            const customer = item.customer || {};
+            const customerId = customer.db_id || customer.id || customer.app_customer_id;
+            const firstReason = item.reasons?.[0] || '연락 가치가 있는 고객입니다.';
+
+            return (
+              <button
+                key={customerId || i}
+                type="button"
+                onClick={() => onNavigate('customerDetail', { id: customerId })}
+                style={{
+                  width: '100%',
+                  border: `1px solid ${COLORS.border}`,
+                  background: '#fff',
+                  borderRadius: compact ? 14 : 16,
+                  padding: compact ? '9px 11px' : '11px 12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  boxShadow: '0 6px 14px rgba(124,92,252,0.045)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 10 : 12 }}>
+                  <div
+                    style={{
+                      width: compact ? 34 : 38,
+                      height: compact ? 34 : 38,
+                      borderRadius: compact ? 12 : 14,
+                      background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 950,
+                      fontSize: compact ? 13 : 14,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: compact ? 13 : 14 }}>
+                        {customer.name || '이름 없음'}
+                      </div>
+                      <div style={{ color: COLORS.primary, fontWeight: 950, fontSize: compact ? 12 : 13, whiteSpace: 'nowrap' }}>
+                        {item.score}점
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 3, color: COLORS.primary, fontWeight: 850, fontSize: compact ? 11.5 : 12 }}>
+                      {item.recommendedAction || '안부 연락'}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 4,
+                        color: COLORS.textGray,
+                        fontSize: compact ? 11 : 12,
+                        lineHeight: 1.35,
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: 'vertical',
+                      }}
+                    >
+                      {firstReason}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </DashboardSection>
   );
 }
 
@@ -631,6 +722,7 @@ export default function DashboardPage({ user, onNavigate }) {
   const [readIds, setReadIds] = useState([]);
   const [myRole, setMyRole] = useState('agent');
   const [showNoticeForm, setShowNoticeForm] = useState(false);
+  const [contactRecommendations, setContactRecommendations] = useState([]);
 
   const meta = user?.user_metadata || {};
   const userName = meta.display_name || user?.email?.split('@')[0] || '사용자';
@@ -644,7 +736,7 @@ export default function DashboardPage({ user, onNavigate }) {
     setLoading(true);
 
     try {
-      const [todaySched, recent, counts, all, noticeList, readIdList, role] = await Promise.all([
+      const [todaySched, recent, counts, all, noticeList, readIdList, role, recommendations] = await Promise.all([
         scheduleService.today().catch(() => []),
         customerService.recent(4).catch(() => []),
         customerService.statusCounts().catch(() => ({})),
@@ -652,6 +744,7 @@ export default function DashboardPage({ user, onNavigate }) {
         noticeService.list().catch(() => []),
         noticeService.getReadIds().catch(() => []),
         noticeService.getMyRole().catch(() => 'agent'),
+        contactRecommendationService.list(5).catch(() => []),
       ]);
 
       setTodaySchedules(todaySched || []);
@@ -661,6 +754,7 @@ export default function DashboardPage({ user, onNavigate }) {
       setNotices(noticeList || []);
       setReadIds(readIdList || []);
       setMyRole(role || 'agent');
+      setContactRecommendations(recommendations || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -705,6 +799,7 @@ export default function DashboardPage({ user, onNavigate }) {
             loading={loading}
             todaySchedules={todaySchedules}
             recentCustomers={recentCustomers}
+            contactRecommendations={contactRecommendations}
             totalCustomers={totalCustomers}
             taskCount={taskCount}
             birthdayCustomers={birthdayCustomers}
@@ -721,6 +816,7 @@ export default function DashboardPage({ user, onNavigate }) {
             loading={loading}
             todaySchedules={todaySchedules}
             recentCustomers={recentCustomers}
+            contactRecommendations={contactRecommendations}
             totalCustomers={totalCustomers}
             taskCount={taskCount}
             birthdayCustomers={birthdayCustomers}
@@ -778,6 +874,7 @@ function MobileDashboard({
   loading,
   todaySchedules,
   recentCustomers,
+  contactRecommendations,
   totalCustomers,
   taskCount,
   birthdayCustomers,
@@ -872,6 +969,13 @@ function MobileDashboard({
         isMobile
         onNavigate={onNavigate}
         setShowScheduleForm={setShowScheduleForm}
+      />
+
+      <AiContactRecommendationSection
+        loading={loading}
+        contactRecommendations={contactRecommendations}
+        onNavigate={onNavigate}
+        compact
       />
 
       <DashboardSection
@@ -997,6 +1101,7 @@ function PcDashboard({
   loading,
   todaySchedules,
   recentCustomers,
+  contactRecommendations,
   totalCustomers,
   taskCount,
   birthdayCustomers,
@@ -1131,6 +1236,13 @@ function PcDashboard({
           setShowScheduleForm={setShowScheduleForm}
         />
       </div>
+
+      <AiContactRecommendationSection
+        loading={loading}
+        contactRecommendations={contactRecommendations}
+        onNavigate={onNavigate}
+        compact
+      />
 
       <DashboardSection
         title="공지사항"

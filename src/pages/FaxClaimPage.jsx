@@ -1,5 +1,5 @@
 // src/pages/FaxClaimPage.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import customerService from '../services/customerService';
@@ -8,6 +8,7 @@ import consultationService from '../services/consultationService';
 import { supabase } from '../supabaseClient';
 
 const STORAGE_KEY = 'boplan_fax_claims';
+const FAX_API_BASE_URL = (process.env.REACT_APP_FAX_API_BASE_URL || 'https://www.boplan.kr').replace(/\/$/, '');
 
 const CLAIM_TYPES = ['실손', '진단비', '수술비', '입원비', '운전자', '치아', '기타'];
 
@@ -58,6 +59,25 @@ function fileSizeText(size) {
   return `${(size / 1024 / 1024).toFixed(1)}MB`;
 }
 
+function countPdfPagesFromText(text) {
+  const pageObjects = text.match(/\/Type\s*\/Page(?!s)\b/g)?.length || 0;
+  const pageTreeCounts = Array.from(text.matchAll(/\/Count\s+(\d+)/g), (match) => Number(match[1]));
+  return Math.max(1, pageObjects, ...pageTreeCounts.filter(Number.isFinite));
+}
+
+async function countFilePages(file) {
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return 1;
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const text = new TextDecoder('latin1').decode(buffer);
+    return countPdfPagesFromText(text);
+  } catch (error) {
+    console.error('PDF page count failed:', error);
+    return 1;
+  }
+}
+
 export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const [customers, setCustomers] = useState([]);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -67,11 +87,20 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const [claimType, setClaimType] = useState('실손');
   const [memo, setMemo] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [filePageCounts, setFilePageCounts] = useState([]);
+  const [isCountingPages, setIsCountingPages] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const fileSelectionIdRef = useRef(0);
+  const faxRequestIdRef = useRef(null);
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
 
   const selectedCompanyInfo = INSURANCE_COMPANIES.find((item) => item.name === selectedCompany);
+  const totalFaxPages = useMemo(
+    () => filePageCounts.reduce((sum, count) => sum + count, 0),
+    [filePageCounts]
+  );
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -138,9 +167,21 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     setFaxNumber(found.faxType === 'manual' ? '' : found.fax || '');
   }
 
- function handleFileChange(e) {
+ async function handleFileChange(e) {
   const files = Array.from(e.target.files || []);
+  const selectionId = fileSelectionIdRef.current + 1;
+  fileSelectionIdRef.current = selectionId;
+  faxRequestIdRef.current = null;
   setSelectedFiles(files);
+  setFilePageCounts([]);
+  setIsCountingPages(true);
+
+  try {
+    const counts = await Promise.all(files.map(countFilePages));
+    if (fileSelectionIdRef.current === selectionId) setFilePageCounts(counts);
+  } finally {
+    if (fileSelectionIdRef.current === selectionId) setIsCountingPages(false);
+  }
 }
 
   async function copyFaxNumber() {
@@ -164,10 +205,21 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     setClaimType('실손');
     setMemo('');
     setSelectedFiles([]);
+    setFilePageCounts([]);
+    faxRequestIdRef.current = null;
   }
 
  async function handleSendFax() {
-  if ((profile?.fax_credit ?? 0) <= 0) {
+  if (isCountingPages) {
+    alert('첨부파일 장수를 계산하고 있습니다. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+
+  if (isSending) return;
+
+  const estimatedPages = Math.max(1, totalFaxPages);
+
+  if ((profile?.fax_credit ?? 0) < estimatedPages) {
     alert('팩스 크레딧이 부족합니다.');
     return;
   }
@@ -190,30 +242,125 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     return;
   }
 
-  if (!window.confirm(`${selectedCompany}로 팩스를 발송할까요?`)) return;
+  if (!window.confirm(`${selectedCompany}로 팩스를 발송할까요?\n예상 차감: ${estimatedPages}장`)) return;
+
+  setIsSending(true);
 
   try {
-    const formData = new FormData();
-    formData.append('receiverNum', faxNumber);
-    formData.append('receiverName', selectedCompany);
-    formData.append('title', `${selectedCustomer.name || '고객'} ${claimType} 보험금 청구`);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    selectedFiles.forEach((file) => {
-      formData.append('files', file);
-    });
+    if (!session?.access_token) throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.');
 
-    const response = await fetch('/api/send-fax', {
+    const requestId = faxRequestIdRef.current ||
+      `boplan-${window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+    faxRequestIdRef.current = requestId;
+
+    const uploadedFiles = [];
+    try {
+      for (const file of selectedFiles) {
+        const signedResponse = await fetch(`${FAX_API_BASE_URL}/api/fax-upload-url`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: file.name, size: file.size, type: file.type }),
+        });
+        const signedContentType = signedResponse.headers.get('content-type') || '';
+        if (!signedContentType.includes('application/json')) {
+          throw new Error('팩스 파일 업로드 서버가 올바른 응답을 반환하지 않았습니다.');
+        }
+        const signedResult = await signedResponse.json();
+
+        if (!signedResponse.ok || !signedResult.success) {
+          throw new Error(signedResult.error || '팩스 파일 업로드 준비에 실패했습니다.');
+        }
+
+        const { error: uploadError } = await supabase.storage
+          .from(signedResult.bucket)
+          .uploadToSignedUrl(signedResult.path, signedResult.token, file, {
+            contentType: file.type,
+          });
+
+        if (uploadError) throw uploadError;
+        uploadedFiles.push({
+          bucket: signedResult.bucket,
+          path: signedResult.path,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        });
+      }
+    } catch (uploadError) {
+      if (uploadedFiles.length > 0) {
+        await fetch(`${FAX_API_BASE_URL}/api/fax-upload-url`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ paths: uploadedFiles.map((file) => file.path) }),
+        }).catch(() => {});
+      }
+      throw new Error(uploadError.message || '팩스 파일 업로드에 실패했습니다.');
+    }
+
+    const response = await fetch(`${FAX_API_BASE_URL}/api/send-fax`, {
       method: 'POST',
-      body: formData,
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        receiverNum: faxNumber,
+        receiverName: selectedCompany,
+        title: `${selectedCustomer.name || '고객'} ${claimType} 보험금 청구`,
+        requestId,
+        files: uploadedFiles,
+      }),
     });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const responseText = await response.text();
+      console.error('팩스 API 비정상 응답:', response.status, responseText.slice(0, 300));
+      throw new Error(
+        response.status === 401
+          ? '팩스 서버 접근이 차단되었습니다. 실사용 도메인에서 다시 시도해주세요.'
+          : '팩스 서버가 올바른 응답을 반환하지 않았습니다. 잠시 후 다시 시도해주세요.'
+      );
+    }
 
     const result = await response.json();
 
     if (!response.ok || !result.success) {
+      if (response.status === 502) faxRequestIdRef.current = null;
+      if (Number.isFinite(Number(result.remaining_credit))) {
+        setProfile((prev) => ({ ...prev, fax_credit: Number(result.remaining_credit) }));
+      }
       throw new Error(result.error || '팩스 발송 실패');
     }
 
+    const chargedPages = Number(result.total_pages);
+    const serverPageCounts = result.page_counts;
+    const remainingCredit = Number(result.remaining_credit);
+
+    if (!Number.isInteger(chargedPages) || chargedPages <= 0 || !Array.isArray(serverPageCounts)) {
+      throw new Error('서버의 팩스 장수 응답이 올바르지 않습니다.');
+    }
+
+    if (!Number.isInteger(remainingCredit) || remainingCredit < 0) {
+      throw new Error('서버의 잔여 팩스 응답이 올바르지 않습니다.');
+    }
+
     const now = new Date().toISOString();
+
+    setProfile((prev) => ({
+      ...prev,
+      fax_credit: remainingCredit,
+    }));
 
     const item = {
       id: `fax-${Date.now()}`,
@@ -224,60 +371,53 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
       fax_number: faxNumber,
       claim_type: claimType,
       memo: memo.trim(),
-      files: selectedFiles.map((file) => ({
+      files: selectedFiles.map((file, index) => ({
         name: file.name,
         size: file.size,
         type: file.type,
+        page_count: serverPageCounts[index],
       })),
       status: '발송완료',
+      provider: 'popbill',
+      provider_receipt_id: result.receiptNum,
+      sent_at: now,
       receipt_num: result.receiptNum,
       request_num: result.requestNum,
       created_at: now,
       updated_at: now,
     };
 
-   await faxHistoryService.create(item);
-
-await consultationService.create({
-  customer_id: item.customer_id,
-  customer_name: item.customer_name,
-  category: '청구',
-  content: `[보험금청구]
+    let historySaved = true;
+    try {
+      await faxHistoryService.create(item);
+      await consultationService.create({
+        customer_id: item.customer_id,
+        customer_name: item.customer_name,
+        category: '청구',
+        content: `[보험금청구]
 보험사: ${selectedCompany}
 청구유형: ${claimType}
 팩스번호: ${faxNumber}
 접수번호: ${result.receiptNum}
 메모: ${memo.trim() || '-'}`,
-  consulted_at: now,
-});
-await supabase
-  .from('profiles')
-  .update({
-    fax_credit: Math.max(
-      0,
-      (profile?.fax_credit ?? 0) - 1
-    ),
-  })
-  .eq(
-    'user_id',
-    (await supabase.auth.getUser()).data.user.id
-  );
+        consulted_at: now,
+      });
+      await loadClaims();
+    } catch (historyError) {
+      historySaved = false;
+      console.error('팩스 발송 이력 저장 실패:', historyError);
+    }
 
-setProfile(prev => ({
-  ...prev,
-  fax_credit: Math.max(
-    0,
-    (prev?.fax_credit ?? 0) - 1
-  ),
-}));
-
-await loadClaims();
-
-alert(`팩스 발송 완료!\n접수번호: ${result.receiptNum}`);
-resetForm();
+    alert(
+      `팩스 발송 완료!\n접수번호: ${result.receiptNum}\n차감: ${chargedPages}장` +
+      (historySaved ? '' : '\n단, 발송 이력 저장을 확인해주세요.')
+    );
+    resetForm();
   } catch (e) {
     console.error(e);
     alert('팩스 발송 중 오류가 발생했습니다: ' + (e.message || '알 수 없는 오류'));
+  } finally {
+    setIsSending(false);
   }
 }
 
@@ -463,7 +603,7 @@ resetForm();
           style={styles.fileInput}
         />
 
-        <div style={styles.helpText}>PDF, JPG, PNG 파일을 여러 개 선택할 수 있습니다. 현재는 실제 업로드 없이 파일명만 이력에 저장됩니다.</div>
+        <div style={styles.helpText}>PDF는 문서 페이지 수, JPG와 PNG는 파일당 1장으로 계산됩니다.</div>
 
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {selectedFiles.length === 0 ? (
@@ -472,11 +612,19 @@ resetForm();
             selectedFiles.map((file, idx) => (
               <div key={`${file.name}-${idx}`} style={styles.fileItem}>
                 <span>📎 {file.name}</span>
-                <span style={{ color: COLORS.textGray }}>{fileSizeText(file.size)}</span>
+                <span style={{ color: COLORS.textGray }}>
+                  {fileSizeText(file.size)} · {filePageCounts[idx] || 1}장
+                </span>
               </div>
             ))
           )}
         </div>
+
+        {selectedFiles.length > 0 && (
+          <div style={{ ...styles.helpText, marginTop: 12, fontWeight: 800, color: COLORS.primary }}>
+            예상 차감 {totalFaxPages}장 · 잔여 팩스 {profile?.fax_credit ?? 0}장
+          </div>
+        )}
       </Card>
     );
   }
@@ -493,8 +641,13 @@ resetForm();
           style={styles.textarea}
         />
 
-        <button type="button" onClick={handleSendFax} style={styles.primaryButton}>
-  📠 팩스 발송
+        <button
+          type="button"
+          onClick={handleSendFax}
+          disabled={isSending || isCountingPages}
+          style={{ ...styles.primaryButton, opacity: isSending || isCountingPages ? 0.6 : 1 }}
+        >
+  {isSending ? '발송 중...' : isCountingPages ? '장수 계산 중...' : '📠 팩스 발송'}
 </button>
 
         <div style={styles.helpText}>※ 팩스 발송 완료 후 접수번호와 함께 청구이력이 저장됩니다.</div>
@@ -533,7 +686,7 @@ resetForm();
                   <div style={styles.fileListBox}>
                     {claim.files.map((file, idx) => (
                       <span key={`${claim.id}-${file.name}-${idx}`} style={styles.fileBadge}>
-                        📎 {file.name}
+                        📎 {file.name}{file.page_count ? ` · ${file.page_count}장` : ''}
                       </span>
                     ))}
                   </div>

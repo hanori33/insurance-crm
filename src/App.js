@@ -1057,7 +1057,7 @@ if (!session) {
 <br />
 
 잔여 팩스 :
-{profile?.fax_credit ?? 0}건
+{profile?.fax_credit ?? 0}장
   </div>
 
   
@@ -1345,7 +1345,7 @@ if (!session) {
       </div>
 
       <div style={{ marginTop: 16, padding: 12, borderRadius: 14, background: COLORS.primaryBg, color: COLORS.primary, fontWeight: 900 }}>
-        잔여 팩스 : {profile?.fax_credit ?? 0}건
+        잔여 팩스 : {profile?.fax_credit ?? 0}장
       </div>
 
      <button
@@ -1419,7 +1419,7 @@ if (!session) {
         ✅ AI 증권분석<br/>
         ✅ AI 병력분석<br/>
         ✅ AI 영업코치<br/>
-        ✅ 팩스 50건 포함<br/>
+        ✅ 팩스 50장 포함<br/>
         ✅ 지속 업데이트
       </div>
 
@@ -1465,7 +1465,7 @@ if (!session) {
   ].map(item => (
     <button
       key={item.count}
-      onClick={() => alert(`${item.count}건 충전 결제 준비중`)}
+      onClick={() => alert(`${item.count}장 충전 결제 준비중`)}
       style={{
         width: '100%',
         border: `1px solid ${COLORS.border}`,
@@ -1479,7 +1479,7 @@ if (!session) {
         cursor: 'pointer',
       }}
     >
-      <span>{item.count}건</span>
+      <span>{item.count}장</span>
       <span style={{ color: COLORS.primary }}>{item.price}</span>
     </button>
   ))}
