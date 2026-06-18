@@ -253,9 +253,12 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
 
     if (!session?.access_token) throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.');
 
-    const requestId = faxRequestIdRef.current ||
-      `boplan-${window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
-    faxRequestIdRef.current = requestId;
+    const requestId =
+  faxRequestIdRef.current ||
+  `FAX${Date.now()}${Math.random()
+    .toString(36)
+    .substring(2, 8)
+    .toUpperCase()}`;
 
     const uploadedFiles = [];
     try {

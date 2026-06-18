@@ -210,16 +210,19 @@ module.exports = async function handler(req, res) {
     const receiverNum = String(valueOf(fields.receiverNum) || '').replace(/[^0-9]/g, '');
     const receiverName = String(valueOf(fields.receiverName) || '보험사').slice(0, 50);
     const title = String(valueOf(fields.title) || '보험금 청구서류').slice(0, 200);
-    const requestNum = String(valueOf(fields.requestId) || '');
+   const rawRequestNum = String(valueOf(fields.requestId) || '');
 
-    if (!/^\d{8,12}$/.test(receiverNum)) {
-      return res.status(400).json({ success: false, error: '수신 팩스번호가 올바르지 않습니다.' });
-    }
+const requestNum = rawRequestNum
+  .replace(/[^A-Za-z0-9]/g, '')
+  .slice(0, 36);
 
-    if (!/^[A-Za-z0-9_-]{8,100}$/.test(requestNum)) {
-      return res.status(400).json({ success: false, error: '팩스 요청 식별자가 올바르지 않습니다.' });
-    }
-
+if (!/^[A-Za-z0-9]{8,36}$/.test(requestNum)) {
+  return res.status(400).json({
+    success: false,
+    error: '팩스 요청번호 형식이 올바르지 않습니다.',
+  });
+}
+    
     const inspections = await Promise.all(fileArray.map(inspectFile));
     const pageCounts = inspections.map((item) => item.pageCount);
     const totalPages = pageCounts.reduce((sum, count) => sum + count, 0);
