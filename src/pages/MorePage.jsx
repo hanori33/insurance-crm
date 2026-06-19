@@ -5,6 +5,7 @@ import { Divider } from '../components/Common';
 import Modal from '../components/Modal';
 import Field from '../components/Field';
 import authService from '../services/authService';
+import { isAdminRole } from '../services/roleService';
 import { supabase } from '../supabaseClient';
 
 function ProfileAvatar({ src, name, size = 60 }) {
@@ -327,7 +328,7 @@ function MenuItem({ icon, label, onClick, danger, isLast }) {
   );
 }
 
-export default function MorePage({ user, onNavigate }) {
+export default function MorePage({ user, currentRole, onNavigate }) {
   const meta = user?.user_metadata || {};
 
   const [profile, setProfile] = useState({
@@ -375,7 +376,7 @@ export default function MorePage({ user, onNavigate }) {
     }
   }
 
-  const isAdmin = user?.email === 'gksmf629@naver.com';
+  const isAdmin = isAdminRole(currentRole);
 
   const menuItems = [
     { icon: '🔔', label: '알림 설정', onClick: () => onNavigate('notifSettings') },

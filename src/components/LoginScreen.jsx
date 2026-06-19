@@ -49,6 +49,7 @@ export default function LoginScreen() {
   const [mode, setMode]       = useState('login');
   const [email, setEmail]     = useState('');
   const [pw, setPw]           = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
   const [name, setName]       = useState('');
   const [showPw, setShowPw]   = useState(false);
   const [saveId, setSaveId]   = useState(false);
@@ -82,6 +83,8 @@ useEffect(() => {
 
     if (mode === 'signup') {
       if (!name.trim()) throw new Error('이름을 입력해주세요');
+      if (pw.length < 8) throw new Error('비밀번호는 8자 이상 입력해주세요.');
+      if (pw !== pwConfirm) throw new Error('비밀번호가 일치하지 않습니다.');
       await authService.signUp(email, pw, name);
       setSuccess('이메일 인증 후 로그인해주세요.');
       setMode('login');
@@ -104,12 +107,13 @@ useEffect(() => {
       alignItems: 'center', justifyContent: 'center',
       background: 'linear-gradient(160deg,#EDE9FF 0%,#F5F3FF 45%,#fff 100%)',
       padding: '40px 24px',
+      boxSizing: 'border-box',
     }}>
       <Logo />
 
       <div style={{
         background: '#fff', borderRadius: 22, padding: '28px 24px',
-        width: '100%', maxWidth: 360,
+        width: '100%', maxWidth: 408, boxSizing: 'border-box',
         boxShadow: '0 6px 28px rgba(124,92,252,0.14)',
       }}>
         <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'center', marginBottom: 22, color: COLORS.text }}>
@@ -145,6 +149,16 @@ useEffect(() => {
                 {showPw ? '🙈' : '👁'}
               </button>
             }
+          />
+        )}
+
+        {mode === 'signup' && (
+          <Field
+            icon="🔒"
+            placeholder="비밀번호 확인"
+            value={pwConfirm}
+            onChange={e => setPwConfirm(e.target.value)}
+            type={showPw ? 'text' : 'password'}
           />
         )}
 
@@ -192,13 +206,13 @@ useEffect(() => {
           {mode === 'login' ? (
             <>
               아직 계정이 없으신가요?{' '}
-              <span onClick={() => { setMode('signup'); reset(); }}
+              <span onClick={() => { setMode('signup'); setPwConfirm(''); reset(); }}
                 style={{ color: COLORS.primary, fontWeight: 700, cursor: 'pointer' }}>
                 회원가입
               </span>
             </>
           ) : (
-            <span onClick={() => { setMode('login'); reset(); }}
+            <span onClick={() => { setMode('login'); setPwConfirm(''); reset(); }}
               style={{ color: COLORS.primary, fontWeight: 700, cursor: 'pointer' }}>
               ← 로그인으로 돌아가기
             </span>

@@ -303,25 +303,13 @@ if (error) {
 let nextProfile = data;
 
 if (!data.trial_used && !data.pro_trial_end) {
-  const now = new Date();
-  const trialEnd = new Date(
-    now.getTime() + 7 * 24 * 60 * 60 * 1000
-  );
-
   const { data: updatedProfile, error: updateError } = await supabase
-    .from('profiles')
-    .update({
-      trial_used: true,
-      pro_trial_start: now.toISOString(),
-      pro_trial_end: trialEnd.toISOString(),
-      fax_credit: Math.max(data.fax_credit ?? 0, 20),
-    })
-    .eq('user_id', session.user.id)
-    .select('pro_plan, pro_expire_at, fax_credit, trial_used, pro_trial_start, pro_trial_end')
-    .single();
+    .rpc('activate_free_trial');
 
   if (!updateError && updatedProfile) {
     nextProfile = updatedProfile;
+  } else if (updateError) {
+    console.error('Failed to activate free trial:', updateError);
   }
 }
 

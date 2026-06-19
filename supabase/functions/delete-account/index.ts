@@ -158,6 +158,7 @@ serve(async (req) => {
     await deleteRows(adminClient, "consultations", "user_id", userId);
     await deleteRows(adminClient, "schedules", "user_id", userId);
     await deleteRows(adminClient, "sales", "user_id", userId);
+    await deleteRows(adminClient, "policies", "user_id", userId);
     await deleteRows(adminClient, "customers", "user_id", userId);
 
     await deleteRows(adminClient, "inquiries", "user_id", userId);
