@@ -1,3 +1,10 @@
+import {
+  AuthorizationError,
+  jsonError,
+  requireProEntitlement,
+  requireUser,
+} from "../_shared/auth.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -25,6 +32,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authContext = await requireUser(req);
+    await requireProEntitlement(authContext);
+
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!openaiApiKey) {
@@ -168,11 +178,17 @@ ${JSON.stringify(diseaseDictionaryMatches, null, 2)}
 
     return jsonResponse(parsed);
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return jsonError(error.code, error.message, error.status, corsHeaders);
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     return jsonResponse({
-      medicalSummary: `AI 분석 처리 중 오류: ${error?.message || String(error)}`,
+      medicalSummary: `AI 분석 처리 중 오류: ${errorMessage}`,
       additionalQuestions: ["입력값 또는 함수 설정을 확인하세요."],
       disclosureCheckPoints: ["현재 오류는 알릴의무 내용 문제가 아니라 시스템 처리 오류입니다."],
-      underwritingNotes: [`오류 내용: ${error?.message || String(error)}`],
+      underwritingNotes: [`오류 내용: ${errorMessage}`],
       customerScript: "현재 AI 분석 처리 중 오류가 발생했습니다.",
     });
   }

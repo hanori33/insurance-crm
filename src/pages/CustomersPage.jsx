@@ -9,6 +9,7 @@ import Modal from '../components/Modal';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import { supabase } from '../supabaseClient';
+import getFunctionErrorMessage from '../services/functionErrorService';
 
 const EXCEL_HEADERS = [
   '이름', '전화번호', '생년월일', '성별', '상태', '고객유형',
@@ -308,6 +309,8 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
 async function generateAiKakaoMessage() {
   if (!selectedCustomer) return;
 
+  const previousMessage = kakaoMessage;
+
   try {
     setKakaoMessage('AI가 고객 맞춤 멘트를 생성중입니다... ✨');
 
@@ -345,7 +348,8 @@ async function generateAiKakaoMessage() {
     setKakaoMessage(data?.message || '');
   } catch (err) {
     console.error(err);
-    setKakaoMessage('AI 카톡 멘트 생성 중 오류가 발생했습니다.');
+    setKakaoMessage(previousMessage);
+    alert(await getFunctionErrorMessage(err));
   }
 }
 

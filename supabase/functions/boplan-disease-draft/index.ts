@@ -1,4 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  AuthorizationError,
+  jsonError,
+  requireProEntitlement,
+  requireRole,
+  requireUser,
+} from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +30,10 @@ serve(async (req) => {
   }
 
   try {
+    const authContext = await requireUser(req);
+    await requireProEntitlement(authContext);
+    await requireRole(authContext, ["admin", "superadmin"]);
+
     const { diseaseName } = await req.json();
 
     if (!diseaseName || !String(diseaseName).trim()) {
@@ -134,9 +145,15 @@ ${diseaseName}
       customerScript: parsed.customerScript || parsed.customer_script || "",
     });
   } catch (e) {
+    if (e instanceof AuthorizationError) {
+      return jsonError(e.code, e.message, e.status, corsHeaders);
+    }
+
+    const errorMessage = e instanceof Error ? e.message : String(e);
+
     return jsonResponse(
       {
-        error: e?.message || String(e),
+        error: errorMessage,
       },
       500
     );

@@ -1,3 +1,10 @@
+import {
+  AuthorizationError,
+  jsonError,
+  requireProEntitlement,
+  requireUser,
+} from "../_shared/auth.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -25,6 +32,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authContext = await requireUser(req);
+    await requireProEntitlement(authContext);
+
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
    if (!openaiApiKey) {
@@ -134,8 +144,14 @@ try {
 
     return jsonResponse(parsed);
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return jsonError(error.code, error.message, error.status, corsHeaders);
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     return jsonResponse({
-  summary: `AI 상담요약 처리 중 오류: ${error?.message || String(error)}`,
+  summary: `AI 상담요약 처리 중 오류: ${errorMessage}`,
   customerNeeds: [],
   nextActions: [],
 });

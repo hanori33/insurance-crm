@@ -6,6 +6,7 @@ import consultationService from '../services/consultationService';
 import Modal from '../components/Modal';
 import { supabase } from '../supabaseClient';
 import diseaseDictionaryService from '../services/diseaseDictionaryService';
+import getFunctionErrorMessage from '../services/functionErrorService';
 
 const CATEGORY_OPTIONS = ['상담', '계약', '보완', '청구', '관리', '리모델링', '해지방어', '기타'];
 
@@ -435,10 +436,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       setShowAiModal(true);
     } catch (e) {
       console.error(e);
-      alert(
-        'AI 분석에 실패했습니다.\n' +
-        (e.message || JSON.stringify(e))
-      );
+      alert(await getFunctionErrorMessage(e));
     } finally {
       setAiAnalyzing(false);
     }
@@ -470,10 +468,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       setShowSummaryModal(true);
     } catch (e) {
       console.error(e);
-      alert(
-        '상담요약 실패 : ' +
-        (e.message || JSON.stringify(e))
-      );
+      alert(await getFunctionErrorMessage(e));
     } finally {
       setSummaryLoading(false);
     }
@@ -508,10 +503,7 @@ export default function ConsultingPage({ initialCustomer, onNavigate }) {
       setShowSalesCoachModal(true);
     } catch (err) {
       console.error(err);
-      alert(
-        'AI 영업코치 분석 실패 : ' +
-        (err.message || JSON.stringify(err))
-      );
+      alert(await getFunctionErrorMessage(err));
     } finally {
       setSalesCoachLoading(false);
     }

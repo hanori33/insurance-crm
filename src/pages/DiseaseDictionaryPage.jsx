@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import diseaseDictionaryService from '../services/diseaseDictionaryService';
+import getFunctionErrorMessage from '../services/functionErrorService';
 
 const emptyForm = {
   disease_name: '',
@@ -108,7 +109,7 @@ async function generateAiDraft() {
     alert('AI 초안 생성 완료');
   } catch (e) {
     console.error(e);
-    alert('AI 초안 생성 실패\n' + (e.message || JSON.stringify(e)));
+    alert(await getFunctionErrorMessage(e));
   } finally {
     setAiLoading(false);
   }

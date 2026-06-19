@@ -10,6 +10,7 @@ import policyFileService from '../services/policyFileService';
 import { formatDate } from '../utils';
 import scheduleService from '../services/scheduleService';
 import { supabase } from '../supabaseClient';
+import getFunctionErrorMessage from '../services/functionErrorService';
 
 const RELATION_OPTIONS = ['가족', '지인', '친구', '동료', '고객', '고객소개', '기타'];
 
@@ -752,7 +753,7 @@ async function handlePolicyAnalysis(file) {
     setShowPolicyAnalysisModal(true);
   } catch (e) {
     console.error(e);
-    alert('AI 증권분석 실패: ' + (e.message || JSON.stringify(e)));
+    alert(await getFunctionErrorMessage(e));
   } finally {
     setPolicyAnalyzing(false);
   }
