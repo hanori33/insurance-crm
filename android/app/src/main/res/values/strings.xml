@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">보플랜</string>
+    <string name="title_activity_main">보플랜</string>
+    <string name="package_name">kr.boplan.app</string>
+    <string name="custom_url_scheme">kr.boplan.app</string>
+</resources>
