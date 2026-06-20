@@ -14,6 +14,41 @@ import getFunctionErrorMessage from '../services/functionErrorService';
 
 const RELATION_OPTIONS = ['가족', '지인', '친구', '동료', '고객', '고객소개', '기타'];
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function formatDueDateWithDDay(dueDate, now = new Date()) {
+  const dateText = String(dueDate || '').trim();
+  const match = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+
+  if (!match) return dateText;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const dueDay = Date.UTC(year, month - 1, day);
+  const parsedDueDate = new Date(dueDay);
+
+  if (
+    parsedDueDate.getUTCFullYear() !== year ||
+    parsedDueDate.getUTCMonth() !== month - 1 ||
+    parsedDueDate.getUTCDate() !== day
+  ) {
+    return dateText;
+  }
+
+  const nowInKorea = new Date(now.getTime() + KST_OFFSET_MS);
+  const todayInKorea = Date.UTC(
+    nowInKorea.getUTCFullYear(),
+    nowInKorea.getUTCMonth(),
+    nowInKorea.getUTCDate()
+  );
+  const daysLeft = Math.round((dueDay - todayInKorea) / DAY_IN_MS);
+  const dDay = daysLeft === 0 ? 'D-DAY' : daysLeft > 0 ? `D-${daysLeft}` : `D+${Math.abs(daysLeft)}`;
+
+  return `${dateText} · ${dDay}`;
+}
+
 function InfoRow({ label, value, isLast }) {
   if (!value || value === 'EMPTY' || value === '') return null;
 
@@ -976,7 +1011,7 @@ function handlePolicyAnalysisView(file) {
             <Section title="추가 정보" icon="📋">
               {val(customer.pet_name) && <InfoRow label="🐶 반려동물" value={customer.pet_name} />}
               {val(customer.baby_name) && <InfoRow label="👶 태아/자녀" value={customer.baby_name} />}
-              {val(customer.due_date) && <InfoRow label="🍼 출산예정일" value={customer.due_date} />}
+              {val(customer.due_date) && <InfoRow label="🍼 출산예정일" value={formatDueDateWithDDay(customer.due_date)} />}
               {val(customer.car_number) && <InfoRow label="🚗 차량번호" value={customer.car_number} />}
               {val(customer.car_expiry) && <InfoRow label="📅 자동차만기" value={customer.car_expiry} />}
               {val(customer.transfer_day) && <InfoRow label="💳 이체일" value={customer.transfer_day} isLast />}
