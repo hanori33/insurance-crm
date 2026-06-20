@@ -80,19 +80,38 @@ export async function requireUser(req: Request): Promise<AuthContext> {
 }
 
 export async function requireProEntitlement(context: AuthContext) {
-  const { data: profile, error } = await context.adminClient
-    .from("profiles")
-    .select("pro_plan, pro_expire_at, trial_used, pro_trial_start, pro_trial_end")
-    .eq("user_id", context.user.id)
-    .maybeSingle();
+  const [profileResult, userRoleResult] = await Promise.all([
+    context.adminClient
+      .from("profiles")
+      .select("role, pro_plan, pro_expire_at, trial_used, pro_trial_start, pro_trial_end")
+      .eq("user_id", context.user.id)
+      .maybeSingle(),
+    context.adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.user.id)
+      .maybeSingle(),
+  ]);
 
-  if (error) {
-    console.error("Failed to load PRO entitlement:", error);
+  if (profileResult.error || userRoleResult.error) {
+    console.error("Failed to load PRO entitlement:", {
+      profileError: profileResult.error,
+      userRoleError: userRoleResult.error,
+    });
     throw new AuthorizationError(
       "ENTITLEMENT_CHECK_FAILED",
       "이용 권한을 확인하지 못했습니다.",
       500,
     );
+  }
+
+  const profile = profileResult.data;
+  const hasAdminRole = [profile?.role, userRoleResult.data?.role].some(
+    (role) => role === "admin" || role === "superadmin",
+  );
+
+  if (hasAdminRole) {
+    return { type: "admin", profile } as const;
   }
 
   if (!profile) {

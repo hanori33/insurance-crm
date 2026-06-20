@@ -96,6 +96,42 @@ async function deleteStorageFolder(
   }
 }
 
+async function deleteProfileStorageFiles(
+  adminClient: SupabaseClient,
+  userId: string,
+) {
+  const filePaths: string[] = [];
+
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await adminClient.storage.from("profiles").list("avatars", {
+      limit: PAGE_SIZE,
+      offset,
+      sortBy: { column: "name", order: "asc" },
+    });
+
+    if (error) throw error;
+
+    for (const item of data ?? []) {
+      if (
+        item.id !== null &&
+        (item.name === userId || item.name.startsWith(`${userId}.`))
+      ) {
+        filePaths.push(`avatars/${item.name}`);
+      }
+    }
+
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+
+  for (let offset = 0; offset < filePaths.length; offset += PAGE_SIZE) {
+    const { error } = await adminClient.storage
+      .from("profiles")
+      .remove(filePaths.slice(offset, offset + PAGE_SIZE));
+
+    if (error) throw error;
+  }
+}
+
 async function deletePolicyStorageFolders(
   adminClient: SupabaseClient,
   userId: string,
@@ -149,6 +185,7 @@ serve(async (req) => {
     const customerIds = await getCustomerIds(adminClient, userId);
 
     await deleteStorageFolder(adminClient, "fax-files", userId);
+    await deleteProfileStorageFiles(adminClient, userId);
     await deletePolicyStorageFolders(adminClient, userId, customerIds);
     await deletePolicyFiles(adminClient, customerIds);
     await deleteRows(adminClient, "fax_history", "user_id", userId);

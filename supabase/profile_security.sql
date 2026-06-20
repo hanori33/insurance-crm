@@ -32,6 +32,13 @@ $$;
 
 revoke all on function public.protect_profile_privileged_fields() from public, anon, authenticated;
 
+drop trigger if exists protect_profile_privileged_fields_trigger on public.profiles;
+
+create trigger protect_profile_privileged_fields_trigger
+before update on public.profiles
+for each row
+execute function public.protect_profile_privileged_fields();
+
 create or replace function public.activate_free_trial()
 returns jsonb
 language plpgsql
@@ -61,7 +68,7 @@ begin
     update public.profiles
        set trial_used = true,
            pro_trial_start = v_now,
-           pro_trial_end = v_now + interval '7 days',
+           pro_trial_end = v_now + interval '14 days',
            fax_credit = greatest(coalesce(fax_credit, 0), 20)
      where user_id = v_user_id
      returning * into v_profile;

@@ -123,15 +123,6 @@ function ProfileEditModal({ visible, onClose, profile, onSave }) {
 
       if (authError) throw authError;
 
-    console.log('현재 로그인 user.id:', user.id);
-
-const { data: profileRows } = await supabase
-  .from('profiles')
-  .select('*')
-  .eq('user_id', user.id);
-
-console.log('찾은 profiles:', profileRows);
-
 const { error: profileError } = await supabase
   .from('profiles')
   .update({
@@ -473,7 +464,7 @@ export default function MorePage({ user, currentRole, onNavigate }) {
       fontWeight: 800,
     }}
   >
-    🎁 신규회원 7일 무료체험
+    🎁 신규회원 14일 무료체험
   </div>
 
   <button
