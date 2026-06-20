@@ -5,6 +5,41 @@ export function formatDate(dateStr) {
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
 }
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+export function formatDueDateWithDDay(dueDate, now = new Date()) {
+  const dateText = String(dueDate || '').trim();
+  const match = dateText.match(/^(\d{4})([-./])(\d{1,2})\2(\d{1,2})$/);
+
+  if (!match) return dateText;
+
+  const year = Number(match[1]);
+  const month = Number(match[3]);
+  const day = Number(match[4]);
+  const dueDay = Date.UTC(year, month - 1, day);
+  const parsedDueDate = new Date(dueDay);
+
+  if (
+    parsedDueDate.getUTCFullYear() !== year ||
+    parsedDueDate.getUTCMonth() !== month - 1 ||
+    parsedDueDate.getUTCDate() !== day
+  ) {
+    return dateText;
+  }
+
+  const nowInKorea = new Date(now.getTime() + KST_OFFSET_MS);
+  const todayInKorea = Date.UTC(
+    nowInKorea.getUTCFullYear(),
+    nowInKorea.getUTCMonth(),
+    nowInKorea.getUTCDate()
+  );
+  const daysLeft = Math.round((dueDay - todayInKorea) / DAY_IN_MS);
+  const dDay = daysLeft === 0 ? 'D-DAY' : daysLeft > 0 ? `D-${daysLeft}` : `D+${Math.abs(daysLeft)}`;
+
+  return `${dateText} · ${dDay}`;
+}
+
 export function formatDateKorean(dateStr) {
   const DAYS = ['일','월','화','수','목','금','토'];
   const d = dateStr ? new Date(dateStr) : new Date();

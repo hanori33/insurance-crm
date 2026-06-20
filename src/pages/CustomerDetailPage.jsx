@@ -7,47 +7,12 @@ import Field from '../components/Field';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import policyFileService from '../services/policyFileService';
-import { formatDate } from '../utils';
+import { formatDate, formatDueDateWithDDay } from '../utils';
 import scheduleService from '../services/scheduleService';
 import { supabase } from '../supabaseClient';
 import getFunctionErrorMessage from '../services/functionErrorService';
 
 const RELATION_OPTIONS = ['가족', '지인', '친구', '동료', '고객', '고객소개', '기타'];
-
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-function formatDueDateWithDDay(dueDate, now = new Date()) {
-  const dateText = String(dueDate || '').trim();
-  const match = dateText.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-
-  if (!match) return dateText;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const dueDay = Date.UTC(year, month - 1, day);
-  const parsedDueDate = new Date(dueDay);
-
-  if (
-    parsedDueDate.getUTCFullYear() !== year ||
-    parsedDueDate.getUTCMonth() !== month - 1 ||
-    parsedDueDate.getUTCDate() !== day
-  ) {
-    return dateText;
-  }
-
-  const nowInKorea = new Date(now.getTime() + KST_OFFSET_MS);
-  const todayInKorea = Date.UTC(
-    nowInKorea.getUTCFullYear(),
-    nowInKorea.getUTCMonth(),
-    nowInKorea.getUTCDate()
-  );
-  const daysLeft = Math.round((dueDay - todayInKorea) / DAY_IN_MS);
-  const dDay = daysLeft === 0 ? 'D-DAY' : daysLeft > 0 ? `D-${daysLeft}` : `D+${Math.abs(daysLeft)}`;
-
-  return `${dateText} · ${dDay}`;
-}
 
 function InfoRow({ label, value, isLast }) {
   if (!value || value === 'EMPTY' || value === '') return null;
