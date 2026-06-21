@@ -75,6 +75,37 @@ export function buildCalendarMatrix(year, month) {
 export function getInitial(name = '') { return name.charAt(0) || '?'; }
 export function isEmpty(v) { return v === null || v === undefined || v === ''; }
 
+export function validateSignupName(value, email = '') {
+  const name = String(value || '').trim().replace(/\s+/g, ' ');
+  const compactName = name.replace(/\s/g, '');
+
+  if (!name || Array.from(compactName).length < 2) {
+    return { valid: false, name, error: '이름은 실제 이름으로 입력해주세요.' };
+  }
+
+  if (/\d/.test(name) || name.includes('@')) {
+    return {
+      valid: false,
+      name,
+      error: '숫자나 이메일 형식은 이름으로 사용할 수 없습니다.',
+    };
+  }
+
+  const emailLocalPart = String(email || '').trim().split('@')[0].toLowerCase();
+  if (emailLocalPart && compactName.toLowerCase() === emailLocalPart) {
+    return { valid: false, name, error: '이름은 실제 이름으로 입력해주세요.' };
+  }
+
+  const isKoreanName = /^[가-힣]+(?: [가-힣]+)*$/.test(name);
+  const isEnglishName = /^[A-Za-z]+(?: [A-Za-z]+)*$/.test(name);
+
+  if (!isKoreanName && !isEnglishName) {
+    return { valid: false, name, error: '이름은 실제 이름으로 입력해주세요.' };
+  }
+
+  return { valid: true, name, error: '' };
+}
+
 export function toTimeStr(value) {
   if (!value) return '';
 

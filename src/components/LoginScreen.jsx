@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { COLORS } from '../constants';
 import authService from '../services/authService';
+import { validateSignupName } from '../utils';
 import Field from './Field';
 
 function Logo() {
@@ -82,10 +83,13 @@ useEffect(() => {
     }
 
     if (mode === 'signup') {
-      if (!name.trim()) throw new Error('이름을 입력해주세요');
+      const nameValidation = validateSignupName(name, email);
+      if (!nameValidation.valid) throw new Error(nameValidation.error);
+
+      setName(nameValidation.name);
       if (pw.length < 8) throw new Error('비밀번호는 8자 이상 입력해주세요.');
       if (pw !== pwConfirm) throw new Error('비밀번호가 일치하지 않습니다.');
-      await authService.signUp(email, pw, name);
+      await authService.signUp(email, pw, nameValidation.name);
       setSuccess('이메일 인증 후 로그인해주세요.');
       setMode('login');
     }

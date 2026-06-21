@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { validateSignupName } from '../utils';
 
 const authService = {
   async signIn(email, password) {
@@ -7,9 +8,12 @@ const authService = {
     return data;
   },
   async signUp(email, password, displayName) {
+    const nameValidation = validateSignupName(displayName, email);
+    if (!nameValidation.valid) throw new Error(nameValidation.error);
+
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { data: { display_name: displayName } },
+      options: { data: { display_name: nameValidation.name } },
     });
     if (error) throw error;
     return data;
