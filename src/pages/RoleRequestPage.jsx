@@ -14,6 +14,29 @@ const ROLE_OPTIONS = [
   { value: 'team_member', label: '팀원' },
 ];
 
+const REQUEST_ROLE_OPTIONS = ROLE_OPTIONS.filter((role) => role.value !== 'branch_head');
+const ORGANIZATION_OPTIONS = ['로얄사업단'];
+const OFFICE_OPTIONS = [
+  '배세영 지점',
+  '장석환 지점',
+  '이재원 지점',
+  '육심호 지점',
+  '김단비 지점',
+];
+
+const SELECT_STYLE = {
+  width: '100%',
+  border: `1.5px solid ${COLORS.border}`,
+  background: '#fff',
+  borderRadius: 12,
+  padding: '12px 14px',
+  marginBottom: 14,
+  fontSize: 14,
+  color: COLORS.text,
+  boxSizing: 'border-box',
+  outline: 'none',
+};
+
 const STATUS_LABELS = {
   pending: '검토 중',
   approved: '승인됨',
@@ -35,7 +58,7 @@ export default function RoleRequestPage({ user }) {
   const [form, setForm] = useState({
     userName: user?.user_metadata?.display_name || '',
     requestedRole: 'team_member',
-    organization: '',
+    organization: '로얄사업단',
     branch: '',
     office: '',
     team: '',
@@ -80,23 +103,13 @@ export default function RoleRequestPage({ user }) {
       return;
     }
 
-    if (!form.organization.trim()) {
-      setError('소속 사업단을 입력하세요');
+    if (!form.organization) {
+      setError('사업단을 선택하세요');
       return;
     }
 
-    if (!form.branch.trim()) {
-      setError('본부를 입력하세요');
-      return;
-    }
-
-    if (!form.office.trim()) {
-      setError('지점을 입력하세요');
-      return;
-    }
-
-    if (!form.team.trim()) {
-      setError('팀을 입력하세요');
+    if (!form.office) {
+      setError('지점을 선택하세요');
       return;
     }
 
@@ -195,14 +208,10 @@ export default function RoleRequestPage({ user }) {
                     사업단: {myRequest.organization}
                   </div>
                 )}
-                {myRequest.branch && (
-                  <div style={{ fontSize: 12, color: COLORS.textGray }}>본부: {myRequest.branch}</div>
-                )}
-                {myRequest.office && (
-                  <div style={{ fontSize: 12, color: COLORS.textGray }}>지점: {myRequest.office}</div>
-                )}
-                {myRequest.team && (
-                  <div style={{ fontSize: 12, color: COLORS.textGray }}>팀: {myRequest.team}</div>
+                {(myRequest.office || myRequest.branch) && (
+                  <div style={{ fontSize: 12, color: COLORS.textGray }}>
+                    지점: {myRequest.office || myRequest.branch}
+                  </div>
                 )}
               </div>
 
@@ -260,7 +269,7 @@ export default function RoleRequestPage({ user }) {
             </span>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-              {ROLE_OPTIONS.map((r) => (
+              {REQUEST_ROLE_OPTIONS.map((r) => (
                 <button
                   key={r.value}
                   type="button"
@@ -282,44 +291,36 @@ export default function RoleRequestPage({ user }) {
             </div>
 
             <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              소속 사업단
+              사업단
             </span>
-            <Field
-              icon="🏢"
-              placeholder="예: 인카다이렉트 로얄사업단"
+            <select
               value={form.organization}
               onChange={(e) => setForm((p) => ({ ...p, organization: e.target.value }))}
-            />
-
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              본부
-            </span>
-            <Field
-              icon="🏬"
-              placeholder="예: 로얄본부"
-              value={form.branch}
-              onChange={(e) => setForm((p) => ({ ...p, branch: e.target.value }))}
-            />
+              style={SELECT_STYLE}
+            >
+              <option value="">사업단을 선택하세요</option>
+              {ORGANIZATION_OPTIONS.map((organization) => (
+                <option key={organization} value={organization}>
+                  {organization}
+                </option>
+              ))}
+            </select>
 
             <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
               지점
             </span>
-            <Field
-              icon="🏪"
-              placeholder="예: 배보플지점"
+            <select
               value={form.office}
               onChange={(e) => setForm((p) => ({ ...p, office: e.target.value }))}
-            />
-
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              팀
-            </span>
-            <Field
-              icon="👥"
-              placeholder="예: 박보플팀"
-              value={form.team}
-              onChange={(e) => setForm((p) => ({ ...p, team: e.target.value }))}
-            />
+              style={SELECT_STYLE}
+            >
+              <option value="">지점을 선택하세요</option>
+              {OFFICE_OPTIONS.map((office) => (
+                <option key={office} value={office}>
+                  {office}
+                </option>
+              ))}
+            </select>
 
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
             {success && <div style={{ color: '#16A34A', fontSize: 13, marginBottom: 12 }}>{success}</div>}
@@ -373,9 +374,11 @@ export default function RoleRequestPage({ user }) {
                       {req.organization && (
                         <div style={{ fontSize: 12, color: COLORS.textGray }}>사업단: {req.organization}</div>
                       )}
-                      {req.branch && <div style={{ fontSize: 12, color: COLORS.textGray }}>본부: {req.branch}</div>}
-                      {req.office && <div style={{ fontSize: 12, color: COLORS.textGray }}>지점: {req.office}</div>}
-                      {req.team && <div style={{ fontSize: 12, color: COLORS.textGray }}>팀: {req.team}</div>}
+                      {(req.office || req.branch) && (
+                        <div style={{ fontSize: 12, color: COLORS.textGray }}>
+                          지점: {req.office || req.branch}
+                        </div>
+                      )}
                       <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
                         {req.created_at ? new Date(req.created_at).toLocaleDateString('ko-KR') : '-'} 신청
                       </div>
