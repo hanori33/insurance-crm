@@ -49,6 +49,37 @@ const STATUS_COLORS = {
   rejected: { bg: '#FEE2E2', color: '#DC2626' },
 };
 
+function displayValue(value) {
+  const text = String(value || '').trim();
+  return text || '-';
+}
+
+function formatRequestDate(value) {
+  if (!value) return '-';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return date.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function RequestInfo({ label, value }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 13, color: COLORS.text, fontWeight: 600, wordBreak: 'break-word' }}>
+        {displayValue(value)}
+      </div>
+    </div>
+  );
+}
+
 export default function RoleRequestPage({ user }) {
   const [myRequest, setMyRequest] = useState(null);
   const [myRole, setMyRole] = useState('agent');
@@ -364,23 +395,19 @@ export default function RoleRequestPage({ user }) {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text }}>
-                        {req.user_name} ({req.user_email})
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text }}>
+                        {displayValue(req.user_name)}
                       </div>
-                      <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 4 }}>
-                        신청 역할: {ROLE_OPTIONS.find((r) => r.value === req.requested_role)?.label}
-                      </div>
-                      {req.organization && (
-                        <div style={{ fontSize: 12, color: COLORS.textGray }}>사업단: {req.organization}</div>
-                      )}
-                      {(req.office || req.branch) && (
-                        <div style={{ fontSize: 12, color: COLORS.textGray }}>
-                          지점: {req.office || req.branch}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 4 }}>
-                        {req.created_at ? new Date(req.created_at).toLocaleDateString('ko-KR') : '-'} 신청
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: COLORS.textGray,
+                          marginTop: 3,
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        {displayValue(req.user_email)}
                       </div>
                     </div>
 
@@ -397,6 +424,31 @@ export default function RoleRequestPage({ user }) {
                     >
                       {STATUS_LABELS[req.status] || req.status}
                     </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))',
+                      gap: '12px 14px',
+                      marginTop: 14,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: '#F8FAFC',
+                    }}
+                  >
+                    <RequestInfo label="소속 유형" value={req.affiliation_type} />
+                    <RequestInfo label="회사명" value={req.company_name} />
+                    <RequestInfo label="사업단명" value={req.organization} />
+                    <RequestInfo label="지점명" value={req.office || req.branch} />
+                    <RequestInfo
+                      label="신청 역할"
+                      value={
+                        ROLE_OPTIONS.find((r) => r.value === req.requested_role)?.label ||
+                        req.requested_role
+                      }
+                    />
+                    <RequestInfo label="신청일시" value={formatRequestDate(req.created_at)} />
                   </div>
 
                   {req.status === 'pending' && (
