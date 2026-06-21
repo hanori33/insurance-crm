@@ -319,7 +319,13 @@ function MenuItem({ icon, label, onClick, danger, isLast }) {
   );
 }
 
-export default function MorePage({ user, currentRole, onNavigate }) {
+export default function MorePage({
+  user,
+  currentRole,
+  onNavigate,
+  profileEditRequest = 0,
+  onProfileEditRequestHandled,
+}) {
   const meta = user?.user_metadata || {};
 
   const [profile, setProfile] = useState({
@@ -331,6 +337,13 @@ export default function MorePage({ user, currentRole, onNavigate }) {
 
   const [showEdit, setShowEdit] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    if (profileEditRequest <= 0) return;
+
+    setShowEdit(true);
+    onProfileEditRequestHandled?.();
+  }, [profileEditRequest, onProfileEditRequestHandled]);
 
   useEffect(() => {
     async function loadProfile() {

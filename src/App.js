@@ -114,6 +114,7 @@ export default function App() {
   const [notifCount, setNotifCount] = useState(0);
   const [profile, setProfile] = useState(null);
   const [currentRole, setCurrentRole] = useState(null);
+  const [profileEditRequest, setProfileEditRequest] = useState(0);
   const [showProModal, setShowProModal] = useState(false);
   const [showProInfoModal, setShowProInfoModal] = useState(false);
   useEffect(() => {
@@ -480,6 +481,13 @@ useEffect(() => {
   }
 
   function navigate(page, payload) {
+    if (page === 'profileEdit') {
+      setStack([]);
+      setActiveTab('more');
+      setProfileEditRequest(request => request + 1);
+      return;
+    }
+
     if (page === 'customers') {
       setStack([]);
       setActiveTab('customers');
@@ -732,7 +740,15 @@ if (page === 'adminInquiry') {
         return <TeamPage />;
 
       case 'more':
-        return <MorePage user={user} currentRole={currentRole} onNavigate={navigate} />;
+        return (
+          <MorePage
+            user={user}
+            currentRole={currentRole}
+            onNavigate={navigate}
+            profileEditRequest={profileEditRequest}
+            onProfileEditRequestHandled={() => setProfileEditRequest(0)}
+          />
+        );
 
       case 'sales':
         return <SalesPage onBack={() => setActiveTab('home')} />;
@@ -890,10 +906,7 @@ if (!session) {
             setStack([]);
             setActiveTab('notifications');
           }}
-          onProfile={() => {
-            setStack([]);
-            setActiveTab('more');
-          }}
+          onProfile={() => navigate('profileEdit')}
           onNavigate={(page, payload) => {
             setStack([]);
             setActiveTab(page);
@@ -1107,12 +1120,23 @@ if (!session) {
 </div>
 
         <div
+          onClick={() => navigate('profileEdit')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              navigate('profileEdit');
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="프로필 편집"
           style={{
             padding: '14px 16px',
             borderTop: `1px solid ${COLORS.border}`,
             display: 'flex',
             alignItems: 'center',
             gap: 10,
+            cursor: 'pointer',
           }}
         >
           {user?.user_metadata?.photo_url ? (
