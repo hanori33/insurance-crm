@@ -7,6 +7,45 @@ export function isAdminRole(role) {
   return ADMIN_ROLES.includes(role);
 }
 
+const STANDARD_ORGANIZATION = '로얄사업단';
+const ORGANIZATION_ALIASES = new Set([
+  '로얄사업단',
+  '로얄본부',
+  '인카다이렉트로얄사업단',
+]);
+const STANDARD_OFFICES = new Map(
+  ['배세영', '장석환', '이재원', '육심호', '김단비'].map((name) => [
+    `${name}지점`,
+    `${name} 지점`,
+  ])
+);
+
+function normalizeText(value, fallback = '') {
+  return String(value || fallback)
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function withoutSpaces(value) {
+  return normalizeText(value).replace(/\s/g, '');
+}
+
+function normalizeOrganization(value) {
+  const normalized = normalizeText(value);
+  return ORGANIZATION_ALIASES.has(withoutSpaces(normalized))
+    ? STANDARD_ORGANIZATION
+    : normalized;
+}
+
+function normalizeOffice(value) {
+  const normalized = normalizeText(value);
+  return STANDARD_OFFICES.get(withoutSpaces(normalized)) || normalized;
+}
+
+function getStandardOffice(value) {
+  return STANDARD_OFFICES.get(withoutSpaces(value)) || '';
+}
+
 async function getCurrentRole() {
   const {
     data: { user },
@@ -58,6 +97,11 @@ const roleService = {
 
     if (!user) throw new Error('로그인이 필요합니다.');
 
+    const normalizedOrganization = normalizeOrganization(organization);
+    const normalizedOffice = normalizeOffice(office) || getStandardOffice(branch);
+    const normalizedBranch = normalizedOffice ? '' : normalizeText(branch);
+    const normalizedTeam = normalizeText(team);
+
     const { data, error } = await supabase
       .from('role_requests')
       .upsert([
@@ -66,10 +110,10 @@ const roleService = {
           user_email: user.email,
           user_name: userName,
           requested_role: requestedRole,
-          organization,
-          branch,
-          office,
-          team,
+          organization: normalizedOrganization,
+          branch: normalizedBranch,
+          office: normalizedOffice,
+          team: normalizedTeam,
           status: 'pending',
         },
       ])
@@ -120,19 +164,15 @@ const roleService = {
 ) => {
     await assertAdmin();
     // TODO: Move approval to a SECURITY DEFINER RPC and enforce admin/superadmin in DB RLS.
-    const cleanText = (value, fallback = '') =>
-      String(value || fallback)
-        .replace(/\s+/g, '')
-        .trim();
-
-    const cleanOrganization = cleanText(organization);
-    const cleanBranch = cleanText(branch);
-    const cleanOffice = cleanText(office);
-    const cleanTeam = cleanText(team);
+    const cleanOrganization = normalizeOrganization(organization);
+    const cleanOffice = normalizeOffice(office) || getStandardOffice(branch);
+    const cleanBranch = cleanOffice ? '' : normalizeText(branch);
+    const cleanTeam = normalizeText(team);
 
     const divisionName = cleanOrganization || '소속사업단';
-    const branchName =
-      cleanOffice || cleanBranch || cleanTeam || '소속지점';
+    const branchName = normalizeOffice(
+      cleanOffice || cleanBranch || cleanTeam || '소속지점'
+    );
 
     const profileRole = mapToProfileRole(role);
 
