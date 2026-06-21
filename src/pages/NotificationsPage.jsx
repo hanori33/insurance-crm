@@ -162,7 +162,17 @@ customers.forEach(c => {
           id: `role-${req.id}`,
           icon: '🔑',
           title: '권한 신청',
-          body: `${req.user_name}님이 ${req.requested_role === 'division_head' ? '사업단장' : req.requested_role === 'branch_head' ? '본부장' : req.requested_role === 'office_head' ? '지점장' : '팀장'} 권한을 신청했습니다`,
+          body: `${req.user_name}님이 ${
+            {
+              division_head: '사업단장',
+              branch_head: '본부장',
+              deputy_branch_head: '부본부장',
+              office_head: '지점장',
+              deputy_office_head: '부지점장',
+              team_leader: '팀장',
+              team_member: '팀원',
+            }[req.requested_role] || req.requested_role
+          } 권한을 신청했습니다`,
           time: new Date(req.created_at).toLocaleDateString('ko-KR'),
           color: '#FFF7ED',
         });

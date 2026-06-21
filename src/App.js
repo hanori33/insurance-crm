@@ -901,6 +901,8 @@ if (!session) {
       <MobileShell>
         <Header
           user={user}
+          profile={profile}
+          isAdmin={isAdminRole(currentRole)}
           notifCount={notifCount}
           onNotif={() => {
             setStack([]);

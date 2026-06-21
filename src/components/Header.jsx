@@ -1,7 +1,8 @@
-/// src/components/Header.jsx
+// src/components/Header.jsx
 import React, { useState } from 'react';
 import { COLORS } from '../constants';
 import { Avatar } from './Common';
+import ProfileStatusBadges from './ProfileStatusBadges';
 
 export default function Header({
   user,
@@ -9,6 +10,8 @@ export default function Header({
   onNotif,
   onProfile,
   onNavigate,
+  profile,
+  isAdmin = false,
 }) {
   const name = user?.user_metadata?.display_name || user?.email || '?';
   const photoUrl = user?.user_metadata?.photo_url || '';
@@ -86,8 +89,8 @@ export default function Header({
             }}
             style={{
               position: 'absolute',
-left: '50%',
-transform: 'translateX(-50%)',
+              left: '50%',
+              transform: 'translateX(-50%)',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
@@ -248,25 +251,32 @@ transform: 'translateX(-50%)',
           width: 270,
           background: '#fff',
           zIndex: 201,
-          transform: drawerOpen
-            ? 'translateX(0)'
-            : 'translateX(-100%)',
+          transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform 0.24s ease',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: drawerOpen
-            ? '4px 0 24px rgba(0,0,0,0.18)'
-            : 'none',
+          boxShadow: drawerOpen ? '4px 0 24px rgba(0,0,0,0.18)' : 'none',
         }}
       >
         {/* 드로어 헤더 */}
-        <div
+        <button
+          type="button"
+          onClick={() => {
+            setDrawerOpen(false);
+            onProfile?.();
+          }}
+          aria-label="프로필 편집"
           style={{
             background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
-            padding: '54px 20px 22px',
+            padding: '28px 14px 11px',
             display: 'flex',
-            alignItems: 'center',
-            gap: 12,
+            alignItems: 'flex-start',
+            gap: 10,
+            width: '100%',
+            boxSizing: 'border-box',
+            border: 'none',
+            textAlign: 'left',
+            cursor: 'pointer',
           }}
         >
           {photoUrl ? (
@@ -274,18 +284,19 @@ transform: 'translateX(-50%)',
               src={photoUrl}
               alt={name}
               style={{
-                width: 52,
-                height: 52,
+                width: 44,
+                height: 44,
                 borderRadius: '50%',
                 objectFit: 'cover',
                 border: '2px solid #fff',
+                flexShrink: 0,
               }}
             />
           ) : (
             <div
               style={{
-                width: 52,
-                height: 52,
+                width: 44,
+                height: 44,
                 borderRadius: '50%',
                 background: 'rgba(255,255,255,0.28)',
                 display: 'flex',
@@ -293,22 +304,37 @@ transform: 'translateX(-50%)',
                 justifyContent: 'center',
                 color: '#fff',
                 fontWeight: 900,
-                fontSize: 20,
+                fontSize: 18,
+                flexShrink: 0,
               }}
             >
               {name.charAt(0)}
             </div>
           )}
 
-          <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              minWidth: 0,
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              justifyContent: 'flex-start',
+              textAlign: 'left',
+              paddingTop: 1,
+            }}
+          >
             <div
               style={{
                 color: '#fff',
                 fontWeight: 900,
-                fontSize: 16,
+                fontSize: 15,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                width: '100%',
+                textAlign: 'left',
+                lineHeight: 1.2,
               }}
             >
               {name}
@@ -317,21 +343,26 @@ transform: 'translateX(-50%)',
             <div
               style={{
                 color: 'rgba(255,255,255,0.82)',
-                fontSize: 12,
-                marginTop: 3,
+                fontSize: 11,
+                marginTop: 1,
+                lineHeight: 1.2,
+                width: '100%',
+                textAlign: 'left',
               }}
             >
               {user?.user_metadata?.position || '보플랜'}
             </div>
+
+            <ProfileStatusBadges profile={profile} isAdmin={isAdmin} />
           </div>
-        </div>
+        </button>
 
         {/* 메뉴 */}
         <div
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '12px 8px',
+            padding: '4px 8px 12px',
           }}
         >
           {menuItems.map((item) => (

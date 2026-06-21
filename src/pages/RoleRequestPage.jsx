@@ -9,20 +9,42 @@ import noticeService from '../services/noticeService';
 const ROLE_OPTIONS = [
   { value: 'division_head', label: '사업단장' },
   { value: 'branch_head', label: '본부장' },
+  { value: 'deputy_branch_head', label: '부본부장' },
   { value: 'office_head', label: '지점장' },
+  { value: 'deputy_office_head', label: '부지점장' },
   { value: 'team_leader', label: '팀장' },
   { value: 'team_member', label: '팀원' },
 ];
 
-const REQUEST_ROLE_OPTIONS = ROLE_OPTIONS.filter((role) => role.value !== 'branch_head');
-const ORGANIZATION_OPTIONS = ['로얄사업단'];
-const OFFICE_OPTIONS = [
-  '배세영 지점',
-  '장석환 지점',
-  '이재원 지점',
-  '육심호 지점',
-  '김단비 지점',
-];
+const REQUEST_ROLE_OPTIONS = ROLE_OPTIONS;
+const COMPANY_ORGANIZATIONS = {
+  '인카다이렉트': {
+    '로얄사업단': [
+      '배세영 지점',
+      '장석환 지점',
+      '이재원 지점',
+      '육심호 지점',
+      '김단비 지점',
+    ],
+  },
+};
+
+function normalizeCompanyKey(value) {
+  return String(value || '').trim().replace(/\s+/g, '').toLowerCase();
+}
+
+function findCompany(value) {
+  const key = normalizeCompanyKey(value);
+  if (!key) return null;
+
+  const companyName = Object.keys(COMPANY_ORGANIZATIONS).find(
+    (name) => normalizeCompanyKey(name) === key
+  );
+
+  return companyName
+    ? { companyName, organizations: COMPANY_ORGANIZATIONS[companyName] }
+    : null;
+}
 
 const SELECT_STYLE = {
   width: '100%',
@@ -31,7 +53,8 @@ const SELECT_STYLE = {
   borderRadius: 12,
   padding: '12px 14px',
   marginBottom: 14,
-  fontSize: 14,
+  fontSize: 16,
+  minHeight: 48,
   color: COLORS.text,
   boxSizing: 'border-box',
   outline: 'none',
@@ -89,9 +112,12 @@ export default function RoleRequestPage({ user }) {
   const [form, setForm] = useState({
     userName: user?.user_metadata?.display_name || '',
     requestedRole: 'team_member',
-    organization: '로얄사업단',
+    companyName: '',
+    organization: '',
     branch: '',
     office: '',
+    customOrganization: '',
+    customOffice: '',
     team: '',
   });
 
@@ -127,6 +153,14 @@ export default function RoleRequestPage({ user }) {
     myRequest && (myRequest.status === 'pending' || myRequest.status === 'approved');
 
   const canShowForm = !hasActiveRequest && !isAdminRole(myRole);
+  const selectedCompany = findCompany(form.companyName);
+  const organizationOptions = selectedCompany
+    ? Object.keys(selectedCompany.organizations)
+    : [];
+  const isKnownCompany = !!selectedCompany;
+  const officeOptions = form.organization
+    ? selectedCompany?.organizations[form.organization] || []
+    : [];
 
   async function handleSubmit() {
     if (!form.userName.trim()) {
@@ -134,14 +168,31 @@ export default function RoleRequestPage({ user }) {
       return;
     }
 
-    if (!form.organization) {
-      setError('사업단을 선택하세요');
+    if (!form.companyName.trim()) {
+      setError('회사명을 입력하세요');
       return;
     }
 
-    if (!form.office) {
-      setError('지점을 선택하세요');
-      return;
+    if (isKnownCompany) {
+      if (!form.organization || !organizationOptions.includes(form.organization)) {
+        setError('사업단을 선택하세요');
+        return;
+      }
+
+      if (!form.office || !officeOptions.includes(form.office)) {
+        setError('지점을 선택하세요');
+        return;
+      }
+    } else {
+      if (!form.customOrganization.trim()) {
+        setError('사업단을 입력하세요');
+        return;
+      }
+
+      if (!form.customOffice.trim()) {
+        setError('지점을 입력하세요');
+        return;
+      }
     }
 
     setSaving(true);
@@ -149,7 +200,19 @@ export default function RoleRequestPage({ user }) {
     setSuccess('');
 
     try {
-      await roleService.request(form);
+      await roleService.request({
+        ...form,
+        companyName: selectedCompany?.companyName || form.companyName.trim(),
+        organization: selectedCompany
+          ? form.organization
+          : form.customOrganization.trim(),
+        office: selectedCompany
+          ? form.office
+          : form.customOffice.trim(),
+        branch: selectedCompany
+          ? form.office
+          : form.customOffice.trim(),
+      });
       setSuccess('권한 신청이 완료되었습니다! 관리자 승인 후 적용됩니다.');
       await load();
     } catch (e) {
@@ -163,6 +226,7 @@ export default function RoleRequestPage({ user }) {
   try {
     await roleService.approve(req.id, req.user_id, req.requested_role, {
       userName: req.user_name,
+      companyName: req.company_name,
       organization: req.organization,
       branch: req.branch,
       office: req.office,
@@ -322,36 +386,102 @@ export default function RoleRequestPage({ user }) {
             </div>
 
             <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              회사명
+            </span>
+            <Field
+              icon="🏢"
+              placeholder="예: 인카다이렉트"
+              value={form.companyName}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  companyName: e.target.value,
+                  organization: '',
+                  office: '',
+                  customOrganization: '',
+                  customOffice: '',
+                }))
+              }
+            />
+
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
               사업단
             </span>
-            <select
-              value={form.organization}
-              onChange={(e) => setForm((p) => ({ ...p, organization: e.target.value }))}
-              style={SELECT_STYLE}
-            >
-              <option value="">사업단을 선택하세요</option>
-              {ORGANIZATION_OPTIONS.map((organization) => (
-                <option key={organization} value={organization}>
-                  {organization}
-                </option>
-              ))}
-            </select>
+            {isKnownCompany ? (
+              <select
+                value={form.organization}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, organization: e.target.value, office: '' }))
+                }
+                style={SELECT_STYLE}
+              >
+                <option value="">사업단을 선택하세요</option>
+                {organizationOptions.map((organization) => (
+                  <option key={organization} value={organization}>
+                    {organization}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Field
+                icon="🏢"
+                placeholder={
+                  form.companyName.trim()
+                    ? '사업단을 직접 입력하세요'
+                    : '회사명을 먼저 입력해주세요'
+                }
+                value={form.customOrganization}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    customOrganization: e.target.value,
+                  }))
+                }
+                disabled={!form.companyName.trim()}
+              />
+            )}
 
             <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
               지점
             </span>
-            <select
-              value={form.office}
-              onChange={(e) => setForm((p) => ({ ...p, office: e.target.value }))}
-              style={SELECT_STYLE}
-            >
-              <option value="">지점을 선택하세요</option>
-              {OFFICE_OPTIONS.map((office) => (
-                <option key={office} value={office}>
-                  {office}
+            {isKnownCompany ? (
+              <select
+                value={form.office}
+                onChange={(e) => setForm((p) => ({ ...p, office: e.target.value }))}
+                disabled={!form.organization || officeOptions.length === 0}
+                style={{
+                  ...SELECT_STYLE,
+                  opacity: form.organization && officeOptions.length > 0 ? 1 : 0.65,
+                  background: form.organization && officeOptions.length > 0 ? '#fff' : '#F3F4F6',
+                }}
+              >
+                <option value="">
+                  {form.organization ? '지점을 선택하세요' : '사업단을 먼저 선택해주세요'}
                 </option>
-              ))}
-            </select>
+                {officeOptions.map((office) => (
+                  <option key={office} value={office}>
+                    {office}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Field
+                icon="📍"
+                placeholder={
+                  form.customOrganization.trim()
+                    ? '지점을 직접 입력하세요'
+                    : '사업단을 먼저 입력해주세요'
+                }
+                value={form.customOffice}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    customOffice: e.target.value,
+                  }))
+                }
+                disabled={!form.companyName.trim() || !form.customOrganization.trim()}
+              />
+            )}
 
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
             {success && <div style={{ color: '#16A34A', fontSize: 13, marginBottom: 12 }}>{success}</div>}

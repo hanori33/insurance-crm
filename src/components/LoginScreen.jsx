@@ -46,6 +46,21 @@ function Logo() {
   );
 }
 
+function PasswordVisibilityIcon({ visible }) {
+  return visible ? (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 3L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10.6 10.7A2 2 0 0013.3 13.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M9.9 5.2A10.8 10.8 0 0112 5c5.2 0 8.5 4.4 9 6.2.1.5.1 1.1 0 1.6a11.8 11.8 0 01-2.1 3.6M6.2 6.2A12.2 12.2 0 003 11.2c-.1.5-.1 1.1 0 1.6C3.5 14.6 6.8 19 12 19c1.3 0 2.5-.3 3.5-.7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 11.2C3.5 9.4 6.8 5 12 5s8.5 4.4 9 6.2c.1.5.1 1.1 0 1.6C20.5 14.6 17.2 19 12 19s-8.5-4.4-9-6.2a3.7 3.7 0 010-1.6z" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
 export default function LoginScreen() {
   const [mode, setMode]       = useState('login');
   const [email, setEmail]     = useState('');
@@ -112,6 +127,7 @@ useEffect(() => {
       background: 'linear-gradient(160deg,#EDE9FF 0%,#F5F3FF 45%,#fff 100%)',
       padding: '40px 24px',
       boxSizing: 'border-box',
+      overflowX: 'hidden',
     }}>
       <Logo />
 
@@ -119,6 +135,7 @@ useEffect(() => {
         background: '#fff', borderRadius: 22, padding: '28px 24px',
         width: '100%', maxWidth: 408, boxSizing: 'border-box',
         boxShadow: '0 6px 28px rgba(124,92,252,0.14)',
+        overflow: 'hidden',
       }}>
         <div style={{ fontSize: 18, fontWeight: 700, textAlign: 'center', marginBottom: 22, color: COLORS.text }}>
           {mode === 'login' ? '로그인' : mode === 'signup' ? '회원가입' : '비밀번호 찾기'}
@@ -149,8 +166,24 @@ useEffect(() => {
             onChange={e => setPw(e.target.value)}
             type={showPw ? 'text' : 'password'}
             right={
-              <button onClick={() => setShowPw(!showPw)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.textGray, fontSize: 16 }}>
-                {showPw ? '🙈' : '👁'}
+              <button
+                type="button"
+                aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 보기'}
+                onClick={() => setShowPw(!showPw)}
+                style={{
+                  width: 28,
+                  height: 28,
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: COLORS.textGray,
+                }}
+              >
+                <PasswordVisibilityIcon visible={showPw} />
               </button>
             }
           />

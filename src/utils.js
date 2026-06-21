@@ -40,6 +40,31 @@ export function formatDueDateWithDDay(dueDate, now = new Date()) {
   return `${dateText} · ${dDay}`;
 }
 
+export function getProStatusLabel(profile, now = new Date()) {
+  if (profile?.pro_plan !== true) return '무료회원';
+  if (!profile.pro_expire_at) return 'PRO 이용중';
+
+  const expiresAt = new Date(profile.pro_expire_at);
+  if (Number.isNaN(expiresAt.getTime())) return 'PRO 이용중';
+  if (expiresAt.getTime() <= now.getTime()) return 'PRO 만료';
+
+  const expiryInKorea = new Date(expiresAt.getTime() + KST_OFFSET_MS);
+  const nowInKorea = new Date(now.getTime() + KST_OFFSET_MS);
+  const expiryDay = Date.UTC(
+    expiryInKorea.getUTCFullYear(),
+    expiryInKorea.getUTCMonth(),
+    expiryInKorea.getUTCDate()
+  );
+  const today = Date.UTC(
+    nowInKorea.getUTCFullYear(),
+    nowInKorea.getUTCMonth(),
+    nowInKorea.getUTCDate()
+  );
+  const daysLeft = Math.max(0, Math.round((expiryDay - today) / DAY_IN_MS));
+
+  return daysLeft === 0 ? 'PRO D-DAY' : `PRO D-${daysLeft}`;
+}
+
 export function formatDateKorean(dateStr) {
   const DAYS = ['일','월','화','수','목','금','토'];
   const d = dateStr ? new Date(dateStr) : new Date();

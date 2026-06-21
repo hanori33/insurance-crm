@@ -391,7 +391,9 @@ function TeamPage({ onBack }) {
       if (roleName) return roleName;
       if (userRole === "division_head") return "사업단장";
       if (userRole === "branch_head") return "본부장";
+      if (userRole === "deputy_branch_head") return "부본부장";
       if (userRole === "office_head") return "지점장";
+      if (userRole === "deputy_office_head") return "부지점장";
       if (userRole === "team_leader") return "팀장";
       if (userRole === "team_member") return "팀원";
 

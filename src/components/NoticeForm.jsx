@@ -8,7 +8,9 @@ import noticeService from '../services/noticeService';
 const ROLE_OPTIONS = [
   { value: 'division_head', label: '사업단장' },
   { value: 'branch_head', label: '본부장' },
+  { value: 'deputy_branch_head', label: '부본부장' },
   { value: 'office_head', label: '지점장' },
+  { value: 'deputy_office_head', label: '부지점장' },
   { value: 'team_leader', label: '팀장' },
   { value: 'agent', label: '사원' },
 ];
@@ -17,7 +19,9 @@ const ROLE_LABELS = {
   superadmin: '최고관리자',
   division_head: '사업단장',
   branch_head: '본부장',
+  deputy_branch_head: '부본부장',
   office_head: '지점장',
+  deputy_office_head: '부지점장',
   team_leader: '팀장',
   agent: '사원',
 };

@@ -79,6 +79,16 @@ function mapToProfileRole(role) {
   return 'manager';
 }
 
+const ROLE_NAMES = {
+  division_head: '사업단장',
+  branch_head: '본부장',
+  deputy_branch_head: '부본부장',
+  office_head: '지점장',
+  deputy_office_head: '부지점장',
+  team_leader: '팀장',
+  team_member: '팀원',
+};
+
 const roleService = {
   getCurrentRole,
   isAdmin: async () => isAdminRole(await getCurrentRole()),
@@ -86,6 +96,7 @@ const roleService = {
   request: async ({
     userName,
     requestedRole,
+    companyName,
     organization,
     branch,
     office,
@@ -98,6 +109,7 @@ const roleService = {
     if (!user) throw new Error('로그인이 필요합니다.');
 
     const normalizedOrganization = normalizeOrganization(organization);
+    const normalizedCompanyName = normalizeText(companyName);
     const normalizedOffice = normalizeOffice(office) || getStandardOffice(branch);
     const normalizedBranch = normalizedOffice ? '' : normalizeText(branch);
     const normalizedTeam = normalizeText(team);
@@ -110,6 +122,7 @@ const roleService = {
           user_email: user.email,
           user_name: userName,
           requested_role: requestedRole,
+          company_name: normalizedCompanyName,
           organization: normalizedOrganization,
           branch: normalizedBranch,
           office: normalizedOffice,
@@ -229,15 +242,7 @@ const roleService = {
 
     // 부모 조직 자동 연결
 let parentUserId = null;
-let roleName = '팀원';
-
-if (role === 'office_head') {
-  roleName = '지점장';
-}
-
-if (role === 'team_leader') {
-  roleName = '팀장';
-}
+let roleName = ROLE_NAMES[role] || '팀원';
 
 if (role === 'team_member') {
   roleName = '팀원';
