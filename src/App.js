@@ -1078,7 +1078,13 @@ if (!session) {
       marginBottom: 10,
     }}
   >
-    {profile?.pro_plan ? (
+    {isAdminRole(currentRole) ? (
+  <>
+    관리자
+    <br />
+    AI 기능 이용 가능
+  </>
+) : profile?.pro_plan ? (
   <>
     현재 상태 : PRO 이용중
   </>
