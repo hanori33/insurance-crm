@@ -5,9 +5,183 @@ import { Card, Divider, LoadingSpinner } from '../components/Common';
 import EmptyState from '../components/EmptyState';
 import ScheduleForm from '../components/ScheduleForm';
 import scheduleService from '../services/scheduleService';
+import customerService from '../services/customerService';
 import { buildCalendarMatrix, toTimeStr } from '../utils';
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+function normalizeDatePart(value) {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+
+  const digits = raw.replace(/\D/g, '');
+
+  if (digits.length >= 8) {
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  }
+
+  return '';
+}
+
+function buildAnnualDate(value, year) {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  const iso = normalizeDatePart(raw);
+  if (iso) {
+    const [, month, day] = iso.split('-');
+    if (month && day) return `${year}-${month}-${day}`;
+  }
+
+  const digits = raw.replace(/\D/g, '');
+
+  if (digits.length === 6) {
+    return `${year}-${digits.slice(2, 4)}-${digits.slice(4, 6)}`;
+  }
+
+  if (digits.length === 4) {
+    return `${year}-${digits.slice(0, 2)}-${digits.slice(2, 4)}`;
+  }
+
+  return '';
+}
+
+function isValidDateStr(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr || '')) return false;
+
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+function makeAutoSchedule({
+  id,
+  title,
+  customer,
+  dateStr,
+  icon,
+  color,
+  memo,
+}) {
+  return {
+    id,
+    title,
+    customer_name: customer?.name || '',
+    customers: { name: customer?.name || '' },
+    scheduled_at: `${dateStr}T09:00:00`,
+    schedule_icon: icon,
+    color,
+    memo,
+    next_action: '',
+    is_auto_schedule: true,
+  };
+}
+
+function buildCustomerAutoSchedules(customers = [], start, end) {
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T23:59:59`);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return [];
+  }
+
+  const years = [];
+  for (let year = startDate.getFullYear(); year <= endDate.getFullYear(); year += 1) {
+    years.push(year);
+  }
+
+  const events = [];
+
+  (customers || []).forEach((customer) => {
+    const customerId = customer.id || customer.app_customer_id || customer.db_id || customer.name;
+
+    years.forEach((year) => {
+      const birthday = buildAnnualDate(customer.birth, year);
+
+      if (isValidDateStr(birthday)) {
+        const birthdayDate = new Date(`${birthday}T09:00:00`);
+
+        if (birthdayDate >= startDate && birthdayDate <= endDate) {
+          events.push(
+            makeAutoSchedule({
+              id: `birthday-${customerId}-${birthday}`,
+              title: `🎂 ${customer.name}님 생일`,
+              customer,
+              dateStr: birthday,
+              icon: '🎂',
+              color: '#FCE7F3',
+              memo: '고객 생일입니다.',
+            })
+          );
+        }
+      }
+    });
+
+    const dueDate = normalizeDatePart(customer.due_date);
+
+    if (isValidDateStr(dueDate)) {
+      const targetDate = new Date(`${dueDate}T09:00:00`);
+
+      if (targetDate >= startDate && targetDate <= endDate) {
+        events.push(
+          makeAutoSchedule({
+            id: `due-${customerId}-${dueDate}`,
+            title: `👶 ${customer.name}님 출산예정일`,
+            customer,
+            dateStr: dueDate,
+            icon: '👶',
+            color: '#DBEAFE',
+            memo: customer.baby_name ? `태명: ${customer.baby_name}` : '출산예정일입니다.',
+          })
+        );
+      }
+    }
+
+    const carExpiry = normalizeDatePart(customer.car_expiry);
+
+    if (isValidDateStr(carExpiry)) {
+      const targetDate = new Date(`${carExpiry}T09:00:00`);
+
+      if (targetDate >= startDate && targetDate <= endDate) {
+        events.push(
+          makeAutoSchedule({
+            id: `car-${customerId}-${carExpiry}`,
+            title: `🚗 ${customer.name}님 자동차보험 만기`,
+            customer,
+            dateStr: carExpiry,
+            icon: '🚗',
+            color: '#FEF3C7',
+            memo: customer.car_number ? `차량번호: ${customer.car_number}` : '자동차보험 만기일입니다.',
+          })
+        );
+      }
+    }
+  });
+
+  return events;
+}
+
+function sortSchedulesByTime(items = []) {
+  return [...items].sort((a, b) => {
+    const aTime = a.scheduled_at || '';
+    const bTime = b.scheduled_at || '';
+    return aTime.localeCompare(bTime);
+  });
+}
+
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -360,10 +534,10 @@ function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete })
             return (
               <React.Fragment key={s.id || i}>
                 <div
-                  onClick={() => onEdit(s)}
+                  onClick={() => !s.is_auto_schedule && onEdit(s)}
                   style={{
                     padding: '14px 20px',
-                    cursor: 'pointer',
+                    cursor: s.is_auto_schedule ? 'default' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
@@ -437,20 +611,21 @@ function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete })
                   </div>
 
                   {/* 수정/삭제 */}
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                    alignItems: 'center',
-                    flexShrink: 0,
-                  }}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(s);
-                      }}
-                      style={{
+                  {!s.is_auto_schedule && (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      alignItems: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEdit(s);
+                        }}
+                        style={{
   border: 'none',
   background: '#EEF2FF',
   color: COLORS.primary,
@@ -462,17 +637,17 @@ function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete })
   whiteSpace: 'nowrap',
   minWidth: 52,
 }}
-                    >
-                      수정
-                    </button>
+                      >
+                        수정
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(s);
-                      }}
-                      style={{
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(s);
+                        }}
+                        style={{
   border: 'none',
   background: '#FEE2E2',
   color: '#DC2626',
@@ -484,10 +659,11 @@ function ScheduleList({ schedules, loading, dayLabel, onAdd, onEdit, onDelete })
   whiteSpace: 'nowrap',
   minWidth: 52,
 }}
-                    >
-                      삭제
-                    </button>
-                  </div>
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {i < schedules.length - 1 && (
@@ -556,24 +732,34 @@ useEffect(() => {
 async function loadMonth() {
   try {
     const start = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-
     const endDate = new Date(year, month + 1, 0).getDate();
-
     const end = `${year}-${String(month + 1).padStart(2, '0')}-${String(endDate).padStart(2, '0')}`;
 
-    const { data, error } = await scheduleService.getMonthSchedules(start, end);
+    const [{ data, error }, customers] = await Promise.all([
+      scheduleService.getMonthSchedules(start, end),
+      customerService.list(),
+    ]);
 
     if (error) throw error;
 
-    setMonthSchedules(data || []);
+    const autoSchedules = buildCustomerAutoSchedules(customers, start, end);
+    setMonthSchedules(sortSchedulesByTime([...(data || []), ...autoSchedules]));
   } catch (e) {
     console.error(e);
   }
 }
-  
+
 async function loadDay() {
     setLoading(true);
-    try { setSchedules(await scheduleService.listByDate(dateStr)); }
+    try {
+      const [daySchedules, customers] = await Promise.all([
+        scheduleService.listByDate(dateStr),
+        customerService.list(),
+      ]);
+
+      const autoSchedules = buildCustomerAutoSchedules(customers, dateStr, dateStr);
+      setSchedules(sortSchedulesByTime([...(daySchedules || []), ...autoSchedules]));
+    }
     catch(e) { setSchedules([]); }
     finally { setLoading(false); }
   }
@@ -672,8 +858,8 @@ async function loadDay() {
                 return (
                   <React.Fragment key={s.id || i}>
                     <div
-                      onClick={() => { setEditItem(s); setShowForm(true); }}
-                      style={{ padding: '13px 16px', cursor: 'pointer' }}
+                      onClick={() => { if (!s.is_auto_schedule) { setEditItem(s); setShowForm(true); } }}
+                      style={{ padding: '13px 16px', cursor: s.is_auto_schedule ? 'default' : 'pointer' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{
@@ -711,34 +897,36 @@ async function loadDay() {
                             </div>
                           )}
                         </div>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                          <button
-                            type="button"
-                            onClick={e => { e.stopPropagation(); setEditItem(s); setShowForm(true); }}
-                            style={{
-                              border: 'none', background: '#EEF2FF',
-                              color: COLORS.primary, borderRadius: 999,
-                              padding: '6px 10px', cursor: 'pointer',
-                              fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
-                            }}
-                          >수정</button>
-                          <button
-                            type="button"
-                            onClick={async e => {
-                              e.stopPropagation();
-                              if (window.confirm('일정을 삭제할까요?')) {
-                                await scheduleService.remove(s.id);
-                                loadDay(); loadMonth();
-                              }
-                            }}
-                            style={{
-                              border: 'none', background: '#FEE2E2',
-                              color: '#DC2626', borderRadius: 999,
-                              padding: '6px 10px', cursor: 'pointer',
-                              fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
-                            }}
-                          >삭제</button>
-                        </div>
+                        {!s.is_auto_schedule && (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); setEditItem(s); setShowForm(true); }}
+                              style={{
+                                border: 'none', background: '#EEF2FF',
+                                color: COLORS.primary, borderRadius: 999,
+                                padding: '6px 10px', cursor: 'pointer',
+                                fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
+                              }}
+                            >수정</button>
+                            <button
+                              type="button"
+                              onClick={async e => {
+                                e.stopPropagation();
+                                if (window.confirm('일정을 삭제할까요?')) {
+                                  await scheduleService.remove(s.id);
+                                  loadDay(); loadMonth();
+                                }
+                              }}
+                              style={{
+                                border: 'none', background: '#FEE2E2',
+                                color: '#DC2626', borderRadius: 999,
+                                padding: '6px 10px', cursor: 'pointer',
+                                fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
+                              }}
+                            >삭제</button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     {i < schedules.length - 1 && <Divider style={{ margin: '0 16px' }} />}
@@ -812,7 +1000,7 @@ async function loadDay() {
 </div>
       </div>
 
-      <ScheduleForm visible={showForm} onClose={() => { setShowForm(false); setEditItem(null); }} onSave={loadDay} dateStr={dateStr} initial={editItem} />
+      <ScheduleForm visible={showForm} onClose={() => { setShowForm(false); setEditItem(null); }} onSave={() => { loadDay(); loadMonth(); setShowForm(false); setEditItem(null); }} dateStr={dateStr} initial={editItem} />
     </div>
   );
 }

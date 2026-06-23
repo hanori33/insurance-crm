@@ -15,6 +15,30 @@ const RELATION_OPTIONS = [
   '기타',
 ];
 
+const EMPTY_FORM = {
+  name: '',
+  phone: '',
+  status: '상담중',
+  memo: '',
+
+  birth: '',
+  email: '',
+  job: '',
+  address: '',
+
+  customer_type: '일반',
+
+  pet_name: '',
+  baby_name: '',
+  due_date: '',
+
+  car_number: '',
+  car_expiry: '',
+
+  relation_type: '',
+  referrer_app_id: '',
+};
+
 export default function CustomerForm({
   visible,
   onClose,
@@ -23,31 +47,7 @@ export default function CustomerForm({
 }) {
   const isEdit = !!initial;
 
-  const [form, setForm] = useState(
-    initial || {
-      name: '',
-      phone: '',
-      status: '상담중',
-      memo: '',
-
-      birth: '',
-      email: '',
-      job: '',
-      address: '',
-
-      customer_type: '일반',
-
-      pet_name: '',
-      baby_name: '',
-due_date: '',  // ✅ 추가
-      car_number: '',
-car_expiry: '',  // ✅ 추가
-
-      relation_type: '',
-      referrer_app_id: '',
-    }
-  );
-
+  const [form, setForm] = useState(initial || { ...EMPTY_FORM });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -59,6 +59,28 @@ car_expiry: '',  // ✅ 추가
       ...p,
       [k]: v,
     }));
+
+  useEffect(() => {
+    if (!visible) return;
+
+    if (initial) {
+      setForm({
+        ...EMPTY_FORM,
+        ...initial,
+        due_date: initial.due_date || '',
+        car_expiry: initial.car_expiry || '',
+        referrer_app_id: initial.referrer_app_id || '',
+      });
+
+      setReferrerSearch(initial.referrer_name || '');
+    } else {
+      setForm({ ...EMPTY_FORM });
+      setReferrerSearch('');
+    }
+
+    setError('');
+    setLoading(false);
+  }, [visible, initial]);
 
   useEffect(() => {
     async function loadReferrers() {
@@ -117,6 +139,11 @@ car_expiry: '',  // ✅ 추가
         );
       } else {
         await customerService.create(form);
+      }
+
+      if (!isEdit) {
+        setForm({ ...EMPTY_FORM });
+        setReferrerSearch('');
       }
 
       onSave();
@@ -252,13 +279,14 @@ car_expiry: '',  // ✅ 추가
           set('car_number', e.target.value)
         }
       />
-{/* ✅ 추가 */}
-<Field
-  icon="📅"
-  placeholder="자동차 만기일 (예: 2026-05-15)"
-  value={form.car_expiry}
-  onChange={(e) => set('car_expiry', e.target.value)}
-/>
+
+      <Field
+        icon="📅"
+        placeholder="자동차 만기일 (예: 2026-05-15)"
+        value={form.car_expiry}
+        onChange={(e) => set('car_expiry', e.target.value)}
+      />
+
       <Field
         icon="🐾"
         placeholder="반려동물명"
@@ -272,19 +300,26 @@ car_expiry: '',  // ✅ 추가
         icon="👶"
         placeholder="태아/자녀명"
         value={form.baby_name}
-        onChange={(e) =>
-          set('baby_name', e.target.value)
-        }
+        onChange={(e) => {
+          const babyName = e.target.value;
+
+          setForm((prev) => ({
+            ...prev,
+            baby_name: babyName,
+            customer_type: babyName.trim() ? '태아' : prev.customer_type,
+            due_date: babyName.trim() ? prev.due_date : '',
+          }));
+        }}
       />
-      {/* ✅ 추가 */}
-{(form.customer_type === '태아' || form.baby_name) && (
-  <Field
-    icon="📅"
-    placeholder="출산예정일 (예: 2026-08-15)"
-    value={form.due_date || ''}
-    onChange={(e) => set('due_date', e.target.value)}
-  />
-)}
+
+      {(form.customer_type === '태아' || form.baby_name) && (
+        <Field
+          icon="📅"
+          placeholder="출산예정일 (예: 2026-08-15)"
+          value={form.due_date || ''}
+          onChange={(e) => set('due_date', e.target.value)}
+        />
+      )}
 
       {/* 관계 */}
       <div style={{ marginBottom: 14 }}>
@@ -561,7 +596,8 @@ car_expiry: '',  // ✅ 추가
           color: '#fff',
           fontSize: 16,
           fontWeight: 700,
-          cursor: 'pointer',
+          cursor: loading ? 'default' : 'pointer',
+          opacity: loading ? 0.7 : 1,
         }}
       >
         {loading

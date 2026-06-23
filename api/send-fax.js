@@ -92,9 +92,12 @@ async function inspectFile(file) {
   throw new Error(`${name}: PDF, JPG, PNG 파일만 발송할 수 있습니다.`);
 }
 
+
 function sendPopbillFax({ corpNum, senderNum, receiverNum, receiverName, filePaths, senderName, title, requestNum }) {
   return new Promise((resolve, reject) => {
-    faxService.sendFax(
+    console.log('POPBILL REQUEST NUM =', requestNum);
+
+    faxService.sendFAX(
       corpNum,
       senderNum,
       receiverNum,
@@ -104,9 +107,10 @@ function sendPopbillFax({ corpNum, senderNum, receiverNum, receiverName, filePat
       senderName,
       false,
       title,
-      requestNum,
-      resolve,
-      reject
+requestNum,
+'',
+resolve,
+reject
     );
   });
 }
