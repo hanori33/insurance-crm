@@ -4,9 +4,7 @@ import Modal from './Modal';
 import customerService from '../services/customerService';
 
 function cleanValue(value = '') {
-  return String(value)
-    .replace(/^[:：\s]+/, '')
-    .trim();
+  return String(value).replace(/^[:：\s]+/, '').trim();
 }
 
 function formatBirthFromSsn(value = '') {
@@ -19,7 +17,6 @@ function formatBirthFromSsn(value = '') {
   const genderCode = digits[6];
 
   let century = yy >= 30 ? '19' : '20';
-
   if (genderCode === '1' || genderCode === '2') century = '19';
   if (genderCode === '3' || genderCode === '4') century = '20';
 
@@ -36,19 +33,28 @@ function getField(block, labels) {
 }
 
 function parseKakaoCustomers(text) {
-  const sections = text
-    .split(/\n(?=\s*(어머니|엄마|모|아버지|아빠|부|아이|자녀|태아)\s*\n)/g)
-    .join('\n')
-    .split(/(?=\n?\s*(어머니|엄마|모|아버지|아빠|부|아이|자녀|태아)\s*\n)/g)
-    .filter((v) => v && v.trim().length > 3);
+  const normalizedText = String(text || '').replace(/\r/g, '').trim();
 
-  const blocks = sections.length > 0 ? sections : [text];
+  const blocks = normalizedText
+    .split(/\n\s*\n+/)
+    .map((block) => block.trim())
+    .filter((block) => {
+      if (!block) return false;
+
+      const hasName = /(?:★?\s*성함|이름)\s*[:：]?\s*[^\n]+/.test(block);
+      const hasPhone = /(?:★?\s*핸드폰번호|휴대폰번호|전화번호|연락처)\s*[:：]?\s*[^\n]+/.test(block);
+
+      return hasName || hasPhone;
+    });
+
   const parsed = [];
   let motherPhone = '';
 
   blocks.forEach((block) => {
     const firstLine = block.trim().split('\n')[0]?.trim() || '';
-    const relation = firstLine.replace(/\s/g, '');
+    const relation = /어머니|엄마|모친|아버지|아빠|부친|아이|자녀|태아/.test(firstLine)
+      ? firstLine.replace(/\s/g, '')
+      : '고객';
 
     const name = getField(block, ['★성함', '성함', '이름']);
     const ssn = getField(block, ['★주민번호', '주민번호', '주민등록번호']);
@@ -58,14 +64,14 @@ function parseKakaoCustomers(text) {
 
     if (!name && !phone) return;
 
-    const isMother = /어머니|엄마|모/.test(relation);
+    const isMother = /어머니|엄마|모친/.test(relation);
     const isChild = /아이|자녀|태아/.test(relation);
 
     if (isMother && phone) motherPhone = phone;
 
     if (
       isChild &&
-      /엄마|어머니|모/.test(phone.replace(/\s/g, '')) &&
+      /엄마|어머니|모친/.test(phone.replace(/\s/g, '')) &&
       motherPhone
     ) {
       phone = motherPhone;
@@ -73,7 +79,7 @@ function parseKakaoCustomers(text) {
 
     parsed.push({
       checked: true,
-      relationLabel: relation || '고객',
+      relationLabel: relation,
       name,
       phone,
       birth: formatBirthFromSsn(ssn),
@@ -82,7 +88,7 @@ function parseKakaoCustomers(text) {
       status: '상담중',
       customer_type: isChild ? '태아' : '일반',
       baby_name: isChild ? name : '',
-      relation_type: relation || '',
+      relation_type: relation === '고객' ? '' : relation,
       memo: '카톡 고객정보 자동등록',
     });
   });
@@ -152,7 +158,7 @@ export default function KakaoCustomerImportModal({ visible, onClose, onSave }) {
         value={rawText}
         onChange={(e) => setRawText(e.target.value)}
         placeholder={`예)
-            
+
 어머니
 
 ★성함:
@@ -176,7 +182,6 @@ export default function KakaoCustomerImportModal({ visible, onClose, onSave }) {
 ★직업:
 ★주소:
 ★핸드폰번호:`}
-
         rows={10}
         style={{
           width: '100%',
