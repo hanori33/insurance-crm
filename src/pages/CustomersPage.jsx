@@ -11,7 +11,7 @@ import consultationService from '../services/consultationService';
 import { supabase } from '../supabaseClient';
 import getFunctionErrorMessage from '../services/functionErrorService';
 import KakaoCustomerImportModal from '../components/KakaoCustomerImportModal';
-
+import { formatDueDateWithDDay } from '../utils';
 
 const EXCEL_HEADERS = [
   '이름', '전화번호', '생년월일', '성별', '상태', '고객유형',
@@ -593,21 +593,32 @@ async function generateAiKakaoMessage() {
             flexWrap: 'wrap',
           }}
         >
-          <span
-            style={{
-              background: '#FFF7ED',
-              color: '#EA580C',
-              borderRadius: 999,
-              padding: '5px 10px',
-              fontSize: 11,
-              fontWeight: 900,
-            }}
-          >
-            👶 {c.baby_name || c.name || '태아'} {formatDday(getDueDate(c))}
-          </span>
-          <span style={{ fontSize: 11, color: COLORS.textGray }}>
-            출산예정일 {getDueDate(c)}
-          </span>
+         <span
+  style={{
+    background: '#FFF7ED',
+    color: '#EA580C',
+    borderRadius: 999,
+    padding: '5px 10px',
+    fontSize: 11,
+    fontWeight: 900,
+  }}
+>
+  👶 {c.baby_name || c.name || '태아'}
+</span>
+
+<span style={{ fontSize: 11, color: COLORS.textGray }}>
+  출산예정일 {formatDueDateWithDDay(getDueDate(c)).split(' · ')[0]}
+</span>
+
+<span
+  style={{
+    fontSize: 11,
+    color: COLORS.primary,
+    fontWeight: 900,
+  }}
+>
+  {formatDueDateWithDDay(getDueDate(c)).split(' · ')[1] || ''}
+</span>
         </div>
       )}
 

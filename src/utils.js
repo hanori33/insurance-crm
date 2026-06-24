@@ -2,7 +2,7 @@ export function formatDate(dateStr) {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
   if (isNaN(d)) return dateStr;
-  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -10,13 +10,26 @@ const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 export function formatDueDateWithDDay(dueDate, now = new Date()) {
   const dateText = String(dueDate || '').trim();
-  const match = dateText.match(/^(\d{4})([-./])(\d{1,2})\2(\d{1,2})$/);
 
-  if (!match) return dateText;
+  let year;
+  let month;
+  let day;
 
-  const year = Number(match[1]);
-  const month = Number(match[3]);
-  const day = Number(match[4]);
+  const compactMatch = dateText.match(/^(\d{4})(\d{2})(\d{2})$/);
+  const dashedMatch = dateText.match(/^(\d{4})([-./])(\d{1,2})\2(\d{1,2})$/);
+
+  if (compactMatch) {
+    year = Number(compactMatch[1]);
+    month = Number(compactMatch[2]);
+    day = Number(compactMatch[3]);
+  } else if (dashedMatch) {
+    year = Number(dashedMatch[1]);
+    month = Number(dashedMatch[3]);
+    day = Number(dashedMatch[4]);
+  } else {
+    return dateText;
+  }
+
   const dueDay = Date.UTC(year, month - 1, day);
   const parsedDueDate = new Date(dueDay);
 
@@ -34,10 +47,19 @@ export function formatDueDateWithDDay(dueDate, now = new Date()) {
     nowInKorea.getUTCMonth(),
     nowInKorea.getUTCDate()
   );
-  const daysLeft = Math.round((dueDay - todayInKorea) / DAY_IN_MS);
-  const dDay = daysLeft === 0 ? 'D-DAY' : daysLeft > 0 ? `D-${daysLeft}` : `D+${Math.abs(daysLeft)}`;
 
-  return `${dateText} · ${dDay}`;
+  const daysLeft = Math.round((dueDay - todayInKorea) / DAY_IN_MS);
+
+  const dDay =
+    daysLeft === 0
+      ? 'D-DAY'
+      : daysLeft > 0
+      ? `D-${daysLeft}`
+      : `D+${Math.abs(daysLeft)}`;
+
+  const prettyDate = `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
+
+  return `${prettyDate} · ${dDay}`;
 }
 
 export function getProStatusLabel(profile, now = new Date()) {
@@ -50,31 +72,34 @@ export function getProStatusLabel(profile, now = new Date()) {
 
   const expiryInKorea = new Date(expiresAt.getTime() + KST_OFFSET_MS);
   const nowInKorea = new Date(now.getTime() + KST_OFFSET_MS);
+
   const expiryDay = Date.UTC(
     expiryInKorea.getUTCFullYear(),
     expiryInKorea.getUTCMonth(),
     expiryInKorea.getUTCDate()
   );
+
   const today = Date.UTC(
     nowInKorea.getUTCFullYear(),
     nowInKorea.getUTCMonth(),
     nowInKorea.getUTCDate()
   );
+
   const daysLeft = Math.max(0, Math.round((expiryDay - today) / DAY_IN_MS));
 
   return daysLeft === 0 ? 'PRO D-DAY' : `PRO D-${daysLeft}`;
 }
 
 export function formatDateKorean(dateStr) {
-  const DAYS = ['일','월','화','수','목','금','토'];
+  const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
   const d = dateStr ? new Date(dateStr) : new Date();
   if (isNaN(d)) return '';
-  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS[d.getDay()]})`;
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS[d.getDay()]})`;
 }
 
 export function todayStr() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function formatNumber(n) {
@@ -86,19 +111,30 @@ export function buildCalendarMatrix(year, month) {
   const lastDate = new Date(year, month + 1, 0).getDate();
   const matrix = [];
   let week = Array(firstDay).fill(null);
+
   for (let d = 1; d <= lastDate; d++) {
     week.push(d);
-    if (week.length === 7) { matrix.push(week); week = []; }
+    if (week.length === 7) {
+      matrix.push(week);
+      week = [];
+    }
   }
+
   if (week.length) {
     while (week.length < 7) week.push(null);
     matrix.push(week);
   }
+
   return matrix;
 }
 
-export function getInitial(name = '') { return name.charAt(0) || '?'; }
-export function isEmpty(v) { return v === null || v === undefined || v === ''; }
+export function getInitial(name = '') {
+  return name.charAt(0) || '?';
+}
+
+export function isEmpty(v) {
+  return v === null || v === undefined || v === '';
+}
 
 export function validateSignupName(value, email = '') {
   const name = String(value || '').trim().replace(/\s+/g, ' ');
@@ -135,21 +171,26 @@ export function toTimeStr(value) {
   if (!value) return '';
 
   const str = String(value);
-
   const match = str.match(/(\d{2}):(\d{2})/);
+
   if (match) return `${match[1]}:${match[2]}`;
 
   return '';
 }
 
-// ── 기존 파일 호환용 alias ──────────────────────
-export function money(n) { return formatNumber(n) + '천원'; }
-export function calculateRetentionRate(counts = {}) {
-  const total  = Object.values(counts).reduce((a, b) => a + b, 0);
-  const active = (counts['유지중'] || 0) + (counts['계약중'] || 0);
-  return total > 0 ? Math.round(active / total * 100) : 0;
+export function money(n) {
+  return formatNumber(n) + '천원';
 }
-export function getSilsonGeneration() { return 1; }
+
+export function calculateRetentionRate(counts = {}) {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const active = (counts['유지중'] || 0) + (counts['계약중'] || 0);
+  return total > 0 ? Math.round((active / total) * 100) : 0;
+}
+
+export function getSilsonGeneration() {
+  return 1;
+}
 
 export function birthFromFront6(front6) {
   if (!front6 || front6.length < 6) return null;
