@@ -25,6 +25,10 @@ function getCarExpiry(c) {
   return c.car_expiry || c.carExpiry || c.car_expiry_date || c.carExpiryDate || c.car_expiry_at || '';
 }
 
+function getDueDate(c) {
+  return c.due_date || c.dueDate || c.expected_birth_date || c.expectedBirthDate || '';
+}
+
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const target = new Date(dateStr);
@@ -35,6 +39,13 @@ function daysUntil(dateStr) {
   const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
 
   return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+}
+
+function formatDday(dateStr) {
+  const d = daysUntil(dateStr);
+  if (d === null) return '';
+  if (d === 0) return 'D-DAY';
+  return d > 0 ? `D-${d}` : `D+${Math.abs(d)}`;
 }
 
 function isBirthdayToday(c) {
@@ -181,7 +192,7 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
     return d !== null && d >= 0 && d <= 30;
   }
 
-  if (filter === '태아') return c.customer_type === '태아' || !!c.baby_name;
+  if (filter === '태아') return (c.customer_type === '태아' || !!c.baby_name) && !!getDueDate(c);
   if (filter === '펫') return c.customer_type === '펫' || !!c.pet_name;
 
   return true;
@@ -571,6 +582,34 @@ async function generateAiKakaoMessage() {
           })
         }
       />
+
+      {(c.customer_type === '태아' || c.baby_name) && getDueDate(c) && (
+        <div
+          style={{
+            padding: '0 14px 8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              background: '#FFF7ED',
+              color: '#EA580C',
+              borderRadius: 999,
+              padding: '5px 10px',
+              fontSize: 11,
+              fontWeight: 900,
+            }}
+          >
+            👶 {c.baby_name || c.name || '태아'} {formatDday(getDueDate(c))}
+          </span>
+          <span style={{ fontSize: 11, color: COLORS.textGray }}>
+            출산예정일 {getDueDate(c)}
+          </span>
+        </div>
+      )}
 
       <div
         style={{

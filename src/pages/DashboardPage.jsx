@@ -128,6 +128,28 @@ function DashboardSection({ title, icon, right, children }) {
   );
 }
 
+function SectionActionButton({ children = '전체보기', onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: 'none',
+        background: COLORS.primaryBg,
+        color: COLORS.primary,
+        borderRadius: 999,
+        padding: '6px 10px',
+        fontSize: 11,
+        fontWeight: 900,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function ScheduleRow({ item, isLast }) {
   const customerName = item.customers?.name || item.customer_name || '';
   const title = (item.title || '').replace(/^[^\s]+\s/, '');
@@ -225,11 +247,25 @@ function CustomerMiniRow({ customer, isLast, onClick }) {
   );
 }
 
-function AiContactRecommendationSection({ loading, contactRecommendations = [], onNavigate, compact = false }) {
+function AiContactRecommendationSection({
+  loading,
+  contactRecommendations = [],
+  onNavigate,
+  compact = false,
+  onShowAll,
+}) {
   const visibleRecommendations = contactRecommendations.slice(0, compact ? 3 : 5);
 
   return (
-    <DashboardSection title="AI 연락 추천 고객" icon="🔥">
+    <DashboardSection
+      title="AI 연락 추천 고객"
+      icon="🔥"
+      right={
+        <SectionActionButton onClick={onShowAll}>
+          전체보기
+        </SectionActionButton>
+      }
+    >
       {loading ? (
         <LoadingSpinner />
       ) : visibleRecommendations.length === 0 ? (
@@ -686,6 +722,19 @@ function getCarExpiry(c) {
   );
 }
 
+
+function getDueDate(c) {
+  return c.due_date || c.dueDate || c.expected_birth_date || c.expectedBirthDate || '';
+}
+
+function sortByRecentCustomers(customers = []) {
+  return [...customers].sort((a, b) => {
+    const bDate = new Date(b.created_at || b.updated_at || 0).getTime();
+    const aDate = new Date(a.created_at || a.updated_at || 0).getTime();
+    return bDate - aDate;
+  });
+}
+
 function isBirthdayToday(c) {
   const today = new Date();
   const todayMonth = today.getMonth() + 1;
@@ -723,6 +772,8 @@ export default function DashboardPage({ user, onNavigate }) {
   const [myRole, setMyRole] = useState('agent');
   const [showNoticeForm, setShowNoticeForm] = useState(false);
   const [contactRecommendations, setContactRecommendations] = useState([]);
+  const [showRecentCustomersModal, setShowRecentCustomersModal] = useState(false);
+  const [showAiRecommendationsModal, setShowAiRecommendationsModal] = useState(false);
 
   const meta = user?.user_metadata || {};
   const userName = meta.display_name || user?.email?.split('@')[0] || '사용자';
@@ -744,7 +795,7 @@ export default function DashboardPage({ user, onNavigate }) {
         noticeService.list().catch(() => []),
         noticeService.getReadIds().catch(() => []),
         noticeService.getMyRole().catch(() => 'agent'),
-        contactRecommendationService.list(5).catch(() => []),
+        contactRecommendationService.list(20).catch(() => []),
       ]);
 
       setTodaySchedules(todaySched || []);
@@ -771,9 +822,11 @@ export default function DashboardPage({ user, onNavigate }) {
     return d !== null && d >= 0 && d <= 30;
   });
 
-  const babyCustomers = allCustomers.filter((c) => c.customer_type === '태아' || c.baby_name);
+  const babyCustomers = allCustomers.filter((c) => (c.customer_type === '태아' || c.baby_name) && !!getDueDate(c));
   const petCustomers = allCustomers.filter((c) => c.customer_type === '펫' || c.pet_name);
   const taskCount = todaySchedules.length + birthdayCustomers.length + carExpiringCustomers.length;
+  const recentCustomersForModal = sortByRecentCustomers(allCustomers).slice(0, 20);
+  const aiRecommendationsForModal = contactRecommendations.slice(0, 20);
 
   return (
     <div
@@ -808,6 +861,8 @@ export default function DashboardPage({ user, onNavigate }) {
             petCustomers={petCustomers}
             setShowScheduleForm={setShowScheduleForm}
             onNavigate={onNavigate}
+            onShowRecentCustomers={() => setShowRecentCustomersModal(true)}
+            onShowAiRecommendations={() => setShowAiRecommendationsModal(true)}
           />
         ) : (
           <PcDashboard
@@ -825,6 +880,8 @@ export default function DashboardPage({ user, onNavigate }) {
             petCustomers={petCustomers}
             setShowScheduleForm={setShowScheduleForm}
             onNavigate={onNavigate}
+            onShowRecentCustomers={() => setShowRecentCustomersModal(true)}
+            onShowAiRecommendations={() => setShowAiRecommendationsModal(true)}
             statusCounts={statusCounts}
             notices={notices}
             readIds={readIds}
@@ -845,6 +902,108 @@ export default function DashboardPage({ user, onNavigate }) {
         dateStr={todayStr()}
         initial={null}
       />
+
+
+      <Modal
+        visible={showRecentCustomersModal}
+        onClose={() => setShowRecentCustomersModal(false)}
+        title="최근 등록 고객 전체보기"
+      >
+        {recentCustomersForModal.length === 0 ? (
+          <EmptyState icon="👥" message="최근 등록 고객이 없습니다" />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {recentCustomersForModal.map((c, i) => (
+              <CustomerMiniRow
+                key={c.db_id || c.id || c.app_customer_id || i}
+                customer={c}
+                isLast={i === recentCustomersForModal.length - 1}
+                onClick={() => {
+                  setShowRecentCustomersModal(false);
+                  onNavigate('customerDetail', { id: c.db_id || c.id });
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        visible={showAiRecommendationsModal}
+        onClose={() => setShowAiRecommendationsModal(false)}
+        title="AI 연락 추천 고객 전체보기"
+      >
+        {aiRecommendationsForModal.length === 0 ? (
+          <EmptyState icon="🤖" message="오늘 추천할 고객이 없습니다" />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {aiRecommendationsForModal.map((item, i) => {
+              const customer = item.customer || {};
+              const customerId = customer.db_id || customer.id || customer.app_customer_id;
+              const firstReason = item.reasons?.[0] || '연락 가치가 있는 고객입니다.';
+
+              return (
+                <button
+                  key={customerId || i}
+                  type="button"
+                  onClick={() => {
+                    setShowAiRecommendationsModal(false);
+                    onNavigate('customerDetail', { id: customerId });
+                  }}
+                  style={{
+                    width: '100%',
+                    border: `1px solid ${COLORS.border}`,
+                    background: '#fff',
+                    borderRadius: 14,
+                    padding: '10px 11px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 12,
+                        background: 'linear-gradient(135deg,#7C3AED,#A78BFA)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 950,
+                        fontSize: 13,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
+                          {customer.name || '이름 없음'}
+                        </div>
+                        <div style={{ color: COLORS.primary, fontWeight: 950, fontSize: 12, whiteSpace: 'nowrap' }}>
+                          {item.score}점
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 3, color: COLORS.primary, fontWeight: 850, fontSize: 11.5 }}>
+                        {item.recommendedAction || '안부 연락'}
+                      </div>
+
+                      <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 11, lineHeight: 1.35 }}>
+                        {firstReason}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Modal>
 
       {showNoticeForm && (
         <NoticeForm
@@ -883,6 +1042,8 @@ function MobileDashboard({
   petCustomers,
   setShowScheduleForm,
   onNavigate,
+  onShowRecentCustomers,
+  onShowAiRecommendations,
 }) {
   return (
     <div
@@ -976,6 +1137,7 @@ function MobileDashboard({
         contactRecommendations={contactRecommendations}
         onNavigate={onNavigate}
         compact
+        onShowAll={onShowAiRecommendations}
       />
 
       <DashboardSection
@@ -1051,7 +1213,15 @@ function MobileDashboard({
         />
       </div>
 
-      <DashboardSection title="최근 등록 고객" icon="👥">
+      <DashboardSection
+        title="최근 등록 고객"
+        icon="👥"
+        right={
+          <SectionActionButton onClick={onShowRecentCustomers}>
+            전체보기
+          </SectionActionButton>
+        }
+      >
         {loading ? (
           <LoadingSpinner />
         ) : recentCustomers.length === 0 ? (
@@ -1110,6 +1280,8 @@ function PcDashboard({
   petCustomers,
   setShowScheduleForm,
   onNavigate,
+  onShowRecentCustomers,
+  onShowAiRecommendations,
   statusCounts,
   notices,
   readIds,
@@ -1214,7 +1386,15 @@ function PcDashboard({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-        <DashboardSection title="최근 등록 고객" icon="👥">
+        <DashboardSection
+          title="최근 등록 고객"
+          icon="👥"
+          right={
+            <SectionActionButton onClick={onShowRecentCustomers}>
+              전체보기
+            </SectionActionButton>
+          }
+        >
           {loading ? (
             <LoadingSpinner />
           ) : recentCustomers.length === 0 ? (
@@ -1242,13 +1422,15 @@ function PcDashboard({
         contactRecommendations={contactRecommendations}
         onNavigate={onNavigate}
         compact
+        onShowAll={onShowAiRecommendations}
       />
 
       <DashboardSection
         title="공지사항"
         icon="📢"
         right={
-          (myRole === 'superadmin' ||
+          (myRole === 'admin' ||
+            myRole === 'superadmin' ||
             myRole === 'division_head' ||
             myRole === 'branch_head' ||
             myRole === 'office_head' ||
