@@ -10,6 +10,8 @@ import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import { supabase } from '../supabaseClient';
 import getFunctionErrorMessage from '../services/functionErrorService';
+import KakaoCustomerImportModal from '../components/KakaoCustomerImportModal';
+
 
 const EXCEL_HEADERS = [
   '이름', '전화번호', '생년월일', '성별', '상태', '고객유형',
@@ -106,6 +108,7 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
   const [consultations, setConsultations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showKakaoImport, setShowKakaoImport] = useState(false);
 
   const [showKakaoModal, setShowKakaoModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -420,7 +423,27 @@ async function generateAiKakaoMessage() {
                 fontFamily: 'inherit',
               }}
             />
-          </div>
+                   </div>
+
+          <button
+            type="button"
+            onClick={() => setShowKakaoImport(true)}
+            style={{
+              height: 44,
+              borderRadius: 12,
+              border: `1px solid ${COLORS.border}`,
+              background: COLORS.white,
+              color: COLORS.primary,
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+              padding: '0 12px',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            📋 카톡
+          </button>
 
           <button
             onClick={() => setShowForm(true)}
@@ -895,6 +918,15 @@ async function generateAiKakaoMessage() {
           setShowForm(false);
         }}
       />
+
+      <KakaoCustomerImportModal
+  visible={showKakaoImport}
+  onClose={() => setShowKakaoImport(false)}
+  onSave={() => {
+    load();
+    setShowKakaoImport(false);
+  }}
+/>
     </div>
   );
 }
