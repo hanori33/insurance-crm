@@ -47,12 +47,13 @@ export default function NoticesPage({ user }) {
   }
 
   const canWrite = [
-    'superadmin',
-    'division_head',
-    'branch_head',
-    'office_head',
-    'team_leader',
-  ].includes(myRole);
+  'admin',
+  'superadmin',
+  'division_head',
+  'branch_head',
+  'office_head',
+  'team_leader',
+].includes(myRole);
 
   return (
     <div
