@@ -241,7 +241,6 @@ function EditModal({ visible, onClose, customer, onSave }) {
     setLoading(true);
 
     try {
-      console.log(form);
       await customerService.update(customer.db_id || customer.id, form);
       onSave();
       onClose();

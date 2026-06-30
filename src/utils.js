@@ -8,6 +8,24 @@ export function formatDate(dateStr) {
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
+export function formatPhoneNumber(value = '') {
+  const digits = String(value || '').replace(/\D/g, '');
+
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+
+  if (digits.length === 10) {
+    if (digits.startsWith('02')) {
+      return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  return String(value || '').trim();
+}
+
 export function formatDueDateWithDDay(dueDate, now = new Date()) {
   const dateText = String(dueDate || '').trim();
 

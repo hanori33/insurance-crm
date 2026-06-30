@@ -1,4 +1,5 @@
 import { supabase } from "../supabaseClient";
+import { formatPhoneNumber } from "../utils";
 
 function dbToCustomer(c) {
   return {
@@ -6,7 +7,7 @@ function dbToCustomer(c) {
     db_id: c.id,
     app_customer_id: c.app_customer_id,
     name: c.name || "",
-    phone: c.phone || "",
+    phone: formatPhoneNumber(c.phone || ""),
     ssn: c.ssn || "",
     birth:
   c.birth ||
@@ -47,7 +48,7 @@ function customerToDb(userId, customer) {
     user_id: userId,
     app_customer_id: customer.app_customer_id || customer.id || Date.now(),
     name: customer.name || "",
-    phone: customer.phone || "",
+    phone: formatPhoneNumber(customer.phone || ""),
     birth: customer.birth || customer.birth_date || customer.birthday || customer.birthDate || "",
     email: customer.email || "",
     memo: customer.memo || "",

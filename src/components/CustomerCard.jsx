@@ -2,13 +2,9 @@
 import React from 'react';
 import { COLORS } from '../constants';
 import { Avatar, StatusBadge, Divider } from './Common';
-import { formatDate, formatDueDateWithDDay } from '../utils';
+import { formatDate } from '../utils';
 
 export default function CustomerCard({ customer, onClick, showDate = true, isLast = false }) {
-  const isBabyCustomer = customer.customer_type === '태아' || Boolean(customer.baby_name);
-  const babyName = String(customer.baby_name || '').trim() || '태아';
-  const dueDateWithDDay = customer.due_date ? formatDueDateWithDDay(customer.due_date) : '';
-
   return (
     <>
       <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', cursor: 'pointer' }}>

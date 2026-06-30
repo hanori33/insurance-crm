@@ -19,8 +19,8 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('비밀번호는 6자리 이상 입력해주세요.');
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상 입력해주세요.');
       return;
     }
 
