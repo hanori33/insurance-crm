@@ -339,11 +339,11 @@ export default function KakaoCustomerImportModal({ visible, onClose, onSave }) {
         onChange={(e) => setRawText(e.target.value)}
         placeholder={`예)
 
-박하늘
-890629
-설계사
-경기도 시흥시 배곧4로
-01023232229
+김보플
+900101
+회사원
+서울시 강남구 테헤란로
+010-1234-5678
 
 또는
 
