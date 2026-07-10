@@ -291,6 +291,159 @@ if (profileError) throw profileError;
   );
 }
 
+function PasswordChangeModal({ visible, onClose }) {
+  const [password, setPassword] = useState('');
+  const [passwordCheck, setPasswordCheck] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    setPassword('');
+    setPasswordCheck('');
+    setShowPassword(false);
+    setLoading(false);
+  }, [visible]);
+
+  async function handleChangePassword() {
+    if (password.length < 8) {
+      alert('비밀번호는 8자 이상 입력해주세요.');
+      return;
+    }
+
+    if (password !== passwordCheck) {
+      alert('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (error) throw error;
+
+      alert('비밀번호가 변경되었습니다. 다음 로그인부터 새 비밀번호를 사용하세요.');
+      onClose();
+    } catch (e) {
+      alert('비밀번호 변경 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputType = showPassword ? 'text' : 'password';
+
+  return (
+    <Modal visible={visible} onClose={loading ? undefined : onClose} title="비밀번호 변경">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontSize: 13, color: COLORS.textGray, lineHeight: 1.5 }}>
+          새 비밀번호는 8자 이상 입력해주세요.
+        </div>
+
+        <label style={passwordLabelStyle}>새 비밀번호</label>
+        <div style={passwordInputWrapStyle}>
+          <input
+            type={inputType}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="새 비밀번호"
+            autoComplete="new-password"
+            disabled={loading}
+            style={passwordInputStyle}
+          />
+        </div>
+
+        <label style={passwordLabelStyle}>새 비밀번호 확인</label>
+        <div style={passwordInputWrapStyle}>
+          <input
+            type={inputType}
+            value={passwordCheck}
+            onChange={(e) => setPasswordCheck(e.target.value)}
+            placeholder="새 비밀번호 확인"
+            autoComplete="new-password"
+            disabled={loading}
+            style={passwordInputStyle}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !loading) handleChangePassword();
+            }}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowPassword((value) => !value)}
+          disabled={loading}
+          style={{
+            alignSelf: 'flex-start',
+            border: 'none',
+            background: 'transparent',
+            color: COLORS.primary,
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: loading ? 'default' : 'pointer',
+            padding: '2px 0',
+          }}
+        >
+          {showPassword ? '비밀번호 숨기기' : '비밀번호 표시'}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleChangePassword}
+          disabled={loading}
+          style={{
+            width: '100%',
+            marginTop: 4,
+            padding: '14px 0',
+            borderRadius: 12,
+            border: 'none',
+            background: COLORS.primary,
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: 800,
+            cursor: loading ? 'default' : 'pointer',
+            opacity: loading ? 0.7 : 1,
+          }}
+        >
+          {loading ? '변경 중...' : '비밀번호 변경'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+const passwordLabelStyle = {
+  fontSize: 13,
+  color: COLORS.textGray,
+  fontWeight: 700,
+};
+
+const passwordInputWrapStyle = {
+  width: '100%',
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 12,
+  background: '#fff',
+  boxSizing: 'border-box',
+};
+
+const passwordInputStyle = {
+  width: '100%',
+  height: 48,
+  border: 'none',
+  outline: 'none',
+  borderRadius: 12,
+  padding: '0 14px',
+  boxSizing: 'border-box',
+  fontSize: 15,
+  fontFamily: 'inherit',
+  color: COLORS.text,
+  background: 'transparent',
+};
+
 function MenuItem({ icon, label, onClick, danger, isLast }) {
   return (
     <>
@@ -336,6 +489,7 @@ export default function MorePage({
   });
 
   const [showEdit, setShowEdit] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -383,6 +537,7 @@ export default function MorePage({
   const isAdmin = isAdminRole(currentRole);
 
   const menuItems = [
+    { icon: '🔒', label: '비밀번호 변경', onClick: () => setShowPasswordChange(true) },
     { icon: '🔔', label: '알림 설정', onClick: () => onNavigate('notifSettings') },
     { icon: '☁️', label: '백업 / 복원', onClick: () => onNavigate('backupRestore') },
     { icon: '💬', label: '문의하기 / 오류 제보', onClick: () => onNavigate('inquiry') },
@@ -574,6 +729,11 @@ export default function MorePage({
         onClose={() => setShowEdit(false)}
         profile={profile}
         onSave={setProfile}
+      />
+
+      <PasswordChangeModal
+        visible={showPasswordChange}
+        onClose={() => setShowPasswordChange(false)}
       />
     </>
   );

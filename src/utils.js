@@ -26,7 +26,7 @@ export function formatPhoneNumber(value = '') {
   return String(value || '').trim();
 }
 
-export function formatDueDateWithDDay(dueDate, now = new Date()) {
+function parseDueDate(dueDate) {
   const dateText = String(dueDate || '').trim();
 
   let year;
@@ -45,7 +45,7 @@ export function formatDueDateWithDDay(dueDate, now = new Date()) {
     month = Number(dashedMatch[3]);
     day = Number(dashedMatch[4]);
   } else {
-    return dateText;
+    return null;
   }
 
   const dueDay = Date.UTC(year, month - 1, day);
@@ -56,17 +56,50 @@ export function formatDueDateWithDDay(dueDate, now = new Date()) {
     parsedDueDate.getUTCMonth() !== month - 1 ||
     parsedDueDate.getUTCDate() !== day
   ) {
-    return dateText;
+    return null;
   }
 
-  const nowInKorea = new Date(now.getTime() + KST_OFFSET_MS);
-  const todayInKorea = Date.UTC(
+  return { year, month, day, dueDay, dateText };
+}
+
+function getKoreaTodayUtc(now = new Date()) {
+  const current = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+  const nowInKorea = new Date(current.getTime() + KST_OFFSET_MS);
+  return Date.UTC(
     nowInKorea.getUTCFullYear(),
     nowInKorea.getUTCMonth(),
     nowInKorea.getUTCDate()
   );
+}
 
-  const daysLeft = Math.round((dueDay - todayInKorea) / DAY_IN_MS);
+export function getDueDateDaysLeft(dueDate, now = new Date()) {
+  const parsed = parseDueDate(dueDate);
+  if (!parsed) return null;
+
+  return Math.round((parsed.dueDay - getKoreaTodayUtc(now)) / DAY_IN_MS);
+}
+
+export function getCustomerDueDate(customer = {}) {
+  return customer.due_date || customer.dueDate || customer.expected_birth_date || customer.expectedBirthDate || '';
+}
+
+export function isPregnancyCustomer(customer = {}) {
+  return customer.customer_type === '태아' || !!customer.baby_name;
+}
+
+export function isActivePregnancyCustomer(customer = {}, now = new Date()) {
+  if (!isPregnancyCustomer(customer)) return false;
+
+  const daysLeft = getDueDateDaysLeft(getCustomerDueDate(customer), now);
+  return daysLeft !== null && daysLeft >= 0;
+}
+
+export function formatDueDateWithDDay(dueDate, now = new Date()) {
+  const parsed = parseDueDate(dueDate);
+  if (!parsed) return String(dueDate || '').trim();
+
+  const { year, month, day } = parsed;
+  const daysLeft = getDueDateDaysLeft(dueDate, now);
 
   const dDay =
     daysLeft === 0

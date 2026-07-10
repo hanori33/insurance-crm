@@ -10,7 +10,7 @@ import EmptyState from '../components/EmptyState';
 import ScheduleForm from '../components/ScheduleForm';
 import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
-import { toTimeStr, todayStr } from '../utils';
+import { isActivePregnancyCustomer, toTimeStr, todayStr } from '../utils';
 import noticeService from '../services/noticeService';
 import contactRecommendationService from '../services/contactRecommendationService';
 import NoticeForm from '../components/NoticeForm';
@@ -723,10 +723,6 @@ function getCarExpiry(c) {
 }
 
 
-function getDueDate(c) {
-  return c.due_date || c.dueDate || c.expected_birth_date || c.expectedBirthDate || '';
-}
-
 function sortByRecentCustomers(customers = []) {
   return [...customers].sort((a, b) => {
     const bDate = new Date(b.created_at || b.updated_at || 0).getTime();
@@ -822,7 +818,7 @@ export default function DashboardPage({ user, onNavigate }) {
     return d !== null && d >= 0 && d <= 30;
   });
 
-  const babyCustomers = allCustomers.filter((c) => (c.customer_type === '태아' || c.baby_name) && !!getDueDate(c));
+  const babyCustomers = allCustomers.filter((customer) => isActivePregnancyCustomer(customer));
   const petCustomers = allCustomers.filter((c) => c.customer_type === '펫' || c.pet_name);
   const taskCount = todaySchedules.length + birthdayCustomers.length + carExpiringCustomers.length;
   const recentCustomersForModal = sortByRecentCustomers(allCustomers).slice(0, 20);

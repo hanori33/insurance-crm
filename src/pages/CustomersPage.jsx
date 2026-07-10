@@ -11,7 +11,7 @@ import consultationService from '../services/consultationService';
 import { supabase } from '../supabaseClient';
 import getFunctionErrorMessage from '../services/functionErrorService';
 import KakaoCustomerImportModal from '../components/KakaoCustomerImportModal';
-import { formatDueDateWithDDay } from '../utils';
+import { formatDueDateWithDDay, getCustomerDueDate, isActivePregnancyCustomer } from '../utils';
 
 const EXCEL_HEADERS = [
   '이름', '전화번호', '생년월일', '성별', '상태', '고객유형',
@@ -25,10 +25,6 @@ function getCarExpiry(c) {
   return c.car_expiry || c.carExpiry || c.car_expiry_date || c.carExpiryDate || c.car_expiry_at || '';
 }
 
-function getDueDate(c) {
-  return c.due_date || c.dueDate || c.expected_birth_date || c.expectedBirthDate || '';
-}
-
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const target = new Date(dateStr);
@@ -39,13 +35,6 @@ function daysUntil(dateStr) {
   const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
 
   return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-}
-
-function formatDday(dateStr) {
-  const d = daysUntil(dateStr);
-  if (d === null) return '';
-  if (d === 0) return 'D-DAY';
-  return d > 0 ? `D-${d}` : `D+${Math.abs(d)}`;
 }
 
 function isBirthdayToday(c) {
@@ -192,7 +181,7 @@ export default function CustomersPage({ onNavigate, initialFilter, initialSearch
     return d !== null && d >= 0 && d <= 30;
   }
 
-  if (filter === '태아') return (c.customer_type === '태아' || !!c.baby_name) && !!getDueDate(c);
+  if (filter === '태아') return isActivePregnancyCustomer(c);
   if (filter === '펫') return c.customer_type === '펫' || !!c.pet_name;
 
   return true;
@@ -404,10 +393,10 @@ async function generateAiKakaoMessage() {
           background: COLORS.bg,
         }}
       >
-        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           <div
             style={{
-              flex: 1,
+              flex: '1 0 100%',
               minWidth: 0,
               display: 'flex',
               alignItems: 'center',
@@ -438,6 +427,26 @@ async function generateAiKakaoMessage() {
 
           <button
             type="button"
+            onClick={() => setShowForm(true)}
+            style={{
+              height: 44,
+              borderRadius: 12,
+              border: 'none',
+              background: COLORS.primary,
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 900,
+              cursor: 'pointer',
+              padding: '0 12px',
+              whiteSpace: 'nowrap',
+              flex: '1 1 0',
+            }}
+          >
+            직접 등록
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowKakaoImport(true)}
             style={{
               height: 44,
@@ -445,35 +454,15 @@ async function generateAiKakaoMessage() {
               border: `1px solid ${COLORS.border}`,
               background: COLORS.white,
               color: COLORS.primary,
-              fontSize: 12,
-              fontWeight: 800,
+              fontSize: 13,
+              fontWeight: 900,
               cursor: 'pointer',
               padding: '0 12px',
               whiteSpace: 'nowrap',
-              flexShrink: 0,
+              flex: '1 1 0',
             }}
           >
-            📋 카톡
-          </button>
-
-          <button
-            onClick={() => setShowForm(true)}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              border: 'none',
-              background: COLORS.primary,
-              color: '#fff',
-              fontSize: 24,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            +
+            카톡으로 등록
           </button>
         </div>
 
@@ -583,7 +572,7 @@ async function generateAiKakaoMessage() {
         }
       />
 
-      {(c.customer_type === '태아' || c.baby_name) && getDueDate(c) && (
+      {isActivePregnancyCustomer(c) && (
         <div
           style={{
             padding: '0 14px 8px',
@@ -607,7 +596,7 @@ async function generateAiKakaoMessage() {
 </span>
 
 <span style={{ fontSize: 11, color: COLORS.textGray }}>
-  출산예정일 {formatDueDateWithDDay(getDueDate(c)).split(' · ')[0]}
+  출산예정일 {formatDueDateWithDDay(getCustomerDueDate(c)).split(' · ')[0]}
 </span>
 
 <span
@@ -617,7 +606,7 @@ async function generateAiKakaoMessage() {
     fontWeight: 900,
   }}
 >
-  {formatDueDateWithDDay(getDueDate(c)).split(' · ')[1] || ''}
+  {formatDueDateWithDDay(getCustomerDueDate(c)).split(' · ')[1] || ''}
 </span>
         </div>
       )}

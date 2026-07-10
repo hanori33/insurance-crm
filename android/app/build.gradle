@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+def uploadStoreFile = System.getenv("BOPLAN_UPLOAD_STORE_FILE")
+def uploadStorePassword = System.getenv("BOPLAN_UPLOAD_STORE_PASSWORD")
+def uploadKeyAlias = System.getenv("BOPLAN_UPLOAD_KEY_ALIAS")
+def uploadKeyPassword = System.getenv("BOPLAN_UPLOAD_KEY_PASSWORD")
+def hasUploadSigning = [uploadStoreFile, uploadStorePassword, uploadKeyAlias, uploadKeyPassword]
+        .every { it != null && it.trim() }
+
 android {
     namespace = "kr.boplan.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,7 +14,7 @@ android {
         applicationId "kr.boplan.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode 2
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -16,11 +23,30 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasUploadSigning) {
+                storeFile file(uploadStoreFile)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasUploadSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(":app:bundleRelease") && !hasUploadSigning) {
+        throw new GradleException("Release signing requires BOPLAN_UPLOAD_STORE_FILE, BOPLAN_UPLOAD_STORE_PASSWORD, BOPLAN_UPLOAD_KEY_ALIAS, and BOPLAN_UPLOAD_KEY_PASSWORD environment variables.")
     }
 }
 
