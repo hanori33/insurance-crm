@@ -1,5 +1,5 @@
 // src/components/Header.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { COLORS } from '../constants';
 import { Avatar } from './Common';
 import ProfileStatusBadges from './ProfileStatusBadges';
@@ -16,6 +16,19 @@ export default function Header({
   const name = user?.user_metadata?.display_name || user?.email || '?';
   const photoUrl = user?.user_metadata?.photo_url || '';
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+
+    const handleHardwareBack = (event) => {
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      setDrawerOpen(false);
+    };
+
+    window.addEventListener('boplan:hardware-back', handleHardwareBack);
+    return () => window.removeEventListener('boplan:hardware-back', handleHardwareBack);
+  }, [drawerOpen]);
 
   const menuItems = [
     { id: 'home',             icon: '🏠', label: '홈' },
@@ -40,6 +53,7 @@ export default function Header({
         style={{
           background: 'linear-gradient(160deg,#EDE9FF,#F3EEFF)',
           padding: '0 20px 16px',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
           flexShrink: 0,
           position: 'relative',
           zIndex: 30,

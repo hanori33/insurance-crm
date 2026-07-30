@@ -1,6 +1,9 @@
 // src/App.js
 import InsuranceContactPage from './pages/InsuranceContactPage';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { Dialog } from '@capacitor/dialog';
 import { COLORS } from './constants';
 import authService from './services/authService';
 import scheduleService from './services/scheduleService';
@@ -94,6 +97,36 @@ function WebShell({ children }) {
   );
 }
 
+function NetworkStatusBanner({ visible }) {
+  if (!visible) return null;
+
+  return (
+    <div
+      role="status"
+      style={{
+        position: 'fixed',
+        top: 'calc(10px + env(safe-area-inset-top, 0px))',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 1000000,
+        width: 'calc(100% - 32px)',
+        maxWidth: 390,
+        padding: '10px 14px',
+        borderRadius: 999,
+        background: '#111827',
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: 800,
+        textAlign: 'center',
+        boxShadow: '0 12px 30px rgba(0,0,0,0.24)',
+        pointerEvents: 'none',
+      }}
+    >
+      네트워크 연결이 끊겼습니다. 연결 상태를 확인해주세요.
+    </div>
+  );
+}
+
 export default function App() {
   const isMobile = useIsMobile();
 
@@ -117,6 +150,161 @@ export default function App() {
   const [profileEditRequest, setProfileEditRequest] = useState(0);
   const [showProModal, setShowProModal] = useState(false);
   const [showProInfoModal, setShowProInfoModal] = useState(false);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
+  const activeTabRef = useRef(activeTab);
+  const stackRef = useRef(stack);
+  const previousTabRef = useRef(activeTab);
+  const tabHistoryRef = useRef([]);
+  const backNavigationRef = useRef(false);
+  const lastHardwareBackAtRef = useRef(0);
+  const exitConfirmOpenRef = useRef(false);
+
+  useEffect(() => {
+    const updateOnlineStatus = () => {
+      setIsOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+    };
+
+    updateOnlineStatus();
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+  }, []);
+
+  useEffect(() => {
+    stackRef.current = stack;
+  }, [stack]);
+
+  useEffect(() => {
+    const previousTab = previousTabRef.current;
+
+    if (previousTab !== activeTab) {
+      if (backNavigationRef.current) {
+        backNavigationRef.current = false;
+      } else if (previousTab) {
+        tabHistoryRef.current = [...tabHistoryRef.current, previousTab].slice(-50);
+      }
+
+      previousTabRef.current = activeTab;
+    }
+
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  const closeActiveOverlay = useCallback(() => {
+    const event = new CustomEvent('boplan:hardware-back', { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, []);
+
+  const confirmExitApp = useCallback(async () => {
+    if (exitConfirmOpenRef.current) return;
+    exitConfirmOpenRef.current = true;
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { value } = await Dialog.confirm({
+          title: '보플랜 종료',
+          message: '앱을 종료하시겠습니까?',
+          okButtonTitle: '종료',
+          cancelButtonTitle: '취소',
+        });
+
+        if (value) {
+          CapacitorApp.exitApp();
+        }
+        return;
+      }
+
+      if (window.confirm('앱을 종료하시겠습니까?')) {
+        CapacitorApp.exitApp();
+      }
+    } finally {
+      exitConfirmOpenRef.current = false;
+    }
+  }, []);
+
+  const handleHardwareBack = useCallback(async () => {
+    if (stackRef.current.length > 0) {
+      setStack(prev => prev.slice(0, -1));
+      return;
+    }
+
+    const currentTab = activeTabRef.current;
+
+    if (currentTab !== 'home') {
+      let previousTab = '';
+      const history = tabHistoryRef.current;
+
+      while (history.length > 0) {
+        const candidate = history.pop();
+        if (candidate && candidate !== currentTab) {
+          previousTab = candidate;
+          break;
+        }
+      }
+
+      backNavigationRef.current = true;
+      setActiveTab(previousTab || 'home');
+      return;
+    }
+
+    await confirmExitApp();
+  }, [confirmExitApp]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+
+    let listener;
+    let cancelled = false;
+
+    CapacitorApp.addListener('backButton', async ({ canGoBack }) => {
+      const now = Date.now();
+      if (now - lastHardwareBackAtRef.current < 300) return;
+      lastHardwareBackAtRef.current = now;
+
+      if (closeActiveOverlay()) {
+        return;
+      }
+
+      if (isPublicPrivacyPolicy || isPublicDeleteAccount || isResetPassword || !session) {
+        if (canGoBack) {
+          window.history.back();
+          return;
+        }
+
+        await confirmExitApp();
+        return;
+      }
+
+      await handleHardwareBack();
+    }).then((handle) => {
+      if (cancelled) {
+        handle.remove();
+        return;
+      }
+
+      listener = handle;
+    });
+
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
+  }, [
+    closeActiveOverlay,
+    confirmExitApp,
+    handleHardwareBack,
+    isPublicDeleteAccount,
+    isPublicPrivacyPolicy,
+    isResetPassword,
+    session,
+  ]);
   useEffect(() => {
     authService.getSession().then(s => setSession(s));
 
@@ -138,6 +326,44 @@ export default function App() {
 });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+
+    let resumeListener;
+    let cancelled = false;
+
+    CapacitorApp.addListener('resume', async () => {
+      try {
+        const nextSession = await authService.getSession();
+        if (cancelled) return;
+
+        setSession(nextSession);
+
+        if (!nextSession) {
+          setActiveTab('home');
+          setStack([]);
+          return;
+        }
+
+        loadNotifCount();
+      } catch (error) {
+        console.error('앱 복귀 상태 확인 실패:', error);
+      }
+    }).then((handle) => {
+      if (cancelled) {
+        handle.remove();
+        return;
+      }
+
+      resumeListener = handle;
+    });
+
+    return () => {
+      cancelled = true;
+      resumeListener?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -351,7 +577,6 @@ useEffect(() => {
 
       if (error) throw error;
 
-      console.log('FCM 토큰 저장 완료');
     } catch (e) {
       console.error('FCM 토큰 저장 실패:', {
   code: e?.code,
@@ -869,6 +1094,7 @@ if (session === undefined) {
 
   return (
     <Shell>
+      <NetworkStatusBanner visible={!isOnline} />
       <div
         style={{
           flex: 1,
@@ -889,6 +1115,7 @@ if (!session) {
 
   return (
     <Shell>
+      <NetworkStatusBanner visible={!isOnline} />
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <LoginScreen />
       </div>
@@ -899,6 +1126,7 @@ if (!session) {
   if (isMobile) {
     return (
       <MobileShell>
+        <NetworkStatusBanner visible={!isOnline} />
         <Header
           user={user}
           profile={profile}
@@ -940,6 +1168,7 @@ if (!session) {
 
   return (
     <WebShell>
+      <NetworkStatusBanner visible={!isOnline} />
       <div
         style={{
           width: 240,

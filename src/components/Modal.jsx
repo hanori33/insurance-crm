@@ -1,7 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { COLORS } from '../constants';
 
 export default function Modal({ visible, onClose, title, children }) {
+  useEffect(() => {
+    if (!visible || !onClose) return undefined;
+
+    const handleHardwareBack = (event) => {
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      onClose();
+    };
+
+    window.addEventListener('boplan:hardware-back', handleHardwareBack);
+    return () => window.removeEventListener('boplan:hardware-back', handleHardwareBack);
+  }, [visible, onClose]);
+
   if (!visible) return null;
 
   return (
