@@ -8,3 +8,7 @@ node_modules/
 .env*.local
 *.jks
 *.keystore
+upload_certificate.pem
+new-upload-key.jks
+android/app/src/main/res-icon-backup-*/
+android/app/src/main/res-icon-before-resize-*/
