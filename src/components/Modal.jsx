@@ -3,23 +3,21 @@ import { COLORS } from '../constants';
 
 export default function Modal({ visible, onClose, title, children }) {
   useEffect(() => {
-    if (!visible || !onClose) return undefined;
+    if (!visible) return undefined;
 
     const handleHardwareBack = (event) => {
       if (event.defaultPrevented) return;
       event.preventDefault();
-      onClose();
     };
 
     window.addEventListener('boplan:hardware-back', handleHardwareBack);
     return () => window.removeEventListener('boplan:hardware-back', handleHardwareBack);
-  }, [visible, onClose]);
+  }, [visible]);
 
   if (!visible) return null;
 
   return (
     <div
-      onClick={onClose}
       style={{
         position: 'fixed',
         inset: 0,
