@@ -8,6 +8,24 @@ function getAuthRedirectUrl(path = '') {
   return `${PUBLIC_SITE_URL}${normalizedPath}`;
 }
 
+function isAlreadyRegisteredSignup(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('user already registered') ||
+    message.includes('already registered') ||
+    message.includes('already exists')
+  );
+}
+
+function isWaitingForVerificationSignup(data) {
+  return (
+    data?.user &&
+    !data?.session &&
+    Array.isArray(data.user.identities) &&
+    data.user.identities.length === 0
+  );
+}
+
 export function getKoreanAuthErrorMessage(error) {
   const message = String(error?.message || error || '');
   const lowerMessage = message.toLowerCase();
@@ -42,8 +60,36 @@ const authService = {
         data: { display_name: nameValidation.name },
       },
     });
-    if (error) throw new Error(getKoreanAuthErrorMessage(error));
-    return data;
+
+    console.log('[BoPlan signUp result]', { data, error });
+
+    if (error) {
+      if (isAlreadyRegisteredSignup(error)) {
+        return authService.resendSignupVerification(email);
+      }
+
+      throw new Error(error.message || String(error));
+    }
+
+    if (isWaitingForVerificationSignup(data)) {
+      return authService.resendSignupVerification(email);
+    }
+
+    return { data, resent: false };
+  },
+  async resendSignupVerification(email) {
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: getAuthRedirectUrl('/'),
+      },
+    });
+
+    console.log('[BoPlan signup resend result]', { data, error });
+
+    if (error) throw new Error(error.message || String(error));
+    return { data, resent: true };
   },
   async signOut() {
     const { error } = await supabase.auth.signOut();

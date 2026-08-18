@@ -462,3 +462,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/boplan-sales-coach/deno.json"
 entrypoint = "./functions/boplan-sales-coach/index.ts"
+
+[functions.juso-address-search]
+enabled = true
+verify_jwt = true
+import_map = "./functions/juso-address-search/deno.json"
+entrypoint = "./functions/juso-address-search/index.ts"

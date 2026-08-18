@@ -4,6 +4,7 @@ import { COLORS, CUSTOMER_STATUSES } from '../constants';
 import { Card, Avatar, StatusBadge, Divider, LoadingSpinner } from '../components/Common';
 import Modal from '../components/Modal';
 import Field from '../components/Field';
+import AddressSearchField from '../components/AddressSearchField';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import policyFileService from '../services/policyFileService';
@@ -294,7 +295,7 @@ function EditModal({ visible, onClose, customer, onSave }) {
         <Field icon="💼" placeholder="직업" value={form.job || ''} onChange={(e) => set('job', e.target.value)} />
 
         <span style={{ fontSize: 13, color: COLORS.textGray }}>주소</span>
-        <Field icon="📍" placeholder="주소" value={form.address || ''} onChange={(e) => set('address', e.target.value)} />
+        <AddressSearchField value={form.address || ''} onChange={(nextAddress) => set('address', nextAddress)} />
 
         <span style={{ fontSize: 13, color: COLORS.textGray }}>고객 유형</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>

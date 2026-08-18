@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { COLORS, CUSTOMER_STATUSES } from '../constants';
 import Modal from './Modal';
 import Field from './Field';
+import AddressSearchField from './AddressSearchField';
 import customerService from '../services/customerService';
 
 const RELATION_OPTIONS = [
@@ -262,13 +263,9 @@ export default function CustomerForm({
         }
       />
 
-      <Field
-        icon="📍"
-        placeholder="주소"
+      <AddressSearchField
         value={form.address}
-        onChange={(e) =>
-          set('address', e.target.value)
-        }
+        onChange={(nextAddress) => set('address', nextAddress)}
       />
 
       <Field

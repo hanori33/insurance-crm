@@ -104,8 +104,12 @@ useEffect(() => {
       setName(nameValidation.name);
       if (pw.length < 8) throw new Error('비밀번호는 8자 이상 입력해주세요.');
       if (pw !== pwConfirm) throw new Error('비밀번호가 일치하지 않습니다.');
-      await authService.signUp(email, pw, nameValidation.name);
-      setSuccess('이메일 인증 후 로그인해주세요.');
+      const signUpResult = await authService.signUp(email, pw, nameValidation.name);
+      setSuccess(
+        signUpResult?.resent
+          ? '이미 가입 대기 중인 이메일입니다. 인증 메일을 다시 발송했습니다.'
+          : '회원가입 요청이 완료되었습니다. 이메일 인증 후 로그인해주세요.'
+      );
       setMode('login');
     }
 
@@ -115,7 +119,11 @@ useEffect(() => {
       setMode('login');
     }
   } catch (e) {
-    setError(e.message || '오류가 발생했습니다');
+    const message = e.message || '오류가 발생했습니다';
+    if (mode === 'signup') {
+      alert(message);
+    }
+    setError(message);
   } finally {
     setLoading(false);
   }
