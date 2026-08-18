@@ -5,6 +5,7 @@ import { Card, LoadingSpinner } from '../components/Common';
 import Field from '../components/Field';
 import roleService, { isAdminRole } from '../services/roleService';
 import noticeService from '../services/noticeService';
+import inviteService from '../services/inviteService';
 
 const ROLE_OPTIONS = [
   { value: 'division_head', label: '사업단장' },
@@ -122,6 +123,8 @@ export default function RoleRequestPage({ user }) {
   });
 
   const [saving, setSaving] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteSaving, setInviteSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -219,6 +222,30 @@ export default function RoleRequestPage({ user }) {
       setError(e.message || '신청 실패');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleAcceptInvite() {
+    const code = inviteCode.trim();
+
+    if (!code) {
+      setError('초대코드를 입력해주세요.');
+      return;
+    }
+
+    setInviteSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await inviteService.acceptInviteCode(code);
+      setInviteCode('');
+      setSuccess(`${result?.org_unit_name || '조직'}에 가입되었습니다.`);
+      await load();
+    } catch (e) {
+      setError(e.message || '초대코드 가입에 실패했습니다.');
+    } finally {
+      setInviteSaving(false);
     }
   }
 
@@ -324,6 +351,44 @@ export default function RoleRequestPage({ user }) {
                 {STATUS_LABELS[myRequest.status] || myRequest.status}
               </span>
             </div>
+          </Card>
+        )}
+
+        {canShowForm && (
+          <Card>
+            <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text, marginBottom: 8 }}>
+              초대코드로 조직 가입
+            </div>
+            <div style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 14, lineHeight: 1.5 }}>
+              관리자가 발급한 초대코드가 있으면 권한신청 없이 바로 팀원으로 연결됩니다.
+            </div>
+
+            <Field
+              icon="#"
+              placeholder="초대코드 입력"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+            />
+
+            <button
+              type="button"
+              onClick={handleAcceptInvite}
+              disabled={inviteSaving}
+              style={{
+                width: '100%',
+                padding: '13px 0',
+                borderRadius: 12,
+                border: 'none',
+                background: COLORS.primary,
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: inviteSaving ? 'default' : 'pointer',
+                opacity: inviteSaving ? 0.7 : 1,
+              }}
+            >
+              {inviteSaving ? '가입 처리 중...' : '초대코드로 가입'}
+            </button>
           </Card>
         )}
 
