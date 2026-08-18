@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
+import inviteService from "../services/inviteService";
 
 const COLORS = {
   primary: "#7C3AED",
@@ -31,6 +32,21 @@ const STATUS_LIST = [
 ];
 
 const EMOJIS = ["🐰", "🐻", "🐥", "🐶", "🐱", "🦊", "🐼", "🐯", "🐸", "🐹", "🐷", "🐵"];
+
+const INVITE_ROLE_OPTIONS = [
+  { value: "team_member", label: "팀원" },
+  { value: "member", label: "일반 구성원" },
+  { value: "agent", label: "설계사" },
+  { value: "staff", label: "스태프" },
+];
+
+const INVITE_EXPIRE_OPTIONS = [
+  { value: "1", label: "1일" },
+  { value: "7", label: "7일" },
+  { value: "14", label: "14일" },
+  { value: "30", label: "30일" },
+  { value: "none", label: "만료 없음" },
+];
 
 function getStatusMeta(status) {
   return STATUS_LIST.find((s) => s.key === status) || STATUS_LIST[0];
@@ -232,6 +248,16 @@ function TeamPage({ onBack }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [myRole, setMyRole] = useState("");
   const [myBranchId, setMyBranchId] = useState(null);
+  const [managedOrgUnits, setManagedOrgUnits] = useState([]);
+  const [selectedOrgUnitId, setSelectedOrgUnitId] = useState("");
+  const [inviteCodes, setInviteCodes] = useState([]);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteCreating, setInviteCreating] = useState(false);
+  const [inviteDeactivatingId, setInviteDeactivatingId] = useState("");
+  const [inviteTargetRole, setInviteTargetRole] = useState("team_member");
+  const [inviteExpiresInDays, setInviteExpiresInDays] = useState("14");
+  const [inviteMaxUses, setInviteMaxUses] = useState("10");
+  const [lastCreatedInvite, setLastCreatedInvite] = useState(null);
 
   const [missionText, setMissionText] = useState("기존 고객 5명 안부연락");
   const [teamMessage, setTeamMessage] = useState("오늘도 화이팅! 목표 30건 가즈아 💪");
@@ -298,6 +324,11 @@ function TeamPage({ onBack }) {
   useEffect(() => {
     loadMembers();
   }, []);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    loadInviteAdminData();
+  }, [currentUserId]);
 
   async function loadMembers() {
   try {
@@ -511,6 +542,134 @@ function TeamPage({ onBack }) {
 
     return true;
   }
+
+  async function loadInviteAdminData(preferredOrgUnitId = selectedOrgUnitId) {
+    setInviteLoading(true);
+
+    try {
+      const orgUnits = await inviteService.listManagedOrganizationUnits();
+      const nextOrgUnitId =
+        preferredOrgUnitId && orgUnits.some((unit) => unit.id === preferredOrgUnitId)
+          ? preferredOrgUnitId
+          : orgUnits[0]?.id || "";
+
+      setManagedOrgUnits(orgUnits);
+      setSelectedOrgUnitId(nextOrgUnitId);
+
+      if (nextOrgUnitId) {
+        const invites = await inviteService.listInviteCodes(nextOrgUnitId);
+        setInviteCodes(invites);
+      } else {
+        setInviteCodes([]);
+      }
+    } catch (error) {
+      console.warn("초대코드 관리 정보를 불러오지 못했습니다:", error.message);
+      setManagedOrgUnits([]);
+      setInviteCodes([]);
+    } finally {
+      setInviteLoading(false);
+    }
+  }
+
+  async function handleSelectOrgUnit(orgUnitId) {
+    setSelectedOrgUnitId(orgUnitId);
+    setInviteLoading(true);
+
+    try {
+      const invites = orgUnitId ? await inviteService.listInviteCodes(orgUnitId) : [];
+      setInviteCodes(invites);
+    } catch (error) {
+      alert(error.message || "초대코드 목록을 불러오지 못했습니다.");
+      setInviteCodes([]);
+    } finally {
+      setInviteLoading(false);
+    }
+  }
+
+  async function handleCreateInviteCode() {
+    if (!selectedOrgUnitId) {
+      alert("초대할 조직을 선택해주세요.");
+      return;
+    }
+
+    const maxUses = inviteMaxUses.trim() ? Number(inviteMaxUses) : null;
+    if (maxUses !== null && (!Number.isInteger(maxUses) || maxUses <= 0)) {
+      alert("최대 사용 횟수는 1 이상의 숫자로 입력해주세요.");
+      return;
+    }
+
+    const expiresAt =
+      inviteExpiresInDays === "none"
+        ? null
+        : new Date(Date.now() + Number(inviteExpiresInDays) * 24 * 60 * 60 * 1000).toISOString();
+
+    setInviteCreating(true);
+    setLastCreatedInvite(null);
+
+    try {
+      const invite = await inviteService.createInviteCode({
+        orgUnitId: selectedOrgUnitId,
+        targetRole: inviteTargetRole,
+        expiresAt,
+        maxUses,
+      });
+
+      const selectedUnit = managedOrgUnits.find((unit) => unit.id === selectedOrgUnitId);
+      const enrichedInvite = {
+        ...invite,
+        org_unit_name: selectedUnit?.name || invite?.org_unit_name,
+        org_path_names: selectedUnit?.path_names || [],
+      };
+
+      setLastCreatedInvite(enrichedInvite);
+      await loadInviteAdminData(selectedOrgUnitId);
+    } catch (error) {
+      alert(error.message || "초대코드를 생성하지 못했습니다.");
+    } finally {
+      setInviteCreating(false);
+    }
+  }
+
+  async function copyInviteText(text, successMessage) {
+    if (!text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      alert(successMessage);
+    } catch (error) {
+      window.prompt("아래 내용을 복사해주세요.", text);
+    }
+  }
+
+  function buildInviteMessage(invite) {
+    const orgName = getOrgPathLabel(invite);
+
+    return [
+      "[보플랜 조직 초대]",
+      `${orgName}에 초대되었습니다.`,
+      "",
+      `초대코드: ${invite.code}`,
+      "",
+      "보플랜에 로그인한 뒤 권한신청 화면에서 초대코드를 입력해주세요.",
+    ].join("\n");
+  }
+
+  async function handleDeactivateInvite(inviteId) {
+    if (!window.confirm("이 초대코드를 비활성화할까요? 비활성화 후에는 사용할 수 없습니다.")) {
+      return;
+    }
+
+    setInviteDeactivatingId(inviteId);
+
+    try {
+      await inviteService.deactivateInviteCode(inviteId);
+      await loadInviteAdminData(selectedOrgUnitId);
+    } catch (error) {
+      alert(error.message || "초대코드를 비활성화하지 못했습니다.");
+    } finally {
+      setInviteDeactivatingId("");
+    }
+  }
 function startEditMission() {
   setDraftMissionText(missionText);
   setEditingMission(true);
@@ -591,6 +750,9 @@ async function saveMessage() {
       count: visibleMembers.filter((m) => m.status === status.key).length,
     })).filter((s) => s.count > 0);
   }, [visibleMembers]);
+
+  const showInviteManagement = inviteLoading || managedOrgUnits.length > 0;
+  const selectedOrgUnit = managedOrgUnits.find((unit) => unit.id === selectedOrgUnitId);
 
   const updateStatus = async (id, status) => {
     setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
@@ -1066,6 +1228,190 @@ async function saveMessage() {
                   <div style={pageStyles.teamMessage}>{teamMessage}</div>
                 )}
               </div>
+
+              {showInviteManagement && (
+                <div style={pageStyles.card}>
+                  <div style={pageStyles.cardTitleRow}>
+                    <div>
+                      <div style={pageStyles.sectionTitle}>초대코드 관리</div>
+                      <div style={pageStyles.sectionSub}>
+                        내가 관리 가능한 조직에 팀원을 초대합니다.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadInviteAdminData(selectedOrgUnitId)}
+                      style={pageStyles.editMiniButton}
+                      disabled={inviteLoading}
+                    >
+                      새로고침
+                    </button>
+                  </div>
+
+                  {managedOrgUnits.length === 0 ? (
+                    <div style={pageStyles.emptyInviteBox}>
+                      {inviteLoading
+                        ? "초대코드 관리 정보를 불러오는 중입니다."
+                        : "관리 가능한 조직이 없습니다."}
+                    </div>
+                  ) : (
+                    <>
+                      <label style={pageStyles.inviteLabel}>대상 조직</label>
+                      <select
+                        value={selectedOrgUnitId}
+                        onChange={(e) => handleSelectOrgUnit(e.target.value)}
+                        style={pageStyles.inviteSelect}
+                      >
+                        {managedOrgUnits.map((unit) => (
+                          <option key={unit.id} value={unit.id}>
+                            {getOrgPathLabel(unit)}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div style={pageStyles.inviteFormGrid}>
+                        <div>
+                          <label style={pageStyles.inviteLabel}>부여 역할</label>
+                          <select
+                            value={inviteTargetRole}
+                            onChange={(e) => setInviteTargetRole(e.target.value)}
+                            style={pageStyles.inviteSelect}
+                          >
+                            {INVITE_ROLE_OPTIONS.map((role) => (
+                              <option key={role.value} value={role.value}>
+                                {role.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={pageStyles.inviteLabel}>유효기간</label>
+                          <select
+                            value={inviteExpiresInDays}
+                            onChange={(e) => setInviteExpiresInDays(e.target.value)}
+                            style={pageStyles.inviteSelect}
+                          >
+                            {INVITE_EXPIRE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <label style={pageStyles.inviteLabel}>최대 사용 횟수</label>
+                      <input
+                        type="number"
+                        min="1"
+                        inputMode="numeric"
+                        value={inviteMaxUses}
+                        onChange={(e) => setInviteMaxUses(e.target.value)}
+                        placeholder="예: 10"
+                        style={pageStyles.input}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={handleCreateInviteCode}
+                        disabled={inviteCreating}
+                        style={pageStyles.primaryButton}
+                      >
+                        {inviteCreating ? "초대코드 생성 중..." : "초대코드 생성"}
+                      </button>
+
+                      {lastCreatedInvite?.code && (
+                        <div style={pageStyles.createdInviteBox}>
+                          <div style={pageStyles.inviteLabel}>생성된 초대코드</div>
+                          <div style={pageStyles.createdInviteCode}>{lastCreatedInvite.code}</div>
+                          <div style={pageStyles.createdInviteNotice}>
+                            보안을 위해 코드 원문은 지금만 표시됩니다. 목록에서는 다시 조회할 수 없습니다.
+                          </div>
+                          <div style={pageStyles.inviteButtonRow}>
+                            <button
+                              type="button"
+                              style={pageStyles.inviteOutlineButton}
+                              onClick={() => copyInviteText(lastCreatedInvite.code, "초대코드를 복사했습니다.")}
+                            >
+                              코드 복사
+                            </button>
+                            <button
+                              type="button"
+                              style={pageStyles.inviteOutlineButton}
+                              onClick={() =>
+                                copyInviteText(
+                                  buildInviteMessage(lastCreatedInvite),
+                                  "초대 메시지를 복사했습니다."
+                                )
+                              }
+                            >
+                              초대 메시지 복사
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: 18 }}>
+                        <div style={pageStyles.cardTitleRow}>
+                          <div style={pageStyles.sectionTitle}>활성 초대코드 목록</div>
+                          <div style={pageStyles.sectionSub}>{selectedOrgUnit?.name || ""}</div>
+                        </div>
+
+                        {inviteLoading ? (
+                          <div style={pageStyles.emptyInviteBox}>초대코드를 불러오는 중입니다.</div>
+                        ) : inviteCodes.length === 0 ? (
+                          <div style={pageStyles.emptyInviteBox}>생성된 초대코드가 없습니다.</div>
+                        ) : (
+                          <div style={pageStyles.inviteList}>
+                            {inviteCodes.map((invite) => {
+                              const statusStyle = getInviteStatusStyle(invite.status);
+                              const maxUsesText = invite.max_uses ?? "무제한";
+
+                              return (
+                                <div key={invite.id} style={pageStyles.inviteItem}>
+                                  <div style={pageStyles.inviteItemTop}>
+                                    <div>
+                                      <div style={pageStyles.inviteOrgName}>
+                                        {getOrgPathLabel(invite)}
+                                      </div>
+                                      <div style={pageStyles.inviteMeta}>
+                                        생성 {formatInviteDate(invite.created_at)}
+                                      </div>
+                                    </div>
+                                    <span style={{ ...pageStyles.inviteStatusBadge, ...statusStyle }}>
+                                      {getInviteStatusLabel(invite.status)}
+                                    </span>
+                                  </div>
+
+                                  <div style={pageStyles.inviteMetaGrid}>
+                                    <span>만료: {formatInviteDate(invite.expires_at)}</span>
+                                    <span>
+                                      사용: {invite.used_count}/{maxUsesText}
+                                    </span>
+                                    <span>역할: {invite.target_role}</span>
+                                  </div>
+
+                                  {invite.status === "active" && (
+                                    <button
+                                      type="button"
+                                      style={pageStyles.inviteDangerButton}
+                                      disabled={inviteDeactivatingId === invite.id}
+                                      onClick={() => handleDeactivateInvite(invite.id)}
+                                    >
+                                      {inviteDeactivatingId === invite.id ? "비활성화 중..." : "초대코드 취소"}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         </>
@@ -1342,6 +1688,41 @@ function describeArc(cx, cy, r, startAngle, endAngle) {
 function shortText(text) {
   if (!text) return "";
   return text.length > 5 ? text.slice(0, 5) : text;
+}
+
+function formatInviteDate(value) {
+  if (!value) return "없음";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "없음";
+
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getInviteStatusLabel(status) {
+  if (status === "active") return "사용 가능";
+  if (status === "expired") return "만료";
+  if (status === "completed") return "사용 완료";
+  if (status === "inactive") return "비활성";
+  return status || "-";
+}
+
+function getInviteStatusStyle(status) {
+  if (status === "active") return { background: "#DCFCE7", color: "#16A34A" };
+  if (status === "expired") return { background: "#FEF3C7", color: "#D97706" };
+  if (status === "completed") return { background: "#DBEAFE", color: "#2563EB" };
+  return { background: "#FEE2E2", color: "#DC2626" };
+}
+
+function getOrgPathLabel(unit) {
+  const names = unit?.path_names || unit?.org_path_names || [];
+  return names.length > 0 ? names.join(" > ") : unit?.name || unit?.org_unit_name || "-";
 }
 
 
@@ -1823,6 +2204,157 @@ teamCard: {
     color: COLORS.white,
     borderRadius: 999,
     padding: "8px 14px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  emptyInviteBox: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 16,
+    background: COLORS.bg,
+    color: COLORS.sub,
+    fontSize: 13,
+    fontWeight: 800,
+    lineHeight: 1.5,
+  },
+
+  inviteLabel: {
+    display: "block",
+    marginTop: 14,
+    marginBottom: 6,
+    fontSize: 12,
+    color: COLORS.sub,
+    fontWeight: 900,
+  },
+
+  inviteSelect: {
+    width: "100%",
+    minHeight: 46,
+    padding: "0 12px",
+    borderRadius: 14,
+    border: `1px solid ${COLORS.border}`,
+    background: COLORS.white,
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: 800,
+    outline: "none",
+    boxSizing: "border-box",
+  },
+
+  inviteFormGrid: {
+    display: "grid",
+    gridTemplateColumns: isPhone ? "1fr" : "1fr 1fr",
+    gap: isPhone ? 0 : 10,
+  },
+
+  createdInviteBox: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 18,
+    border: "1px solid #C4B5FD",
+    background: "#F5F3FF",
+  },
+
+  createdInviteCode: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    background: COLORS.white,
+    color: COLORS.primaryDark,
+    fontSize: 20,
+    fontWeight: 900,
+    letterSpacing: 1,
+    textAlign: "center",
+    wordBreak: "break-all",
+  },
+
+  createdInviteNotice: {
+    marginTop: 8,
+    color: COLORS.sub,
+    fontSize: 12,
+    lineHeight: 1.5,
+  },
+
+  inviteButtonRow: {
+    display: "grid",
+    gridTemplateColumns: isPhone ? "1fr" : "1fr 1fr",
+    gap: 8,
+    marginTop: 12,
+  },
+
+  inviteOutlineButton: {
+    border: `1px solid ${COLORS.primary}`,
+    background: COLORS.white,
+    color: COLORS.primaryDark,
+    borderRadius: 14,
+    padding: "11px 12px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  inviteList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    marginTop: 12,
+  },
+
+  inviteItem: {
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 16,
+    padding: 13,
+    background: "#FAFAFA",
+  },
+
+  inviteItemTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+
+  inviteOrgName: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: 900,
+    lineHeight: 1.4,
+  },
+
+  inviteMeta: {
+    marginTop: 3,
+    color: COLORS.sub,
+    fontSize: 12,
+    fontWeight: 700,
+  },
+
+  inviteMetaGrid: {
+    display: "grid",
+    gridTemplateColumns: isPhone ? "1fr" : "1fr 1fr",
+    gap: 6,
+    marginTop: 10,
+    color: COLORS.sub,
+    fontSize: 12,
+    fontWeight: 800,
+  },
+
+  inviteStatusBadge: {
+    borderRadius: 999,
+    padding: "5px 9px",
+    fontSize: 11,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+
+  inviteDangerButton: {
+    width: "100%",
+    marginTop: 10,
+    border: "none",
+    background: "#FEE2E2",
+    color: "#DC2626",
+    borderRadius: 13,
+    padding: "10px 12px",
     fontSize: 13,
     fontWeight: 900,
     cursor: "pointer",

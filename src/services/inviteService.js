@@ -26,6 +26,9 @@ function unwrapRpcError(error, fallbackMessage) {
   if (message.includes('ORG_UNIT_MANAGE_REQUIRED')) {
     return new Error('해당 조직을 관리할 권한이 필요합니다.');
   }
+  if (message.includes('TARGET_ORG_UNIT_MANAGE_REQUIRED')) {
+    return new Error('이동할 대상 조직을 관리할 권한이 필요합니다.');
+  }
   if (message.includes('MANAGER_ROLE_REQUIRES_APPROVAL')) {
     return new Error('관리자급 권한은 초대코드만으로 부여할 수 없습니다.');
   }
@@ -34,6 +37,26 @@ function unwrapRpcError(error, fallbackMessage) {
 }
 
 const inviteService = {
+  listManagedOrganizationUnits: async () => {
+    const { data, error } = await supabase.rpc('list_managed_organization_units');
+
+    const mappedError = unwrapRpcError(error, '관리 가능한 조직을 불러오지 못했습니다.');
+    if (mappedError) throw mappedError;
+
+    return data || [];
+  },
+
+  listInviteCodes: async (orgUnitId = null) => {
+    const { data, error } = await supabase.rpc('list_invite_codes', {
+      p_org_unit_id: orgUnitId,
+    });
+
+    const mappedError = unwrapRpcError(error, '초대코드 목록을 불러오지 못했습니다.');
+    if (mappedError) throw mappedError;
+
+    return data || [];
+  },
+
   createOrganizationUnit: async ({ parentId = null, name, displayType = null }) => {
     const { data, error } = await supabase.rpc('create_organization_unit', {
       p_parent_id: parentId,
@@ -98,6 +121,17 @@ const inviteService = {
     });
 
     const mappedError = unwrapRpcError(error, '초대코드 가입에 실패했습니다.');
+    if (mappedError) throw mappedError;
+
+    return Array.isArray(data) ? data[0] : data;
+  },
+
+  deactivateInviteCode: async (inviteId) => {
+    const { data, error } = await supabase.rpc('deactivate_invite_code', {
+      p_invite_id: inviteId,
+    });
+
+    const mappedError = unwrapRpcError(error, '초대코드를 비활성화하지 못했습니다.');
     if (mappedError) throw mappedError;
 
     return Array.isArray(data) ? data[0] : data;
