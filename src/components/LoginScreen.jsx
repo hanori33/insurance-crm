@@ -70,6 +70,7 @@ export default function LoginScreen() {
   const [showPw, setShowPw]   = useState(false);
   const [saveId, setSaveId]   = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState('');
 useEffect(() => {
@@ -126,6 +127,20 @@ useEffect(() => {
     setError(message);
   } finally {
     setLoading(false);
+  }
+}
+
+async function handleGoogleLogin() {
+  reset();
+  setGoogleLoading(true);
+
+  try {
+    await authService.signInWithGoogle();
+    setSuccess('Google 로그인 화면으로 이동합니다.');
+  } catch (e) {
+    setError(e.message || 'Google 로그인 중 오류가 발생했습니다.');
+  } finally {
+    setGoogleLoading(false);
   }
 }
   return (
@@ -246,6 +261,65 @@ useEffect(() => {
         }}>
           {loading ? '처리 중...' : mode === 'login' ? '로그인' : mode === 'signup' ? '회원가입' : '이메일 발송'}
         </button>
+
+        {mode === 'login' && (
+          <>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              margin: '18px 0',
+              color: COLORS.textLight,
+              fontSize: 12,
+              fontWeight: 700,
+            }}>
+              <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+              또는
+              <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading || googleLoading}
+              style={{
+                width: '100%',
+                minHeight: 48,
+                borderRadius: 12,
+                border: '1.5px solid #E5E7EB',
+                background: '#fff',
+                color: COLORS.text,
+                fontSize: 15,
+                fontWeight: 800,
+                cursor: loading || googleLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                opacity: loading || googleLoading ? 0.7 : 1,
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  color: '#4285F4',
+                  border: '1px solid #E5E7EB',
+                  background: '#fff',
+                }}
+              >
+                G
+              </span>
+              {googleLoading ? 'Google 로그인 준비 중...' : 'Google로 계속하기'}
+            </button>
+          </>
+        )}
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: COLORS.textGray }}>
           {mode === 'login' ? (

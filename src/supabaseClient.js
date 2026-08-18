@@ -8,5 +8,10 @@ if (!URL || !KEY) {
 }
 
 export const supabase = createClient(URL, KEY, {
-  auth: { persistSession: true, autoRefreshToken: true },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
 });

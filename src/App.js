@@ -331,6 +331,49 @@ export default function App() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined;
 
+    let listener;
+    let cancelled = false;
+
+    CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+      if (!url || !url.startsWith('kr.boplan.app://auth/callback')) return;
+
+      try {
+        const nextSession = await authService.handleOAuthCallback(url);
+        if (cancelled) return;
+
+        setSession(nextSession);
+        setActiveTab('home');
+        setStack([]);
+      } catch (error) {
+        alert(error.message || 'Google 로그인 처리 중 오류가 발생했습니다.');
+      }
+    }).then((handle) => {
+      if (cancelled) {
+        handle.remove();
+        return;
+      }
+
+      listener = handle;
+    });
+
+    return () => {
+      cancelled = true;
+      listener?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (window.location.pathname !== '/auth/callback') return;
+    if (!session) return;
+
+    window.history.replaceState({}, '', '/');
+    setActiveTab('home');
+    setStack([]);
+  }, [session]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+
     let resumeListener;
     let cancelled = false;
 
