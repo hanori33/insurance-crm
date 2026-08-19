@@ -1,4 +1,4 @@
-const CACHE_NAME = "insurance-crm-v5";
+const CACHE_NAME = "insurance-crm-v6";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
