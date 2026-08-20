@@ -18,48 +18,6 @@ const ROLE_OPTIONS = [
 ];
 
 const REQUEST_ROLE_OPTIONS = ROLE_OPTIONS;
-const COMPANY_ORGANIZATIONS = {
-  '인카다이렉트': {
-    '로얄사업단': [
-      '배세영 지점',
-      '장석환 지점',
-      '이재원 지점',
-      '육심호 지점',
-      '김단비 지점',
-    ],
-  },
-};
-
-function normalizeCompanyKey(value) {
-  return String(value || '').trim().replace(/\s+/g, '').toLowerCase();
-}
-
-function findCompany(value) {
-  const key = normalizeCompanyKey(value);
-  if (!key) return null;
-
-  const companyName = Object.keys(COMPANY_ORGANIZATIONS).find(
-    (name) => normalizeCompanyKey(name) === key
-  );
-
-  return companyName
-    ? { companyName, organizations: COMPANY_ORGANIZATIONS[companyName] }
-    : null;
-}
-
-const SELECT_STYLE = {
-  width: '100%',
-  border: `1.5px solid ${COLORS.border}`,
-  background: '#fff',
-  borderRadius: 12,
-  padding: '12px 14px',
-  marginBottom: 14,
-  fontSize: 16,
-  minHeight: 48,
-  color: COLORS.text,
-  boxSizing: 'border-box',
-  outline: 'none',
-};
 
 const STATUS_LABELS = {
   pending: '검토 중',
@@ -128,8 +86,6 @@ export default function RoleRequestPage({ user }) {
     organization: '',
     branch: '',
     office: '',
-    customOrganization: '',
-    customOffice: '',
     team: '',
   });
 
@@ -172,14 +128,6 @@ export default function RoleRequestPage({ user }) {
     myRequest && (myRequest.status === 'pending' || myRequest.status === 'approved');
 
   const canShowForm = !hasActiveRequest && !isAdminRole(myRole);
-  const selectedCompany = findCompany(form.companyName);
-  const organizationOptions = selectedCompany
-    ? Object.keys(selectedCompany.organizations)
-    : [];
-  const isKnownCompany = !!selectedCompany;
-  const officeOptions = form.organization
-    ? selectedCompany?.organizations[form.organization] || []
-    : [];
 
   async function handleSubmit() {
     if (!form.userName.trim()) {
@@ -192,26 +140,14 @@ export default function RoleRequestPage({ user }) {
       return;
     }
 
-    if (isKnownCompany) {
-      if (!form.organization || !organizationOptions.includes(form.organization)) {
-        setError('사업단을 선택하세요');
-        return;
-      }
+    if (!form.organization.trim()) {
+      setError('조직명을 입력하세요');
+      return;
+    }
 
-      if (!form.office || !officeOptions.includes(form.office)) {
-        setError('지점을 선택하세요');
-        return;
-      }
-    } else {
-      if (!form.customOrganization.trim()) {
-        setError('사업단을 입력하세요');
-        return;
-      }
-
-      if (!form.customOffice.trim()) {
-        setError('지점을 입력하세요');
-        return;
-      }
+    if (!form.office.trim() && !form.branch.trim() && !form.team.trim()) {
+      setError('본부/지점/팀 중 하나 이상 입력하세요');
+      return;
     }
 
     setSaving(true);
@@ -221,16 +157,11 @@ export default function RoleRequestPage({ user }) {
     try {
       await roleService.request({
         ...form,
-        companyName: selectedCompany?.companyName || form.companyName.trim(),
-        organization: selectedCompany
-          ? form.organization
-          : form.customOrganization.trim(),
-        office: selectedCompany
-          ? form.office
-          : form.customOffice.trim(),
-        branch: selectedCompany
-          ? form.office
-          : form.customOffice.trim(),
+        companyName: form.companyName.trim(),
+        organization: form.organization.trim(),
+        branch: form.branch.trim(),
+        office: form.office.trim(),
+        team: form.team.trim(),
       });
       setSuccess('권한 신청이 완료되었습니다! 관리자 승인 후 적용됩니다.');
       await load();
@@ -268,14 +199,7 @@ export default function RoleRequestPage({ user }) {
 
  async function handleApprove(req) {
   try {
-    await roleService.approve(req.id, req.user_id, req.requested_role, {
-      userName: req.user_name,
-      companyName: req.company_name,
-      organization: req.organization,
-      branch: req.branch,
-      office: req.office,
-      team: req.team,
-    });
+    await roleService.approve(req.id);
 
     await load();
   } catch (e) {
@@ -472,98 +396,59 @@ export default function RoleRequestPage({ user }) {
             </span>
             <Field
               icon="🏢"
-              placeholder="예: 인카다이렉트"
+              placeholder="예: 인카금융서비스, ○○GA"
               value={form.companyName}
               onChange={(e) =>
                 setForm((p) => ({
                   ...p,
                   companyName: e.target.value,
-                  organization: '',
-                  office: '',
-                  customOrganization: '',
-                  customOffice: '',
                 }))
               }
             />
 
             <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              사업단
+              조직명
             </span>
-            {isKnownCompany ? (
-              <select
-                value={form.organization}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, organization: e.target.value, office: '' }))
-                }
-                style={SELECT_STYLE}
-              >
-                <option value="">사업단을 선택하세요</option>
-                {organizationOptions.map((organization) => (
-                  <option key={organization} value={organization}>
-                    {organization}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Field
-                icon="🏢"
-                placeholder={
-                  form.companyName.trim()
-                    ? '사업단을 직접 입력하세요'
-                    : '회사명을 먼저 입력해주세요'
-                }
-                value={form.customOrganization}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    customOrganization: e.target.value,
-                  }))
-                }
-                disabled={!form.companyName.trim()}
-              />
-            )}
+            <Field
+              icon="🏢"
+              placeholder="예: 로얄사업단, 서울본부, 총괄사업단"
+              value={form.organization}
+              onChange={(e) => setForm((p) => ({ ...p, organization: e.target.value }))}
+              disabled={!form.companyName.trim()}
+            />
 
             <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              지점
+              상위 조직
             </span>
-            {isKnownCompany ? (
-              <select
-                value={form.office}
-                onChange={(e) => setForm((p) => ({ ...p, office: e.target.value }))}
-                disabled={!form.organization || officeOptions.length === 0}
-                style={{
-                  ...SELECT_STYLE,
-                  opacity: form.organization && officeOptions.length > 0 ? 1 : 0.65,
-                  background: form.organization && officeOptions.length > 0 ? '#fff' : '#F3F4F6',
-                }}
-              >
-                <option value="">
-                  {form.organization ? '지점을 선택하세요' : '사업단을 먼저 선택해주세요'}
-                </option>
-                {officeOptions.map((office) => (
-                  <option key={office} value={office}>
-                    {office}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Field
-                icon="📍"
-                placeholder={
-                  form.customOrganization.trim()
-                    ? '지점을 직접 입력하세요'
-                    : '사업단을 먼저 입력해주세요'
-                }
-                value={form.customOffice}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    customOffice: e.target.value,
-                  }))
-                }
-                disabled={!form.companyName.trim() || !form.customOrganization.trim()}
-              />
-            )}
+            <Field
+              icon="🏛️"
+              placeholder="예: 본부, 사업단, 지사 등 없으면 비워두세요"
+              value={form.branch}
+              onChange={(e) => setForm((p) => ({ ...p, branch: e.target.value }))}
+              disabled={!form.organization.trim()}
+            />
+
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              지점/지사/센터
+            </span>
+            <Field
+              icon="📍"
+              placeholder="예: 김단비 지점, 강남지사"
+              value={form.office}
+              onChange={(e) => setForm((p) => ({ ...p, office: e.target.value }))}
+              disabled={!form.organization.trim()}
+            />
+
+            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
+              팀
+            </span>
+            <Field
+              icon="👥"
+              placeholder="예: 1팀, 김OO팀. 없으면 비워두세요"
+              value={form.team}
+              onChange={(e) => setForm((p) => ({ ...p, team: e.target.value }))}
+              disabled={!form.organization.trim()}
+            />
 
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
             {success && <div style={{ color: '#16A34A', fontSize: 13, marginBottom: 12 }}>{success}</div>}
@@ -651,8 +536,8 @@ export default function RoleRequestPage({ user }) {
                   >
                     <RequestInfo label="소속 유형" value={req.affiliation_type} />
                     <RequestInfo label="회사명" value={req.company_name} />
-                    <RequestInfo label="사업단명" value={req.organization} />
-                    <RequestInfo label="지점명" value={req.office || req.branch} />
+                    <RequestInfo label="조직명" value={req.organization} />
+                    <RequestInfo label="지점/하위조직" value={req.office || req.branch || req.team} />
                     <RequestInfo
                       label="신청 역할"
                       value={
