@@ -61,8 +61,16 @@ function PasswordVisibilityIcon({ visible }) {
   );
 }
 
+function getInviteCodeFromLocation() {
+  if (typeof window === 'undefined') return '';
+
+  const params = new URLSearchParams(window.location.search);
+  return (params.get('invite') || '').trim();
+}
+
 export default function LoginScreen() {
-  const [mode, setMode]       = useState('login');
+  const initialInviteCode = getInviteCodeFromLocation();
+  const [mode, setMode]       = useState(initialInviteCode ? 'signup' : 'login');
   const [email, setEmail]     = useState('');
   const [pw, setPw]           = useState('');
   const [pwConfirm, setPwConfirm] = useState('');
@@ -76,10 +84,17 @@ export default function LoginScreen() {
   const [success, setSuccess] = useState('');
 useEffect(() => {
   const savedEmail = localStorage.getItem('savedEmail');
+  const inviteCode = getInviteCodeFromLocation();
 
   if (savedEmail) {
     setEmail(savedEmail);
     setSaveId(true);
+  }
+
+  if (inviteCode) {
+    localStorage.setItem('boplan_pending_invite_code', inviteCode);
+    setMode('signup');
+    setSuccess('초대코드를 확인했습니다. 회원가입 후 조직 가입 화면에서 자동 입력됩니다.');
   }
 }, []);
   const reset = () => { setError(''); setSuccess(''); };

@@ -45,8 +45,11 @@ const INVITE_EXPIRE_OPTIONS = [
   { value: "7", label: "7일" },
   { value: "14", label: "14일" },
   { value: "30", label: "30일" },
-  { value: "none", label: "만료 없음" },
 ];
+
+const INVITE_MAX_USES_LIMIT = 1000;
+const INVITE_UNLIMITED_VALUE = "unlimited";
+const KAKAO_SDK_URL = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.5/kakao.min.js";
 
 function getStatusMeta(status) {
   return STATUS_LIST.find((s) => s.key === status) || STATUS_LIST[0];
@@ -243,6 +246,7 @@ async function loadTodayActivityCounts(userIds) {
 
 function TeamPage({ onBack }) {
   const [activeTab, setActiveTab] = useState("status");
+  const [teamManageTab, setTeamManageTab] = useState("members");
   const [viewMode, setViewMode] = useState("myteam");
   const [members, setMembers] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -257,6 +261,7 @@ function TeamPage({ onBack }) {
   const [inviteTargetRole, setInviteTargetRole] = useState("team_member");
   const [inviteExpiresInDays, setInviteExpiresInDays] = useState("14");
   const [inviteMaxUses, setInviteMaxUses] = useState("10");
+  const [inviteMaxUsesMode, setInviteMaxUsesMode] = useState("limited");
   const [lastCreatedInvite, setLastCreatedInvite] = useState(null);
 
   const [missionText, setMissionText] = useState("기존 고객 5명 안부연락");
@@ -592,9 +597,23 @@ function TeamPage({ onBack }) {
       return;
     }
 
-    const maxUses = inviteMaxUses.trim() ? Number(inviteMaxUses) : null;
-    if (maxUses !== null && (!Number.isInteger(maxUses) || maxUses <= 0)) {
-      alert("최대 사용 횟수는 1 이상의 숫자로 입력해주세요.");
+    const maxUses =
+      inviteMaxUsesMode === INVITE_UNLIMITED_VALUE
+        ? null
+        : inviteMaxUses.trim()
+          ? Number(inviteMaxUses)
+          : null;
+
+    if (inviteMaxUsesMode !== INVITE_UNLIMITED_VALUE && maxUses === null) {
+      alert("가입 가능 인원을 입력하거나 제한 없음을 선택해주세요.");
+      return;
+    }
+
+    if (
+      maxUses !== null &&
+      (!Number.isInteger(maxUses) || maxUses <= 0 || maxUses > INVITE_MAX_USES_LIMIT)
+    ) {
+      alert(`가입 가능 인원은 1명 이상 ${INVITE_MAX_USES_LIMIT}명 이하로 입력해주세요.`);
       return;
     }
 
@@ -643,15 +662,69 @@ function TeamPage({ onBack }) {
 
   function buildInviteMessage(invite) {
     const orgName = getOrgPathLabel(invite);
+    const inviteUrl = buildInviteUrl(invite?.code);
 
     return [
-      "[보플랜 조직 초대]",
-      `${orgName}에 초대되었습니다.`,
+      "[보플랜 초대]",
+      `${orgName}에서 보플랜으로 초대했습니다.`,
+      "보플랜은 보험설계사용 고객관리 CRM입니다.",
       "",
       `초대코드: ${invite.code}`,
+      `가입 링크: ${inviteUrl}`,
       "",
-      "보플랜에 로그인한 뒤 권한신청 화면에서 초대코드를 입력해주세요.",
+      "링크로 가입하면 초대코드가 자동 입력됩니다.",
     ].join("\n");
+  }
+
+  async function handleShareInviteWithKakao(invite) {
+    if (!invite?.code) return;
+
+    const orgName = getOrgPathLabel(invite);
+    const inviteUrl = buildInviteUrl(invite.code);
+    const message = buildInviteMessage(invite);
+
+    try {
+      const canUseKakaoShare = await loadKakaoSdk();
+
+      if (canUseKakaoShare && window.Kakao?.Share) {
+        window.Kakao.Share.sendDefault({
+          objectType: "feed",
+          content: {
+            title: "보플랜 조직 초대",
+            description: `${orgName}에서 보플랜으로 초대했습니다. 초대코드: ${invite.code}`,
+            imageUrl: `${new URL("/boplan512.png", inviteUrl).origin}/boplan512.png`,
+            link: {
+              mobileWebUrl: inviteUrl,
+              webUrl: inviteUrl,
+            },
+          },
+          buttons: [
+            {
+              title: "초대코드로 가입하기",
+              link: {
+                mobileWebUrl: inviteUrl,
+                webUrl: inviteUrl,
+              },
+            },
+          ],
+        });
+        return;
+      }
+
+      if (navigator.share) {
+        await navigator.share({
+          title: "보플랜 조직 초대",
+          text: message,
+          url: inviteUrl,
+        });
+        return;
+      }
+
+      await copyInviteText(message, "카카오톡 공유를 사용할 수 없어 초대 메시지를 복사했습니다.");
+    } catch (error) {
+      if (String(error?.name || "").toLowerCase().includes("abort")) return;
+      await copyInviteText(message, "카카오톡 공유를 사용할 수 없어 초대 메시지를 복사했습니다.");
+    }
   }
 
   async function handleDeactivateInvite(inviteId) {
@@ -669,6 +742,227 @@ function TeamPage({ onBack }) {
     } finally {
       setInviteDeactivatingId("");
     }
+  }
+
+  function renderInviteManagementSection() {
+    if (!showInviteManagement) {
+      return (
+        <div style={pageStyles.card}>
+          <div style={pageStyles.sectionTitle}>초대코드 관리</div>
+          <div style={pageStyles.emptyInviteBox}>
+            초대코드 관리 권한을 확인하는 중이거나 관리 가능한 조직이 없습니다.
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={pageStyles.card}>
+        <div style={pageStyles.cardTitleRow}>
+          <div>
+            <div style={pageStyles.sectionTitle}>초대코드 관리</div>
+            <div style={pageStyles.sectionSub}>
+              내가 관리 가능한 조직에 팀원을 초대합니다.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadInviteAdminData(selectedOrgUnitId)}
+            style={pageStyles.editMiniButton}
+            disabled={inviteLoading}
+          >
+            새로고침
+          </button>
+        </div>
+
+        {managedOrgUnits.length === 0 ? (
+          <div style={pageStyles.emptyInviteBox}>
+            {inviteLoading
+              ? "초대코드 관리 정보를 불러오는 중입니다."
+              : "관리 가능한 조직이 없습니다."}
+          </div>
+        ) : (
+          <>
+            <label style={pageStyles.inviteLabel}>대상 조직</label>
+            <select
+              value={selectedOrgUnitId}
+              onChange={(e) => handleSelectOrgUnit(e.target.value)}
+              style={pageStyles.inviteSelect}
+            >
+              {managedOrgUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {getOrgPathLabel(unit)}
+                </option>
+              ))}
+            </select>
+
+            <div style={pageStyles.inviteFormGrid}>
+              <div>
+                <label style={pageStyles.inviteLabel}>부여 역할</label>
+                <select
+                  value={inviteTargetRole}
+                  onChange={(e) => setInviteTargetRole(e.target.value)}
+                  style={pageStyles.inviteSelect}
+                >
+                  {INVITE_ROLE_OPTIONS.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={pageStyles.inviteLabel}>유효기간</label>
+                <select
+                  value={inviteExpiresInDays}
+                  onChange={(e) => setInviteExpiresInDays(e.target.value)}
+                  style={pageStyles.inviteSelect}
+                >
+                  {INVITE_EXPIRE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <label style={pageStyles.inviteLabel}>가입 가능 인원</label>
+            <div style={pageStyles.inviteUsageControl}>
+              <label style={pageStyles.inviteRadioLabel}>
+                <input
+                  type="radio"
+                  name="inviteMaxUsesMode"
+                  checked={inviteMaxUsesMode === "limited"}
+                  onChange={() => setInviteMaxUsesMode("limited")}
+                  style={{ accentColor: COLORS.primary }}
+                />
+                인원 지정
+              </label>
+              <label style={pageStyles.inviteRadioLabel}>
+                <input
+                  type="radio"
+                  name="inviteMaxUsesMode"
+                  checked={inviteMaxUsesMode === INVITE_UNLIMITED_VALUE}
+                  onChange={() => setInviteMaxUsesMode(INVITE_UNLIMITED_VALUE)}
+                  style={{ accentColor: COLORS.primary }}
+                />
+                제한 없음
+              </label>
+            </div>
+
+            {inviteMaxUsesMode === "limited" && (
+              <input
+                type="number"
+                min="1"
+                max={INVITE_MAX_USES_LIMIT}
+                inputMode="numeric"
+                value={inviteMaxUses}
+                onChange={(e) => setInviteMaxUses(e.target.value)}
+                placeholder="예: 10"
+                style={pageStyles.input}
+              />
+            )}
+
+            {inviteMaxUsesMode === INVITE_UNLIMITED_VALUE && (
+              <div style={pageStyles.inviteHelpText}>
+                가입 인원 제한은 없지만, 선택한 유효기간이 지나면 초대코드는 만료됩니다.
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleCreateInviteCode}
+              disabled={inviteCreating}
+              style={pageStyles.primaryButton}
+            >
+              {inviteCreating ? "초대코드 생성 중..." : "초대코드 생성"}
+            </button>
+
+            {lastCreatedInvite?.code && (
+              <div style={pageStyles.createdInviteBox}>
+                <div style={pageStyles.inviteLabel}>생성된 초대코드</div>
+                <div style={pageStyles.createdInviteCode}>{lastCreatedInvite.code}</div>
+                <div style={pageStyles.createdInviteNotice}>
+                  보안을 위해 코드 원문은 지금만 표시됩니다. 목록에서는 다시 조회할 수 없습니다.
+                </div>
+                <div style={pageStyles.inviteButtonRow}>
+                  <button
+                    type="button"
+                    style={pageStyles.inviteOutlineButton}
+                    onClick={() => copyInviteText(lastCreatedInvite.code, "초대코드를 복사했습니다.")}
+                  >
+                    코드 복사
+                  </button>
+                  <button
+                    type="button"
+                    style={pageStyles.inviteKakaoButton}
+                    onClick={() => handleShareInviteWithKakao(lastCreatedInvite)}
+                  >
+                    카카오톡으로 초대
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 18 }}>
+              <div style={pageStyles.cardTitleRow}>
+                <div style={pageStyles.sectionTitle}>활성 초대코드 목록</div>
+                <div style={pageStyles.sectionSub}>{selectedOrgUnit?.name || ""}</div>
+              </div>
+
+              {inviteLoading ? (
+                <div style={pageStyles.emptyInviteBox}>초대코드를 불러오는 중입니다.</div>
+              ) : inviteCodes.length === 0 ? (
+                <div style={pageStyles.emptyInviteBox}>생성된 초대코드가 없습니다.</div>
+              ) : (
+                <div style={pageStyles.inviteList}>
+                  {inviteCodes.map((invite) => {
+                    const statusStyle = getInviteStatusStyle(invite.status);
+
+                    return (
+                      <div key={invite.id} style={pageStyles.inviteItem}>
+                        <div style={pageStyles.inviteItemTop}>
+                          <div>
+                            <div style={pageStyles.inviteOrgName}>
+                              {getOrgPathLabel(invite)}
+                            </div>
+                            <div style={pageStyles.inviteMeta}>
+                              생성 {formatInviteDate(invite.created_at)}
+                            </div>
+                          </div>
+                          <span style={{ ...pageStyles.inviteStatusBadge, ...statusStyle }}>
+                            {getInviteStatusLabel(invite.status)}
+                          </span>
+                        </div>
+
+                        <div style={pageStyles.inviteMetaGrid}>
+                          <span>만료: {formatInviteDate(invite.expires_at)}</span>
+                          <span>{getInviteUsageLabel(invite)}</span>
+                          <span>역할: {invite.target_role}</span>
+                        </div>
+
+                        {invite.status === "active" && (
+                          <button
+                            type="button"
+                            style={pageStyles.inviteDangerButton}
+                            disabled={inviteDeactivatingId === invite.id}
+                            onClick={() => handleDeactivateInvite(invite.id)}
+                          >
+                            {inviteDeactivatingId === invite.id ? "비활성화 중..." : "초대코드 취소"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
   }
 function startEditMission() {
   setDraftMissionText(missionText);
@@ -992,7 +1286,26 @@ async function saveMessage() {
         </button>
       </div>
 
-      {activeTab === "status" && (
+      {activeTab === "status" && showInviteManagement && (
+        <div style={pageStyles.managementTabWrap}>
+          <button
+            type="button"
+            onClick={() => setTeamManageTab("members")}
+            style={teamManageTab === "members" ? pageStyles.managementTabActive : pageStyles.managementTab}
+          >
+            팀원 관리
+          </button>
+          <button
+            type="button"
+            onClick={() => setTeamManageTab("invites")}
+            style={teamManageTab === "invites" ? pageStyles.managementTabActive : pageStyles.managementTab}
+          >
+            초대코드 관리
+          </button>
+        </div>
+      )}
+
+      {activeTab === "status" && teamManageTab === "members" && (
         <>
           <section style={pageStyles.summaryGrid}>
             {statusSummary.map((status) => (
@@ -1229,7 +1542,7 @@ async function saveMessage() {
                 )}
               </div>
 
-              {showInviteManagement && (
+              {false && showInviteManagement && (
                 <div style={pageStyles.card}>
                   <div style={pageStyles.cardTitleRow}>
                     <div>
@@ -1415,6 +1728,12 @@ async function saveMessage() {
             </div>
           </section>
         </>
+      )}
+
+      {activeTab === "status" && teamManageTab === "invites" && (
+        <section style={pageStyles.inviteManagementLayout}>
+          {renderInviteManagementSection()}
+        </section>
       )}
 
       {activeTab === "ranking" && (
@@ -1725,6 +2044,61 @@ function getOrgPathLabel(unit) {
   return names.length > 0 ? names.join(" > ") : unit?.name || unit?.org_unit_name || "-";
 }
 
+function buildInviteUrl(code) {
+  const baseUrl =
+    process.env.REACT_APP_PUBLIC_SITE_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "https://www.boplan.kr");
+  const url = new URL("/signup", baseUrl);
+  if (code) url.searchParams.set("invite", code);
+  return url.toString();
+}
+
+function getInviteUsageLabel(invite) {
+  const usedCount = invite?.used_count ?? 0;
+  if (invite?.max_uses == null) return `가입 ${usedCount} / 제한 없음`;
+  return `가입 ${usedCount} / ${invite.max_uses}명`;
+}
+
+function getKakaoJavascriptKey() {
+  return process.env.REACT_APP_KAKAO_JAVASCRIPT_KEY || process.env.REACT_APP_KAKAO_JS_KEY || "";
+}
+
+function loadKakaoSdk() {
+  if (typeof window === "undefined") return Promise.resolve(false);
+  if (window.Kakao?.Share) return Promise.resolve(true);
+
+  const javascriptKey = getKakaoJavascriptKey();
+  if (!javascriptKey) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const existingScript = document.querySelector(`script[src="${KAKAO_SDK_URL}"]`);
+    const initialize = () => {
+      try {
+        if (window.Kakao && !window.Kakao.isInitialized()) {
+          window.Kakao.init(javascriptKey);
+        }
+        resolve(Boolean(window.Kakao?.Share));
+      } catch {
+        resolve(false);
+      }
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener("load", initialize, { once: true });
+      existingScript.addEventListener("error", () => resolve(false), { once: true });
+      initialize();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = KAKAO_SDK_URL;
+    script.async = true;
+    script.onload = initialize;
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+}
+
 
 const makeStyles = (isPhone) => ({
   page: {
@@ -1811,6 +2185,39 @@ const makeStyles = (isPhone) => ({
     boxShadow: "0 8px 20px rgba(124,58,237,0.12)",
   },
 
+  managementTabWrap: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: 8,
+    marginBottom: 14,
+    padding: 4,
+    borderRadius: 18,
+    background: "#EDE9FE",
+  },
+
+  managementTab: {
+    border: "none",
+    background: "transparent",
+    color: COLORS.sub,
+    padding: "11px 8px",
+    borderRadius: 14,
+    fontSize: isPhone ? 12 : 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  managementTabActive: {
+    border: "none",
+    background: COLORS.white,
+    color: COLORS.primaryDark,
+    padding: "11px 8px",
+    borderRadius: 14,
+    fontSize: isPhone ? 12 : 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 8px 20px rgba(124,58,237,0.12)",
+  },
+
   summaryGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
@@ -1849,6 +2256,11 @@ const makeStyles = (isPhone) => ({
     : "1.7fr 1fr",
   gap: 14,
 },
+
+  inviteManagementLayout: {
+    maxWidth: 860,
+    margin: "0 auto",
+  },
 
   sideStack: {
     display: "flex",
@@ -2249,6 +2661,40 @@ teamCard: {
     gap: isPhone ? 0 : 10,
   },
 
+  inviteUsageControl: {
+    display: "grid",
+    gridTemplateColumns: isPhone ? "1fr" : "1fr 1fr",
+    gap: 8,
+    marginBottom: 10,
+  },
+
+  inviteRadioLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 44,
+    padding: "0 12px",
+    borderRadius: 14,
+    border: `1px solid ${COLORS.border}`,
+    background: COLORS.white,
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  inviteHelpText: {
+    marginTop: 4,
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 14,
+    background: COLORS.bg,
+    color: COLORS.sub,
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.5,
+  },
+
   createdInviteBox: {
     marginTop: 14,
     padding: 14,
@@ -2287,6 +2733,17 @@ teamCard: {
     border: `1px solid ${COLORS.primary}`,
     background: COLORS.white,
     color: COLORS.primaryDark,
+    borderRadius: 14,
+    padding: "11px 12px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  inviteKakaoButton: {
+    border: "1px solid #FEE500",
+    background: "#FEE500",
+    color: "#191919",
     borderRadius: 14,
     padding: "11px 12px",
     fontSize: 13,

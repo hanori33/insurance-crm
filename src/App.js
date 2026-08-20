@@ -380,6 +380,19 @@ export default function App() {
   }, [session]);
 
   useEffect(() => {
+    if (!session) return;
+    if (window.location.pathname !== '/signup') return;
+
+    const inviteCode = new URLSearchParams(window.location.search).get('invite');
+    if (!inviteCode) return;
+
+    localStorage.setItem('boplan_pending_invite_code', inviteCode.trim());
+    window.history.replaceState({}, '', '/');
+    setActiveTab('roleRequest');
+    setStack([]);
+  }, [session]);
+
+  useEffect(() => {
     if (!session?.user) return;
     if (session.user.email) return;
 

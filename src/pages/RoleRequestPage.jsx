@@ -93,6 +93,17 @@ function formatRequestDate(value) {
   });
 }
 
+function getPendingInviteCode() {
+  if (typeof window === 'undefined') return '';
+
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get('invite') ||
+    localStorage.getItem('boplan_pending_invite_code') ||
+    ''
+  ).trim();
+}
+
 function RequestInfo({ label, value }) {
   return (
     <div style={{ minWidth: 0 }}>
@@ -130,6 +141,11 @@ export default function RoleRequestPage({ user }) {
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    const pendingInviteCode = getPendingInviteCode();
+    if (pendingInviteCode) setInviteCode(pendingInviteCode);
   }, []);
 
   async function load() {
@@ -240,6 +256,7 @@ export default function RoleRequestPage({ user }) {
     try {
       const result = await inviteService.acceptInviteCode(code);
       setInviteCode('');
+      localStorage.removeItem('boplan_pending_invite_code');
       setSuccess(`${result?.org_unit_name || '조직'}에 가입되었습니다.`);
       await load();
     } catch (e) {
