@@ -5,6 +5,10 @@ import { Browser } from '@capacitor/browser';
 
 const PUBLIC_SITE_URL = (process.env.REACT_APP_PUBLIC_SITE_URL || 'https://www.boplan.kr').replace(/\/$/, '');
 const ANDROID_AUTH_CALLBACK_URL = 'kr.boplan.app://auth/callback';
+const OAUTH_PROVIDER_LABELS = {
+  google: 'Google',
+  kakao: '카카오',
+};
 
 function getAuthRedirectUrl(path = '') {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -15,6 +19,10 @@ function getGoogleOAuthRedirectUrl() {
   return Capacitor.isNativePlatform()
     ? ANDROID_AUTH_CALLBACK_URL
     : getAuthRedirectUrl('/auth/callback');
+}
+
+function getOAuthProviderLabel(provider) {
+  return OAUTH_PROVIDER_LABELS[provider] || '소셜';
 }
 
 function isAlreadyRegisteredSignup(error) {
@@ -73,6 +81,89 @@ function getOAuthCallbackErrorMessage(url) {
   }
 }
 
+function getOAuthProviderErrorMessage(error, providerLabel = '소셜') {
+  const message = String(error?.message || error || '');
+  const lowerMessage = message.toLowerCase();
+
+  if (!message) return `${providerLabel} 로그인 처리 중 오류가 발생했습니다.`;
+  if (lowerMessage.includes('cancel') || lowerMessage.includes('access_denied')) {
+    return `${providerLabel} 로그인이 취소되었습니다.`;
+  }
+  if (
+    lowerMessage.includes('unsupported provider') ||
+    lowerMessage.includes('provider is not enabled')
+  ) {
+    return `${providerLabel} 로그인이 아직 활성화되지 않았습니다. 관리자에게 문의해주세요.`;
+  }
+  if (
+    lowerMessage.includes('email') &&
+    (lowerMessage.includes('required') ||
+      lowerMessage.includes('not provided') ||
+      lowerMessage.includes('missing') ||
+      lowerMessage.includes('no email'))
+  ) {
+    return `${providerLabel} 계정의 이메일 제공 동의가 필요합니다. 이메일 제공에 동의한 뒤 다시 시도해주세요.`;
+  }
+  if (lowerMessage.includes('oauth') || lowerMessage.includes('provider')) {
+    return `${providerLabel} 로그인 처리 중 오류가 발생했습니다.`;
+  }
+  if (lowerMessage.includes('code') && lowerMessage.includes('exchange')) {
+    return `${providerLabel} 로그인 세션 교환에 실패했습니다.`;
+  }
+
+  return message;
+}
+
+function getSocialOAuthCallbackErrorMessage(url) {
+  try {
+    const parsed = new URL(url);
+    const params = new URLSearchParams(parsed.search || parsed.hash.replace(/^#/, ''));
+    const error = params.get('error') || params.get('error_code');
+    const description = params.get('error_description') || params.get('message') || '';
+    const lowerMessage = `${error || ''} ${description || ''}`.toLowerCase();
+
+    if (!error && !description) return '';
+    if (lowerMessage.includes('access_denied')) return '소셜 로그인이 취소되었습니다.';
+    if (lowerMessage.includes('email')) {
+      return '소셜 계정의 이메일 제공 동의가 필요합니다. 이메일 제공에 동의한 뒤 다시 시도해주세요.';
+    }
+
+    return description || '소셜 로그인 callback 처리 중 오류가 발생했습니다.';
+  } catch {
+    return '소셜 로그인 callback URL을 확인하지 못했습니다.';
+  }
+}
+
+async function signInWithOAuthProvider(provider) {
+  const providerLabel = getOAuthProviderLabel(provider);
+  const redirectTo = getGoogleOAuthRedirectUrl();
+  const options = {
+    redirectTo,
+    skipBrowserRedirect: Capacitor.isNativePlatform(),
+  };
+
+  if (provider === 'google') {
+    options.queryParams = {
+      access_type: 'offline',
+      prompt: 'select_account',
+    };
+  }
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options,
+  });
+
+  if (error) throw new Error(getOAuthProviderErrorMessage(error, providerLabel));
+
+  if (Capacitor.isNativePlatform()) {
+    if (!data?.url) throw new Error(`${providerLabel} 로그인 페이지를 열지 못했습니다.`);
+    await Browser.open({ url: data.url, windowName: '_self' });
+  }
+
+  return data;
+}
+
 const authService = {
   async signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -80,43 +171,36 @@ const authService = {
     return data;
   },
   async signInWithGoogle() {
-    const redirectTo = getGoogleOAuthRedirectUrl();
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        skipBrowserRedirect: Capacitor.isNativePlatform(),
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
-        },
-      },
-    });
-
-    if (error) throw new Error(getKoreanAuthErrorMessage(error));
-
-    if (Capacitor.isNativePlatform()) {
-      if (!data?.url) throw new Error('Google 로그인 페이지를 열지 못했습니다.');
-      await Browser.open({ url: data.url, windowName: '_self' });
-    }
-
-    return data;
+    return signInWithOAuthProvider('google');
+  },
+  async signInWithKakao() {
+    return signInWithOAuthProvider('kakao');
   },
   async handleOAuthCallback(url) {
-    if (!url) throw new Error('Google 로그인 callback URL이 없습니다.');
+    if (!url) throw new Error('소셜 로그인 callback URL이 없습니다.');
 
-    const callbackError = getOAuthCallbackErrorMessage(url);
+    const callbackError = getSocialOAuthCallbackErrorMessage(url);
     if (callbackError) throw new Error(callbackError);
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(url);
-    if (error) throw new Error(getKoreanAuthErrorMessage(error));
+    if (error) throw new Error(getOAuthProviderErrorMessage(error, '소셜'));
+
+    const session = data?.session || null;
+    const providerLabel = getOAuthProviderLabel(session?.user?.app_metadata?.provider);
+
+    if (session?.user && !session.user.email) {
+      await supabase.auth.signOut().catch(() => {});
+      throw new Error(`${providerLabel} 계정의 이메일 제공 동의가 필요합니다. 이메일 제공에 동의한 뒤 다시 시도해주세요.`);
+    }
 
     if (Capacitor.isNativePlatform()) {
       await Browser.close().catch(() => {});
     }
 
-    return data?.session || null;
+    return session;
+  },
+  getOAuthCallbackErrorMessage(url) {
+    return getSocialOAuthCallbackErrorMessage(url);
   },
   async signUp(email, password, displayName) {
     const nameValidation = validateSignupName(displayName, email);
@@ -188,6 +272,7 @@ export default authService;
 // ── 기존 named export 호환 ──────────────────────
 export const signIn           = (e,p)   => authService.signIn(e, p);
 export const signInWithGoogle = ()      => authService.signInWithGoogle();
+export const signInWithKakao  = ()      => authService.signInWithKakao();
 export const signUp           = (e,p,n) => authService.signUp(e, p, n);
 export const signOut          = ()      => authService.signOut();
 export const resetPassword    = (e)     => authService.resetPassword(e);

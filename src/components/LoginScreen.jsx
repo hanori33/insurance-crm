@@ -71,6 +71,7 @@ export default function LoginScreen() {
   const [saveId, setSaveId]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [kakaoLoading, setKakaoLoading] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState('');
 useEffect(() => {
@@ -141,6 +142,20 @@ async function handleGoogleLogin() {
     setError(e.message || 'Google 로그인 중 오류가 발생했습니다.');
   } finally {
     setGoogleLoading(false);
+  }
+}
+
+async function handleKakaoLogin() {
+  reset();
+  setKakaoLoading(true);
+
+  try {
+    await authService.signInWithKakao();
+    setSuccess('카카오 로그인 화면으로 이동합니다.');
+  } catch (e) {
+    setError(e.message || '카카오 로그인 중 오류가 발생했습니다.');
+  } finally {
+    setKakaoLoading(false);
   }
 }
   return (
@@ -281,7 +296,7 @@ async function handleGoogleLogin() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              disabled={loading || googleLoading}
+              disabled={loading || googleLoading || kakaoLoading}
               style={{
                 width: '100%',
                 minHeight: 48,
@@ -291,12 +306,12 @@ async function handleGoogleLogin() {
                 color: COLORS.text,
                 fontSize: 15,
                 fontWeight: 800,
-                cursor: loading || googleLoading ? 'not-allowed' : 'pointer',
+                cursor: loading || googleLoading || kakaoLoading ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 10,
-                opacity: loading || googleLoading ? 0.7 : 1,
+                opacity: loading || googleLoading || kakaoLoading ? 0.7 : 1,
               }}
             >
               <span
@@ -317,6 +332,48 @@ async function handleGoogleLogin() {
                 G
               </span>
               {googleLoading ? 'Google 로그인 준비 중...' : 'Google로 계속하기'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleKakaoLogin}
+              disabled={loading || googleLoading || kakaoLoading}
+              style={{
+                width: '100%',
+                minHeight: 48,
+                borderRadius: 12,
+                border: '1.5px solid #FEE500',
+                background: '#FEE500',
+                color: '#191919',
+                fontSize: 15,
+                fontWeight: 800,
+                cursor: loading || googleLoading || kakaoLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                opacity: loading || googleLoading || kakaoLoading ? 0.7 : 1,
+                marginTop: 10,
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  color: '#FEE500',
+                  background: '#191919',
+                  fontSize: 13,
+                }}
+              >
+                K
+              </span>
+              {kakaoLoading ? '카카오 로그인 준비 중...' : '카카오로 계속하기'}
             </button>
           </>
         )}

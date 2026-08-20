@@ -345,7 +345,7 @@ export default function App() {
         setActiveTab('home');
         setStack([]);
       } catch (error) {
-        alert(error.message || 'Google 로그인 처리 중 오류가 발생했습니다.');
+        alert(error.message || '소셜 로그인 처리 중 오류가 발생했습니다.');
       }
     }).then((handle) => {
       if (cancelled) {
@@ -364,11 +364,31 @@ export default function App() {
 
   useEffect(() => {
     if (window.location.pathname !== '/auth/callback') return;
+    const callbackError = authService.getOAuthCallbackErrorMessage(window.location.href);
+
+    if (callbackError) {
+      alert(callbackError);
+      window.history.replaceState({}, '', '/');
+      return;
+    }
+
     if (!session) return;
 
     window.history.replaceState({}, '', '/');
     setActiveTab('home');
     setStack([]);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    if (session.user.email) return;
+
+    const provider = session.user.app_metadata?.provider;
+    const providerLabel = provider === 'kakao' ? '카카오' : '소셜';
+
+    authService.signOut().finally(() => {
+      alert(`${providerLabel} 계정의 이메일 제공 동의가 필요합니다. 이메일 제공에 동의한 뒤 다시 시도해주세요.`);
+    });
   }, [session]);
 
   useEffect(() => {
