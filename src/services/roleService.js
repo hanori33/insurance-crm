@@ -53,6 +53,8 @@ const roleService = {
     branch,
     office,
     team,
+    companyOrgUnitId = null,
+    requestedOrgUnitId = null,
   }) => {
     const {
       data: { user },
@@ -79,6 +81,8 @@ const roleService = {
           branch: normalizedBranch,
           office: normalizedOffice,
           team: normalizedTeam,
+          company_org_unit_id: companyOrgUnitId || null,
+          requested_org_unit_id: requestedOrgUnitId || null,
           status: 'pending',
         },
       ])

@@ -6,6 +6,7 @@ import Field from '../components/Field';
 import roleService, { isAdminRole } from '../services/roleService';
 import noticeService from '../services/noticeService';
 import inviteService from '../services/inviteService';
+import organizationService from '../services/organizationService';
 
 const ROLE_OPTIONS = [
   { value: 'division_head', label: '사업단장' },
@@ -29,6 +30,12 @@ const STATUS_COLORS = {
   pending: { bg: '#FEF3C7', color: '#D97706' },
   approved: { bg: '#DCFCE7', color: '#16A34A' },
   rejected: { bg: '#FEE2E2', color: '#DC2626' },
+};
+
+const ORG_REQUEST_STATUS_LABELS = {
+  pending: '승인 대기',
+  approved: '승인됨',
+  rejected: '거절됨',
 };
 
 function displayValue(value) {
@@ -73,10 +80,16 @@ function RequestInfo({ label, value }) {
   );
 }
 
+function getOrgPathLabel(unit) {
+  const names = unit?.path_names || unit?.org_path_names || [];
+  return names.length > 0 ? names.join(' > ') : unit?.name || '-';
+}
+
 export default function RoleRequestPage({ user }) {
   const [myRequest, setMyRequest] = useState(null);
   const [myRole, setMyRole] = useState('agent');
   const [allRequests, setAllRequests] = useState([]);
+  const [registrationRequests, setRegistrationRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({
@@ -90,6 +103,22 @@ export default function RoleRequestPage({ user }) {
   });
 
   const [saving, setSaving] = useState(false);
+  const [companySearching, setCompanySearching] = useState(false);
+  const [companyResults, setCompanyResults] = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [orgSearch, setOrgSearch] = useState('');
+  const [orgUnits, setOrgUnits] = useState([]);
+  const [orgLoading, setOrgLoading] = useState(false);
+  const [selectedOrgUnitId, setSelectedOrgUnitId] = useState('');
+  const [registrationForm, setRegistrationForm] = useState({
+    requestedName: '',
+    businessRegistrationNumber: '',
+    representativeName: '',
+    contactEmail: user?.email || '',
+  });
+  const [registrationSaving, setRegistrationSaving] = useState(false);
+  const [myRegistrationRequests, setMyRegistrationRequests] = useState([]);
+  const [reviewingRegistrationId, setReviewingRegistrationId] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [inviteSaving, setInviteSaving] = useState(false);
   const [error, setError] = useState('');
@@ -107,17 +136,28 @@ export default function RoleRequestPage({ user }) {
   async function load() {
     setLoading(true);
     try {
-      const [myReq, role] = await Promise.all([
+      const [myReq, role, myOrgRequests] = await Promise.all([
         roleService.getMyRequest().catch(() => null),
         noticeService.getMyRole().catch(() => 'agent'),
+        organizationService.listMyRegistrationRequests().catch(() => []),
       ]);
 
       setMyRequest(myReq);
       setMyRole(role || 'agent');
+      setMyRegistrationRequests(myOrgRequests || []);
 
       if (isAdminRole(role)) {
         const all = await roleService.listAll().catch(() => []);
         setAllRequests(all);
+      }
+
+      if (role === 'superadmin') {
+        const registrations = await organizationService
+          .listRegistrationRequests('pending')
+          .catch(() => []);
+        setRegistrationRequests(registrations || []);
+      } else {
+        setRegistrationRequests([]);
       }
     } finally {
       setLoading(false);
@@ -128,6 +168,76 @@ export default function RoleRequestPage({ user }) {
     myRequest && (myRequest.status === 'pending' || myRequest.status === 'approved');
 
   const canShowForm = !hasActiveRequest && !isAdminRole(myRole);
+  const selectedOrgUnit =
+    orgUnits.find((unit) => unit.id === selectedOrgUnitId) || selectedCompany;
+
+  async function handleCompanySearch() {
+    const query = form.companyName.trim();
+
+    if (!query) {
+      setError('회사명을 입력하세요');
+      return;
+    }
+
+    setCompanySearching(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const results = await organizationService.searchCompanies(query);
+      setCompanyResults(results);
+      setSelectedCompany(null);
+      setSelectedOrgUnitId('');
+      setOrgUnits([]);
+      setRegistrationForm((prev) => ({
+        ...prev,
+        requestedName: query,
+      }));
+
+      if (results.length === 0) {
+        setSuccess('검색 결과가 없습니다. 새 회사 등록 요청을 진행할 수 있습니다.');
+      }
+    } catch (e) {
+      setError(e.message || '회사 검색에 실패했습니다.');
+    } finally {
+      setCompanySearching(false);
+    }
+  }
+
+  async function handleSelectCompany(company) {
+    setSelectedCompany(company);
+    setCompanyResults([]);
+    setSelectedOrgUnitId(company.id);
+    setForm((prev) => ({
+      ...prev,
+      companyName: company.name,
+      organization: company.name,
+      branch: '',
+      office: '',
+      team: '',
+    }));
+    await loadCompanyOrganizations(company.id);
+  }
+
+  async function loadCompanyOrganizations(rootOrgUnitId, query = orgSearch) {
+    if (!rootOrgUnitId) return;
+
+    setOrgLoading(true);
+    setError('');
+
+    try {
+      const units = await organizationService.listCompanyOrganizations(rootOrgUnitId, query);
+      setOrgUnits(units);
+      if (!selectedOrgUnitId && units[0]?.id) {
+        setSelectedOrgUnitId(units[0].id);
+      }
+    } catch (e) {
+      setError(e.message || '회사 조직을 불러오지 못했습니다.');
+      setOrgUnits([]);
+    } finally {
+      setOrgLoading(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!form.userName.trim()) {
@@ -135,18 +245,13 @@ export default function RoleRequestPage({ user }) {
       return;
     }
 
-    if (!form.companyName.trim()) {
-      setError('회사명을 입력하세요');
+    if (!selectedCompany?.id) {
+      setError('먼저 회사를 검색하고 선택해주세요.');
       return;
     }
 
-    if (!form.organization.trim()) {
-      setError('조직명을 입력하세요');
-      return;
-    }
-
-    if (!form.office.trim() && !form.branch.trim() && !form.team.trim()) {
-      setError('본부/지점/팀 중 하나 이상 입력하세요');
+    if (!selectedOrgUnit?.id) {
+      setError('신청할 조직을 선택해주세요.');
       return;
     }
 
@@ -158,10 +263,12 @@ export default function RoleRequestPage({ user }) {
       await roleService.request({
         ...form,
         companyName: form.companyName.trim(),
-        organization: form.organization.trim(),
+        organization: selectedOrgUnit.name || form.organization.trim(),
         branch: form.branch.trim(),
         office: form.office.trim(),
         team: form.team.trim(),
+        companyOrgUnitId: selectedCompany.id,
+        requestedOrgUnitId: selectedOrgUnit.id,
       });
       setSuccess('권한 신청이 완료되었습니다! 관리자 승인 후 적용됩니다.');
       await load();
@@ -169,6 +276,28 @@ export default function RoleRequestPage({ user }) {
       setError(e.message || '신청 실패');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRequestCompanyRegistration() {
+    if (!registrationForm.requestedName.trim()) {
+      setError('회사명을 입력해주세요.');
+      return;
+    }
+
+    setRegistrationSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await organizationService.requestRegistration(registrationForm);
+      setSuccess('새 회사 등록 요청이 접수되었습니다. 최고관리자 승인 후 이용할 수 있습니다.');
+      const myOrgRequests = await organizationService.listMyRegistrationRequests().catch(() => []);
+      setMyRegistrationRequests(myOrgRequests || []);
+    } catch (e) {
+      setError(e.message || '회사 등록 요청에 실패했습니다.');
+    } finally {
+      setRegistrationSaving(false);
     }
   }
 
@@ -215,6 +344,37 @@ export default function RoleRequestPage({ user }) {
       await load();
     } catch (e) {
       alert(e.message || '거절 실패');
+    }
+  }
+
+  async function handleApproveRegistration(request) {
+    setReviewingRegistrationId(request.id);
+
+    try {
+      await organizationService.approveRegistrationRequest(request.id);
+      alert('회사 등록 요청을 승인했습니다.');
+      await load();
+    } catch (e) {
+      alert(e.message || '회사 등록 요청 승인에 실패했습니다.');
+    } finally {
+      setReviewingRegistrationId('');
+    }
+  }
+
+  async function handleRejectRegistration(request) {
+    const reason = window.prompt('거절 사유를 입력해주세요. 비워도 됩니다.', '');
+    if (reason === null) return;
+
+    setReviewingRegistrationId(request.id);
+
+    try {
+      await organizationService.rejectRegistrationRequest(request.id, reason);
+      alert('회사 등록 요청을 거절했습니다.');
+      await load();
+    } catch (e) {
+      alert(e.message || '회사 등록 요청 거절에 실패했습니다.');
+    } finally {
+      setReviewingRegistrationId('');
     }
   }
 
@@ -396,7 +556,7 @@ export default function RoleRequestPage({ user }) {
             </span>
             <Field
               icon="🏢"
-              placeholder="예: 인카금융서비스, ○○GA"
+              placeholder="회사명을 입력하고 검색하세요"
               value={form.companyName}
               onChange={(e) =>
                 setForm((p) => ({
@@ -405,50 +565,260 @@ export default function RoleRequestPage({ user }) {
                 }))
               }
             />
+            <button
+              type="button"
+              onClick={handleCompanySearch}
+              disabled={companySearching}
+              style={{
+                width: '100%',
+                padding: '12px 0',
+                borderRadius: 12,
+                border: 'none',
+                background: COLORS.primaryBg,
+                color: COLORS.primary,
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: companySearching ? 'default' : 'pointer',
+                opacity: companySearching ? 0.7 : 1,
+                marginBottom: 14,
+              }}
+            >
+              {companySearching ? '회사 검색 중...' : '회사 검색'}
+            </button>
+
+            {companyResults.length > 0 && (
+              <div
+                style={{
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  marginBottom: 14,
+                }}
+              >
+                {companyResults.map((company) => (
+                  <button
+                    key={company.id}
+                    type="button"
+                    onClick={() => handleSelectCompany(company)}
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      borderBottom: `1px solid ${COLORS.border}`,
+                      background: selectedCompany?.id === company.id ? COLORS.primaryBg : '#fff',
+                      color: COLORS.text,
+                      padding: 12,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 800 }}>{company.name}</div>
+                    <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 3 }}>
+                      기존 등록 회사
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {selectedCompany && (
+              <div
+                style={{
+                  background: '#EEF2FF',
+                  border: `1px solid ${COLORS.primaryBg}`,
+                  borderRadius: 14,
+                  padding: 12,
+                  marginBottom: 14,
+                  color: COLORS.text,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                선택한 회사: {selectedCompany.name}
+              </div>
+            )}
+
+            {!selectedCompany && form.companyName.trim() && companyResults.length === 0 && (
+              <div
+                style={{
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 14,
+                  padding: 14,
+                  marginBottom: 16,
+                  background: '#FFFBEB',
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text, marginBottom: 6 }}>
+                  찾는 회사가 없나요?
+                </div>
+                <div style={{ fontSize: 12, color: COLORS.textGray, lineHeight: 1.5, marginBottom: 12 }}>
+                  새 회사/GA 등록 요청을 보내면 최고관리자가 확인 후 회사 조직을 생성합니다.
+                </div>
+                <Field
+                  icon="🏢"
+                  placeholder="회사명"
+                  value={registrationForm.requestedName}
+                  onChange={(e) =>
+                    setRegistrationForm((p) => ({ ...p, requestedName: e.target.value }))
+                  }
+                />
+                <Field
+                  icon="#"
+                  placeholder="사업자등록번호 선택"
+                  value={registrationForm.businessRegistrationNumber}
+                  onChange={(e) =>
+                    setRegistrationForm((p) => ({
+                      ...p,
+                      businessRegistrationNumber: e.target.value,
+                    }))
+                  }
+                />
+                <Field
+                  icon="👤"
+                  placeholder="대표자명 선택"
+                  value={registrationForm.representativeName}
+                  onChange={(e) =>
+                    setRegistrationForm((p) => ({ ...p, representativeName: e.target.value }))
+                  }
+                />
+                <Field
+                  icon="✉️"
+                  placeholder="연락처 이메일 선택"
+                  value={registrationForm.contactEmail}
+                  onChange={(e) =>
+                    setRegistrationForm((p) => ({ ...p, contactEmail: e.target.value }))
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={handleRequestCompanyRegistration}
+                  disabled={registrationSaving}
+                  style={{
+                    width: '100%',
+                    padding: '12px 0',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: '#F59E0B',
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 800,
+                    cursor: registrationSaving ? 'default' : 'pointer',
+                    opacity: registrationSaving ? 0.7 : 1,
+                  }}
+                >
+                  {registrationSaving ? '등록 요청 중...' : '새 회사 등록 요청'}
+                </button>
+              </div>
+            )}
+
+            {myRegistrationRequests.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.text, marginBottom: 8 }}>
+                  내 회사 등록 요청
+                </div>
+                {myRegistrationRequests.slice(0, 3).map((request) => (
+                  <div
+                    key={request.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      padding: '9px 10px',
+                      borderRadius: 12,
+                      background: '#F8FAFC',
+                      marginBottom: 6,
+                      fontSize: 12,
+                    }}
+                  >
+                    <span style={{ color: COLORS.text, fontWeight: 700 }}>
+                      {request.requested_name}
+                    </span>
+                    <span style={{ color: COLORS.textGray }}>
+                      {ORG_REQUEST_STATUS_LABELS[request.status] || request.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              조직명
+              하위 조직 검색/선택
             </span>
-            <Field
-              icon="🏢"
-              placeholder="예: 로얄사업단, 서울본부, 총괄사업단"
-              value={form.organization}
-              onChange={(e) => setForm((p) => ({ ...p, organization: e.target.value }))}
-              disabled={!form.companyName.trim()}
-            />
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <input
+                value={orgSearch}
+                onChange={(e) => setOrgSearch(e.target.value)}
+                placeholder="조직명 검색"
+                disabled={!selectedCompany}
+                style={{
+                  flex: 1,
+                  border: `1.5px solid ${COLORS.border}`,
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  fontSize: 14,
+                  minWidth: 0,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => loadCompanyOrganizations(selectedCompany?.id, orgSearch)}
+                disabled={!selectedCompany || orgLoading}
+                style={{
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '0 14px',
+                  background: COLORS.primaryBg,
+                  color: COLORS.primary,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: !selectedCompany || orgLoading ? 'default' : 'pointer',
+                  opacity: !selectedCompany || orgLoading ? 0.6 : 1,
+                }}
+              >
+                검색
+              </button>
+            </div>
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              상위 조직
-            </span>
-            <Field
-              icon="🏛️"
-              placeholder="예: 본부, 사업단, 지사 등 없으면 비워두세요"
-              value={form.branch}
-              onChange={(e) => setForm((p) => ({ ...p, branch: e.target.value }))}
-              disabled={!form.organization.trim()}
-            />
+            <select
+              value={selectedOrgUnitId}
+              onChange={(e) => {
+                const unit = orgUnits.find((item) => item.id === e.target.value);
+                setSelectedOrgUnitId(e.target.value);
+                if (unit) {
+                  setForm((p) => ({
+                    ...p,
+                    organization: unit.name,
+                  }));
+                }
+              }}
+              disabled={!selectedCompany || orgUnits.length === 0}
+              style={{
+                width: '100%',
+                border: `1.5px solid ${COLORS.border}`,
+                background: selectedCompany && orgUnits.length > 0 ? '#fff' : '#F3F4F6',
+                borderRadius: 12,
+                padding: '12px 14px',
+                marginBottom: 14,
+                fontSize: 15,
+                minHeight: 48,
+                color: COLORS.text,
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="">
+                {selectedCompany ? '신청할 조직을 선택하세요' : '회사를 먼저 선택하세요'}
+              </option>
+              {orgUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {getOrgPathLabel(unit)}
+                </option>
+              ))}
+            </select>
 
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              지점/지사/센터
-            </span>
-            <Field
-              icon="📍"
-              placeholder="예: 김단비 지점, 강남지사"
-              value={form.office}
-              onChange={(e) => setForm((p) => ({ ...p, office: e.target.value }))}
-              disabled={!form.organization.trim()}
-            />
-
-            <span style={{ fontSize: 13, color: COLORS.textGray, marginBottom: 6, display: 'block' }}>
-              팀
-            </span>
-            <Field
-              icon="👥"
-              placeholder="예: 1팀, 김OO팀. 없으면 비워두세요"
-              value={form.team}
-              onChange={(e) => setForm((p) => ({ ...p, team: e.target.value }))}
-              disabled={!form.organization.trim()}
-            />
+            {selectedOrgUnit && (
+              <div style={{ fontSize: 12, color: COLORS.textGray, lineHeight: 1.5, marginBottom: 14 }}>
+                선택 조직: {getOrgPathLabel(selectedOrgUnit)}
+              </div>
+            )}
 
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
             {success && <div style={{ color: '#16A34A', fontSize: 13, marginBottom: 12 }}>{success}</div>}
@@ -471,6 +841,122 @@ export default function RoleRequestPage({ user }) {
             >
               {saving ? '신청 중...' : '권한 신청'}
             </button>
+          </Card>
+        )}
+
+        {myRole === 'superadmin' && (
+          <Card>
+            <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text, marginBottom: 16 }}>
+              회사 등록 요청 관리
+            </div>
+
+            {registrationRequests.length === 0 ? (
+              <div style={{ fontSize: 13, color: COLORS.textGray }}>
+                대기 중인 회사 등록 요청이 없습니다
+              </div>
+            ) : (
+              registrationRequests.map((request, i) => (
+                <div
+                  key={request.id}
+                  style={{
+                    padding: '14px 0',
+                    borderBottom:
+                      i < registrationRequests.length - 1 ? `1px solid ${COLORS.border}` : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text }}>
+                        {displayValue(request.requested_name)}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: COLORS.textGray,
+                          marginTop: 3,
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        신청자: {displayValue(request.requester_email)}
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        background: STATUS_COLORS[request.status]?.bg || '#F3F4F6',
+                        color: STATUS_COLORS[request.status]?.color || COLORS.text,
+                        borderRadius: 999,
+                        padding: '4px 12px',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap',
+                        alignSelf: 'flex-start',
+                      }}
+                    >
+                      {ORG_REQUEST_STATUS_LABELS[request.status] || request.status}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))',
+                      gap: '12px 14px',
+                      marginTop: 14,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: '#F8FAFC',
+                    }}
+                  >
+                    <RequestInfo label="사업자번호" value={request.business_registration_number} />
+                    <RequestInfo label="대표자명" value={request.representative_name} />
+                    <RequestInfo label="연락처 이메일" value={request.contact_email} />
+                    <RequestInfo label="신청일시" value={formatRequestDate(request.created_at)} />
+                  </div>
+
+                  {request.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button
+                        onClick={() => handleApproveRegistration(request)}
+                        disabled={reviewingRegistrationId === request.id}
+                        style={{
+                          flex: 1,
+                          padding: '8px 0',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#DCFCE7',
+                          color: '#16A34A',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: reviewingRegistrationId === request.id ? 'default' : 'pointer',
+                          opacity: reviewingRegistrationId === request.id ? 0.7 : 1,
+                        }}
+                      >
+                        승인
+                      </button>
+                      <button
+                        onClick={() => handleRejectRegistration(request)}
+                        disabled={reviewingRegistrationId === request.id}
+                        style={{
+                          flex: 1,
+                          padding: '8px 0',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#FEE2E2',
+                          color: '#DC2626',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: reviewingRegistrationId === request.id ? 'default' : 'pointer',
+                          opacity: reviewingRegistrationId === request.id ? 0.7 : 1,
+                        }}
+                      >
+                        거절
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </Card>
         )}
 

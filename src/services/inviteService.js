@@ -26,6 +26,9 @@ function unwrapRpcError(error, fallbackMessage) {
   if (message.includes('ORG_UNIT_MANAGE_REQUIRED')) {
     return new Error('해당 조직을 관리할 권한이 필요합니다.');
   }
+  if (message.includes('SUPERADMIN_REQUIRED_FOR_ROOT_ORG')) {
+    return new Error('최상위 회사 조직은 최고관리자만 생성할 수 있습니다.');
+  }
   if (message.includes('TARGET_ORG_UNIT_MANAGE_REQUIRED')) {
     return new Error('이동할 대상 조직을 관리할 권한이 필요합니다.');
   }
