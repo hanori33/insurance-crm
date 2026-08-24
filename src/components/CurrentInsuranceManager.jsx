@@ -399,9 +399,12 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
       style={{
         background: COLORS.white,
         borderRadius: 16,
-        padding: 14,
+        padding: 16,
         boxShadow: `0 2px 14px rgba(124,92,252,0.10)`,
         border: `1px solid ${PASTEL.grayPurpleBorder}`,
+        minWidth: 0,
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12, background: `linear-gradient(135deg, ${PASTEL.mint} 0%, ${PASTEL.sky} 100%)`, border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 16, padding: 14, flexWrap: 'wrap' }}>
@@ -431,7 +434,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
         <LoadingSpinner />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 14, padding: 12, background: PASTEL.mint }}>
+          <div style={{ border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 14, padding: 14, background: PASTEL.mint }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 14 }}>현재보장 합산</div>
               <div style={{ color: COLORS.textGray, fontSize: 12 }}>{summary.length}개 담보군</div>
@@ -464,7 +467,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                         cursor: 'pointer',
                         textAlign: 'left',
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(100px, 1.3fr) minmax(80px, 1fr) 58px 74px',
+                        gridTemplateColumns: 'minmax(110px, 1.25fr) minmax(90px, 1fr) 64px 76px',
                         gap: 8,
                         alignItems: 'center',
                         color: COLORS.text,
@@ -521,11 +524,11 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                 style={{
                   border: `1px solid ${PASTEL.skyBorder}`,
                   borderRadius: 14,
-                  padding: 12,
+                  padding: 14,
                   background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FCFF 100%)',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, alignItems: 'flex-start' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 900, color: COLORS.text }}>
                       {contract.insurance_company || '보험회사 미입력'}
@@ -540,7 +543,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', minWidth: 88 }}>
                     <GhostButton onClick={() => openContractModal(contract)}>수정</GhostButton>
                     <GhostButton danger onClick={() => removeContract(contract)}>삭제</GhostButton>
                   </div>

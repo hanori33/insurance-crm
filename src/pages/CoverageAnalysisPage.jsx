@@ -513,13 +513,30 @@ function getAnalysisStatusStyle(status) {
   return { bg: PASTEL.grayPurple, rowBg: '#FCFBFE', border: PASTEL.grayPurpleBorder, color: COLORS.textGray };
 }
 
-function getAnalysisStatusIcon(status) {
-  if (status === '미가입') return '♥';
-  if (status === '부족') return '!';
-  if (status === '충족') return '✓';
-  if (status === '기준 초과') return '↗';
-  if (status === '별도') return '◆';
-  return '?';
+function getCoverageCategoryVisual(name) {
+  const label = String(name || '').replace(/\s/g, '');
+  if (label.includes('뇌')) {
+    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', icon: '♧' };
+  }
+  if (label.includes('유사암')) {
+    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#16A34A', icon: '▣' };
+  }
+  if (label.includes('암')) {
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', icon: '♥' };
+  }
+  if (label.includes('심장') || label.includes('진단')) {
+    return { bg: '#FFFCF6', iconBg: PASTEL.apricot, border: PASTEL.apricotBorder, color: '#D97706', icon: '♦' };
+  }
+  if (label.includes('골절') || label.includes('운전자')) {
+    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, icon: '◆' };
+  }
+  if (label.includes('화상')) {
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#BE123C', icon: '●' };
+  }
+  if (label.includes('수술') || label.includes('입원') || label.includes('간병')) {
+    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#15803D', icon: '＋' };
+  }
+  return { bg: '#FCFBFE', iconBg: PASTEL.grayPurple, border: PASTEL.grayPurpleBorder, color: COLORS.textGray, icon: '?' };
 }
 
 function makeCriteriaDraft(categories, criteriaSet) {
@@ -781,7 +798,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
           overflowY: 'auto',
           padding: '16px 18px 26px',
           display: 'grid',
-          gridTemplateColumns: hasSelectedCustomer && !isNarrow ? 'minmax(320px, 0.62fr) minmax(560px, 1.38fr)' : '1fr',
+          gridTemplateColumns: hasSelectedCustomer && !isNarrow ? 'minmax(320px, 0.52fr) minmax(0, 1.48fr)' : '1fr',
           gap: 16,
           alignItems: 'start',
           background: 'linear-gradient(135deg, #F5F1FF 0%, #FCFAFF 46%, #F4FAFF 100%)',
@@ -886,7 +903,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
         )}
 
         {hasSelectedCustomer ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, width: '100%' }}>
             {!selectedCustomer ? (
               <Card>
                 {loading ? (
@@ -940,9 +957,10 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isNarrow ? '1fr' : 'minmax(300px, 1.08fr) minmax(300px, 0.92fr)',
-                    gap: 14,
+                    gridTemplateColumns: isNarrow ? '1fr' : 'minmax(0, 1.16fr) minmax(360px, 0.84fr)',
+                    gap: 16,
                     alignItems: 'start',
+                    width: '100%',
                   }}
                 >
                   <DesignRequestPanel
@@ -1136,15 +1154,16 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filteredRows.map((row) => {
             const statusStyle = getAnalysisStatusStyle(row.status);
+            const categoryStyle = getCoverageCategoryVisual(row.name);
             return (
-            <div key={row.key} style={{ border: `1px solid ${statusStyle.border}`, borderRadius: 14, overflow: 'hidden', background: statusStyle.rowBg }}>
+            <div key={row.key} style={{ border: `1px solid ${categoryStyle.border}`, borderRadius: 14, overflow: 'hidden', background: categoryStyle.bg }}>
               <button
                 type="button"
                 onClick={() => setExpandedKey((prev) => (prev === row.key ? '' : row.key))}
                 style={{
                   width: '100%',
                   border: 'none',
-                  background: statusStyle.rowBg,
+                  background: categoryStyle.bg,
                   padding: '10px 12px',
                   cursor: 'pointer',
                   textAlign: 'left',
@@ -1166,14 +1185,14 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      background: statusStyle.bg,
-                      color: statusStyle.color,
-                      border: `1px solid ${statusStyle.border}`,
+                      background: categoryStyle.iconBg,
+                      color: categoryStyle.color,
+                      border: `1px solid ${categoryStyle.border}`,
                       fontSize: 15,
                       fontWeight: 900,
                     }}
                   >
-                    {getAnalysisStatusIcon(row.status)}
+                    {categoryStyle.icon}
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</span>
                 </span>
@@ -1549,8 +1568,9 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isNarrow ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))',
+                gridTemplateColumns: isNarrow ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
                 gap: 10,
+                width: '100%',
               }}
             >
               {groupedManagers.map((group) => (
@@ -1570,22 +1590,22 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
                   <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>{group.label}</div>
                   {group.managers.map((manager) => (
                     <div key={manager.id} style={{ border: `1px solid ${getManagerGroupStyle(group.type).border}`, borderRadius: 12, padding: 10, background: manager.is_active ? 'rgba(255,255,255,0.78)' : PASTEL.gray }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'flex-start' }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', minWidth: 0 }}>
+                            <span style={{ fontWeight: 900, color: COLORS.text, fontSize: 13, minWidth: 0 }}>
                               {manager.insurance_company} · {manager.name}
                             </span>
                             <span style={{ border: `1px solid ${getManagerGroupStyle(group.type).border}`, borderRadius: 999, padding: '2px 7px', background: getManagerGroupStyle(group.type).chipBg, color: getManagerGroupStyle(group.type).chipColor, fontSize: 10, fontWeight: 800 }}>
                               {getManagerInsuranceTypeLabel(manager)}
                             </span>
                           </div>
-                          <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 11, lineHeight: 1.45 }}>
+                          <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 11, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
                             {manager.phone || '전화번호 없음'} · {manager.specialty || '담당영역 미입력'} · {manager.is_active ? '활성' : '비활성'}
                           </div>
                           {manager.memo && <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 11 }}>메모: {manager.memo}</div>}
                         </div>
-                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start', minWidth: 66 }}>
                           <button type="button" onClick={() => openManagerModal(manager)} style={tinyButtonStyle}>수정</button>
                           <button type="button" onClick={() => toggleManagerActive(manager)} style={tinyButtonStyle}>
                             {manager.is_active ? '비활성화' : '재활성화'}
