@@ -404,6 +404,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
         border: `1px solid ${PASTEL.grayPurpleBorder}`,
         minWidth: 0,
         width: '100%',
+        maxWidth: '100%',
         boxSizing: 'border-box',
       }}
     >
@@ -467,7 +468,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                         cursor: 'pointer',
                         textAlign: 'left',
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(110px, 1.25fr) minmax(90px, 1fr) 64px 76px',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))',
                         gap: 8,
                         alignItems: 'center',
                         color: COLORS.text,
@@ -526,10 +527,11 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                   borderRadius: 14,
                   padding: 14,
                   background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FCFF 100%)',
+                  minWidth: 0,
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, alignItems: 'flex-start' }}>
-                  <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', minWidth: 0 }}>
+                  <div style={{ flex: '1 1 230px', minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 900, color: COLORS.text }}>
                       {contract.insurance_company || '보험회사 미입력'}
                     </div>
@@ -543,7 +545,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', minWidth: 88 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', flex: '0 0 auto', maxWidth: '100%' }}>
                     <GhostButton onClick={() => openContractModal(contract)}>수정</GhostButton>
                     <GhostButton danger onClick={() => removeContract(contract)}>삭제</GhostButton>
                   </div>

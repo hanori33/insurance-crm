@@ -602,6 +602,7 @@ function AnalysisStatusPill({ status }) {
 
 export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth <= 900);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth || 1280);
   const [customers, setCustomers] = useState([]);
   const [overviewMap, setOverviewMap] = useState({});
   const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
@@ -619,6 +620,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const [criteriaDraft, setCriteriaDraft] = useState([]);
   const [analysisFilter, setAnalysisFilter] = useState('all');
   const [insuranceRefreshKey, setInsuranceRefreshKey] = useState(0);
+  const [customerDrawerOpen, setCustomerDrawerOpen] = useState(false);
 
   useEffect(() => {
     load();
@@ -626,7 +628,10 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   }, []);
 
   useEffect(() => {
-    const handler = () => setIsNarrow(window.innerWidth <= 900);
+    const handler = () => {
+      setViewportWidth(window.innerWidth || 1280);
+      setIsNarrow(window.innerWidth <= 900);
+    };
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
@@ -717,10 +722,14 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
     if (typeof window !== 'undefined' && customerId) {
       window.sessionStorage.setItem('boplan_coverage_selected_customer_id', String(customerId));
     }
+    if (!isNarrow && customerId) {
+      setCustomerDrawerOpen(false);
+    }
   }
 
   function clearSelectedCustomer() {
     setSelectedCustomerId('');
+    setCustomerDrawerOpen(false);
     if (typeof window !== 'undefined') {
       window.sessionStorage.removeItem('boplan_coverage_selected_customer_id');
     }
@@ -744,6 +753,9 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   );
   const selectedCustomerDbId = selectedCustomer ? getCustomerId(selectedCustomer) : selectedCustomerId;
   const hasSelectedCustomer = Boolean(selectedCustomerId);
+  const shouldCollapseCustomerList = hasSelectedCustomer && !isNarrow;
+  const showCustomerList = !(hasSelectedCustomer && isNarrow) && (!shouldCollapseCustomerList || customerDrawerOpen);
+  const useTwoColumnDetail = !isNarrow && viewportWidth >= 1180;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -798,13 +810,77 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
           overflowY: 'auto',
           padding: '16px 18px 26px',
           display: 'grid',
-          gridTemplateColumns: hasSelectedCustomer && !isNarrow ? 'minmax(320px, 0.52fr) minmax(0, 1.48fr)' : '1fr',
-          gap: 16,
+          gridTemplateColumns: shouldCollapseCustomerList
+            ? '42px minmax(0, 1fr)'
+            : hasSelectedCustomer && !isNarrow
+              ? 'minmax(320px, 0.42fr) minmax(0, 1.58fr)'
+              : '1fr',
+          gap: shouldCollapseCustomerList ? 12 : 16,
           alignItems: 'start',
+          position: 'relative',
           background: 'linear-gradient(135deg, #F5F1FF 0%, #FCFAFF 46%, #F4FAFF 100%)',
         }}
       >
-        {!(hasSelectedCustomer && isNarrow) && (
+        {shouldCollapseCustomerList && (
+          <div
+            onMouseEnter={() => setCustomerDrawerOpen(true)}
+            style={{
+              width: 42,
+              minHeight: 220,
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              position: 'sticky',
+              top: 0,
+              zIndex: 12,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerDrawerOpen((prev) => !prev);
+              }}
+              style={{
+                width: 40,
+                minHeight: 148,
+                border: `1px solid ${PASTEL.purpleBorder}`,
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.92)',
+                color: COLORS.primary,
+                boxShadow: '0 12px 24px rgba(124,92,252,0.12)',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                fontWeight: 900,
+                fontSize: 12,
+              }}
+              title="고객목록 펼치기"
+            >
+              <span style={{ fontSize: 18 }}>👤</span>
+              <span style={{ writingMode: 'vertical-rl', letterSpacing: 1 }}>고객목록</span>
+              <span>›</span>
+            </button>
+          </div>
+        )}
+
+        {showCustomerList && (
+        <div
+          onMouseEnter={() => shouldCollapseCustomerList && setCustomerDrawerOpen(true)}
+          onMouseLeave={() => shouldCollapseCustomerList && setCustomerDrawerOpen(false)}
+          style={shouldCollapseCustomerList ? {
+            position: 'absolute',
+            top: 16,
+            left: 18,
+            width: 400,
+            maxWidth: 'calc(100% - 36px)',
+            maxHeight: 'calc(100% - 32px)',
+            overflowY: 'auto',
+            zIndex: 30,
+          } : { minWidth: 0 }}
+        >
         <Card style={{ border: `1px solid ${PASTEL.grayPurpleBorder}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12 }}>
             <div>
@@ -813,7 +889,30 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                 고객상세의 현재보험 / 보장 데이터와 같은 자료를 사용합니다.
               </div>
             </div>
-            <div style={{ color: COLORS.textGray, fontSize: 12, fontWeight: 800 }}>{filteredCustomers.length}명</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+              <div style={{ color: COLORS.textGray, fontSize: 12, fontWeight: 800 }}>{filteredCustomers.length}명</div>
+              {hasSelectedCustomer && !isNarrow && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerDrawerOpen(false);
+                  }}
+                  style={{
+                    border: `1px solid ${PASTEL.purpleBorder}`,
+                    background: PASTEL.purple,
+                    color: COLORS.primary,
+                    borderRadius: 999,
+                    padding: '5px 8px',
+                    fontSize: 11,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  접기
+                </button>
+              )}
+            </div>
           </div>
 
           {!criteriaSet && !criteriaLoading && (
@@ -900,10 +999,20 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
             </div>
           )}
         </Card>
+        </div>
         )}
 
         {hasSelectedCustomer ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, width: '100%' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              minWidth: 0,
+              width: '100%',
+              gridColumn: shouldCollapseCustomerList ? '2 / -1' : undefined,
+            }}
+          >
             {!selectedCustomer ? (
               <Card>
                 {loading ? (
@@ -955,12 +1064,13 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                 />
 
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: isNarrow ? '1fr' : 'minmax(0, 1.16fr) minmax(360px, 0.84fr)',
-                    gap: 16,
+          style={{
+            display: 'grid',
+            gridTemplateColumns: useTwoColumnDetail ? 'minmax(0, 1.15fr) minmax(380px, 0.85fr)' : '1fr',
+            gap: 16,
                     alignItems: 'start',
                     width: '100%',
+                    minWidth: 0,
                   }}
                 >
                   <DesignRequestPanel
@@ -1510,15 +1620,15 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
   }
 
   return (
-    <Card style={{ border: `1px solid ${PASTEL.purpleBorder}` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12, background: PASTEL.purple, border: `1px solid ${PASTEL.purpleBorder}`, borderRadius: 16, padding: 14 }}>
-        <div>
+    <Card style={{ border: `1px solid ${PASTEL.purpleBorder}`, minWidth: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 12, background: PASTEL.purple, border: `1px solid ${PASTEL.purpleBorder}`, borderRadius: 16, padding: 14 }}>
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
           <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 16 }}>설계의뢰</div>
-          <div style={{ color: COLORS.textGray, fontSize: 12, marginTop: 5, lineHeight: 1.5 }}>
+          <div style={{ color: COLORS.textGray, fontSize: 12, marginTop: 5, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
             보장분석 결과와 선택한 고객 정보를 조합해 설계매니저에게 보낼 요청문을 만듭니다.
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', flex: '0 1 auto', minWidth: 0 }}>
           <button type="button" onClick={() => openManagerModal()} style={ghostSmallButtonStyle}>설계매니저 관리</button>
           <button type="button" onClick={openRequestModal} style={primarySmallButtonStyle}>설계 의뢰하기</button>
         </div>
@@ -1568,9 +1678,10 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isNarrow ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
+                gridTemplateColumns: isNarrow ? '1fr' : 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
                 gap: 10,
                 width: '100%',
+                minWidth: 0,
               }}
             >
               {groupedManagers.map((group) => (
@@ -1590,10 +1701,10 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
                   <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>{group.label}</div>
                   {group.managers.map((manager) => (
                     <div key={manager.id} style={{ border: `1px solid ${getManagerGroupStyle(group.type).border}`, borderRadius: 12, padding: 10, background: manager.is_active ? 'rgba(255,255,255,0.78)' : PASTEL.gray }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'flex-start' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'flex-start', minWidth: 0 }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', minWidth: 0 }}>
-                            <span style={{ fontWeight: 900, color: COLORS.text, fontSize: 13, minWidth: 0 }}>
+                            <span style={{ fontWeight: 900, color: COLORS.text, fontSize: 13, minWidth: 0, overflowWrap: 'break-word' }}>
                               {manager.insurance_company} · {manager.name}
                             </span>
                             <span style={{ border: `1px solid ${getManagerGroupStyle(group.type).border}`, borderRadius: 999, padding: '2px 7px', background: getManagerGroupStyle(group.type).chipBg, color: getManagerGroupStyle(group.type).chipColor, fontSize: 10, fontWeight: 800 }}>
@@ -1605,7 +1716,7 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
                           </div>
                           {manager.memo && <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 11 }}>메모: {manager.memo}</div>}
                         </div>
-                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start', minWidth: 66 }}>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start', maxWidth: '100%' }}>
                           <button type="button" onClick={() => openManagerModal(manager)} style={tinyButtonStyle}>수정</button>
                           <button type="button" onClick={() => toggleManagerActive(manager)} style={tinyButtonStyle}>
                             {manager.is_active ? '비활성화' : '재활성화'}
