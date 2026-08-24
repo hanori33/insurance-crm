@@ -505,7 +505,7 @@ function getRenewableLabel(value) {
 }
 
 function getAnalysisStatusStyle(status) {
-  if (status === '미가입') return { bg: PASTEL.pink, rowBg: '#FFFAFC', border: PASTEL.pinkBorder, color: '#BE123C' };
+  if (status === '미가입') return { bg: '#FFF1F5', rowBg: '#FFFAFC', border: '#F8D8E2', color: '#D94672' };
   if (status === '부족') return { bg: PASTEL.apricot, rowBg: '#FFFCF6', border: PASTEL.apricotBorder, color: '#B45309' };
   if (status === '충족') return { bg: PASTEL.mint, rowBg: '#FAFFFC', border: PASTEL.mintBorder, color: '#15803D' };
   if (status === '기준 초과') return { bg: PASTEL.sky, rowBg: '#F8FCFF', border: PASTEL.skyBorder, color: '#1D4ED8' };
@@ -516,27 +516,36 @@ function getAnalysisStatusStyle(status) {
 function getCoverageCategoryVisual(name) {
   const label = String(name || '').replace(/\s/g, '');
   if (label.includes('뇌')) {
-    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', icon: '♧' };
+    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', icon: '🧠' };
   }
   if (label.includes('유사암')) {
-    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#16A34A', icon: '▣' };
+    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#16A34A', icon: '🛡️' };
   }
   if (label.includes('암')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', icon: '♥' };
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', icon: '🎗️' };
   }
-  if (label.includes('심장') || label.includes('진단')) {
-    return { bg: '#FFFCF6', iconBg: PASTEL.apricot, border: PASTEL.apricotBorder, color: '#D97706', icon: '♦' };
+  if (label.includes('심장') || label.includes('심근') || label.includes('허혈')) {
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', icon: '❤️' };
   }
-  if (label.includes('골절') || label.includes('운전자')) {
-    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, icon: '◆' };
+  if (label.includes('골절')) {
+    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, icon: '🦴' };
+  }
+  if (label.includes('운전자')) {
+    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, icon: '🛡️' };
   }
   if (label.includes('화상')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#BE123C', icon: '●' };
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#BE123C', icon: '🔥' };
   }
-  if (label.includes('수술') || label.includes('입원') || label.includes('간병')) {
-    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#15803D', icon: '＋' };
+  if (label.includes('수술')) {
+    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#15803D', icon: '⚕️' };
   }
-  return { bg: '#FCFBFE', iconBg: PASTEL.grayPurple, border: PASTEL.grayPurpleBorder, color: COLORS.textGray, icon: '?' };
+  if (label.includes('입원') || label.includes('간병') || label.includes('간호')) {
+    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', icon: '🏥' };
+  }
+  if (label.includes('진단')) {
+    return { bg: '#FFFCF6', iconBg: PASTEL.apricot, border: PASTEL.apricotBorder, color: '#D97706', icon: '⚕️' };
+  }
+  return { bg: '#FCFBFE', iconBg: PASTEL.grayPurple, border: PASTEL.grayPurpleBorder, color: COLORS.textGray, icon: '🩺' };
 }
 
 function makeCriteriaDraft(categories, criteriaSet) {
@@ -866,7 +875,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
             >
               <span style={{ fontSize: 18 }}>👤</span>
               <span style={{ writingMode: 'vertical-rl', letterSpacing: 1 }}>고객목록</span>
-              <span>›</span>
+              <span style={{ fontSize: 15 }}>〉</span>
             </button>
           </div>
         )}
@@ -883,25 +892,27 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                 고객상세의 현재보험 / 보장 데이터와 같은 자료를 사용합니다.
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
               <div style={{ color: COLORS.textGray, fontSize: 12, fontWeight: 800 }}>{filteredCustomers.length}명</div>
               {hasSelectedCustomer && !isNarrow && (
                 <button
                   type="button"
                   onClick={() => setCustomerListCollapsed(true)}
                   style={{
-                    border: `1px solid ${PASTEL.purpleBorder}`,
-                    background: PASTEL.purple,
+                    border: `1.5px solid ${PASTEL.purpleBorder}`,
+                    background: 'linear-gradient(135deg, #F7F2FF 0%, #FFFFFF 100%)',
                     color: COLORS.primary,
                     borderRadius: 999,
-                    padding: '5px 8px',
-                    fontSize: 11,
+                    padding: '7px 11px',
+                    fontSize: 12,
                     fontWeight: 900,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
+                    boxShadow: '0 6px 14px rgba(124,92,252,0.10)',
                   }}
+                  title="고객목록 접기"
                 >
-                  접기
+                  〈 접기
                 </button>
               )}
             </div>
