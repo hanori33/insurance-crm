@@ -5,6 +5,7 @@ import { Card, Avatar, StatusBadge, Divider, LoadingSpinner } from '../component
 import Modal from '../components/Modal';
 import Field from '../components/Field';
 import AddressSearchField from '../components/AddressSearchField';
+import CurrentInsuranceManager from '../components/CurrentInsuranceManager';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
 import policyFileService from '../services/policyFileService';
@@ -996,6 +997,10 @@ function handlePolicyAnalysisView(file) {
               </div>
             )}
           </Section>
+
+          <div id="quick-section-current-insurance">
+            <CurrentInsuranceManager customerId={customer.db_id || customer.id} />
+          </div>
 
           <Section
             title="증권 관리"
