@@ -75,6 +75,26 @@ function getStatusLabel(mode) {
   return '확인 필요';
 }
 
+function getCriteriaCategory(item) {
+  return item.standard_coverage_categories || item.category || null;
+}
+
+function toComparableAmount(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function makeAnalysisStatus({ mode, currentAmount, targetAmount, hasSummary }) {
+  if (mode === 'separate') return '별도';
+  if (mode === 'review_required') return '확인 필요';
+  if (mode !== 'sum') return '확인 필요';
+  if (targetAmount === null) return '확인 필요';
+  if (!hasSummary || currentAmount <= 0) return '미가입';
+  if (currentAmount < targetAmount) return '부족';
+  if (currentAmount > targetAmount) return '기준 초과';
+  return '충족';
+}
+
 const customerInsuranceService = {
   async listMasterData() {
     const [categoriesResult, companiesResult] = await Promise.all([
@@ -273,6 +293,8 @@ const customerInsuranceService = {
         if (!grouped.has(key)) {
           grouped.set(key, {
             key,
+            standardCoverageId: category?.id || null,
+            standardCoverageCode: category?.code || null,
             name: getCoverageLabel(coverage),
             groupName: category?.group_name || '기타',
             aggregationMode: mode,
@@ -314,6 +336,77 @@ const customerInsuranceService = {
         if (a.statusLabel !== b.statusLabel) return a.statusLabel.localeCompare(b.statusLabel, 'ko');
         return a.name.localeCompare(b.name, 'ko');
       });
+  },
+
+  calculateCoverageAnalysis(summary, criteriaItems) {
+    const summaryByStandardId = new Map();
+    const includedSummaryKeys = new Set();
+
+    (summary || []).forEach((item) => {
+      if (item.standardCoverageId) {
+        summaryByStandardId.set(item.standardCoverageId, item);
+      }
+    });
+
+    const rows = (criteriaItems || [])
+      .filter((item) => item.is_enabled)
+      .map((item) => {
+        const category = getCriteriaCategory(item);
+        const mode = category?.aggregation_mode || 'review_required';
+        const summaryItem = category?.id ? summaryByStandardId.get(category.id) : null;
+        const currentAmount = toComparableAmount(summaryItem?.totalAmount) || 0;
+        const targetAmount = mode === 'sum' ? toComparableAmount(item.target_amount) : null;
+        const difference = mode === 'sum' && targetAmount !== null ? currentAmount - targetAmount : null;
+
+        if (summaryItem?.key) includedSummaryKeys.add(summaryItem.key);
+
+        return {
+          key: `criteria:${item.id || category?.id}`,
+          standardCoverageId: category?.id || null,
+          name: category?.name || '기타/미분류',
+          groupName: category?.group_name || '기타',
+          aggregationMode: mode,
+          currentAmount,
+          targetAmount,
+          difference,
+          status: makeAnalysisStatus({
+            mode,
+            currentAmount,
+            targetAmount,
+            hasSummary: Boolean(summaryItem),
+          }),
+          displayOrder: Number(item.display_order ?? category?.sort_order ?? 1000),
+          memo: item.memo,
+          summary: summaryItem || null,
+          details: summaryItem?.details || [],
+        };
+      });
+
+    (summary || []).forEach((item) => {
+      if (includedSummaryKeys.has(item.key)) return;
+
+      const mode = item.aggregationMode || 'review_required';
+      rows.push({
+        key: `summary:${item.key}`,
+        standardCoverageId: item.standardCoverageId || null,
+        name: item.name || '기타/미분류',
+        groupName: item.groupName || '기타',
+        aggregationMode: mode,
+        currentAmount: toComparableAmount(item.totalAmount) || 0,
+        targetAmount: null,
+        difference: null,
+        status: mode === 'separate' ? '별도' : '확인 필요',
+        displayOrder: 10000,
+        memo: '분석기준에 포함되지 않은 등록 담보입니다.',
+        summary: item,
+        details: item.details || [],
+      });
+    });
+
+    return rows.sort((a, b) => {
+      if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
+      return a.name.localeCompare(b.name, 'ko');
+    });
   },
 
   getUncategorizedCategory(categories) {

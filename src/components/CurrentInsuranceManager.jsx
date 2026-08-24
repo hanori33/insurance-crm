@@ -210,7 +210,7 @@ function makeCoverageForm(coverage, uncategorizedCategory) {
   };
 }
 
-export default function CurrentInsuranceManager({ customerId, onOpenAnalysis }) {
+export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, onChanged }) {
   const [contracts, setContracts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -290,6 +290,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis }) 
 
       setContractModal(null);
       await load();
+      onChanged?.();
     } catch (e) {
       alert(e.message || '보험 저장에 실패했습니다.');
     } finally {
@@ -304,6 +305,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis }) 
     try {
       await customerInsuranceService.removeContract(contract.id);
       await load();
+      onChanged?.();
     } catch (e) {
       alert(e.message || '보험 삭제에 실패했습니다.');
     } finally {
@@ -341,6 +343,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis }) 
 
       setCoverageModal(null);
       await load();
+      onChanged?.();
     } catch (e) {
       alert(e.message || '담보 저장에 실패했습니다.');
     } finally {
@@ -355,6 +358,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis }) 
     try {
       await customerInsuranceService.removeCoverage(coverage.id);
       await load();
+      onChanged?.();
     } catch (e) {
       alert(e.message || '담보 삭제에 실패했습니다.');
     } finally {
