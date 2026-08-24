@@ -4,6 +4,18 @@ import { Card, LoadingSpinner } from '../components/Common';
 import EmptyState from '../components/EmptyState';
 import Modal from '../components/Modal';
 import CurrentInsuranceManager from '../components/CurrentInsuranceManager';
+import {
+  Bed,
+  Bone,
+  Brain,
+  Flame,
+  HeartPulse,
+  Hospital,
+  Ribbon,
+  ShieldCheck,
+  Stethoscope,
+  Users,
+} from 'lucide-react';
 import customerService from '../services/customerService';
 import customerInsuranceService from '../services/customerInsuranceService';
 import coverageCriteriaService from '../services/coverageCriteriaService';
@@ -516,36 +528,39 @@ function getAnalysisStatusStyle(status) {
 function getCoverageCategoryVisual(name) {
   const label = String(name || '').replace(/\s/g, '');
   if (label.includes('뇌')) {
-    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', icon: '🧠' };
+    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', Icon: Brain };
   }
   if (label.includes('유사암')) {
-    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#16A34A', icon: '🛡️' };
+    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#16A34A', Icon: ShieldCheck };
   }
   if (label.includes('암')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', icon: '🎗️' };
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', Icon: Ribbon };
   }
   if (label.includes('심장') || label.includes('심근') || label.includes('허혈')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', icon: '❤️' };
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', Icon: HeartPulse };
   }
   if (label.includes('골절')) {
-    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, icon: '🦴' };
+    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, Icon: Bone };
   }
   if (label.includes('운전자')) {
-    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, icon: '🛡️' };
+    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, Icon: ShieldCheck };
   }
   if (label.includes('화상')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#BE123C', icon: '🔥' };
+    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#BE123C', Icon: Flame };
   }
   if (label.includes('수술')) {
-    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#15803D', icon: '⚕️' };
+    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#15803D', Icon: Stethoscope };
   }
-  if (label.includes('입원') || label.includes('간병') || label.includes('간호')) {
-    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', icon: '🏥' };
+  if (label.includes('간병') || label.includes('간호')) {
+    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', Icon: Users };
+  }
+  if (label.includes('입원')) {
+    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', Icon: Bed };
   }
   if (label.includes('진단')) {
-    return { bg: '#FFFCF6', iconBg: PASTEL.apricot, border: PASTEL.apricotBorder, color: '#D97706', icon: '⚕️' };
+    return { bg: '#FFFCF6', iconBg: PASTEL.apricot, border: PASTEL.apricotBorder, color: '#D97706', Icon: Hospital };
   }
-  return { bg: '#FCFBFE', iconBg: PASTEL.grayPurple, border: PASTEL.grayPurpleBorder, color: COLORS.textGray, icon: '🩺' };
+  return { bg: '#FCFBFE', iconBg: PASTEL.grayPurple, border: PASTEL.grayPurpleBorder, color: COLORS.textGray, Icon: Stethoscope };
 }
 
 function makeCriteriaDraft(categories, criteriaSet) {
@@ -1269,6 +1284,7 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
           {filteredRows.map((row) => {
             const statusStyle = getAnalysisStatusStyle(row.status);
             const categoryStyle = getCoverageCategoryVisual(row.name);
+            const CoverageIcon = categoryStyle.Icon || Stethoscope;
             return (
             <div key={row.key} style={{ border: `1px solid ${categoryStyle.border}`, borderRadius: 14, overflow: 'hidden', background: categoryStyle.bg }}>
               <button
@@ -1302,11 +1318,9 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
                       background: categoryStyle.iconBg,
                       color: categoryStyle.color,
                       border: `1px solid ${categoryStyle.border}`,
-                      fontSize: 15,
-                      fontWeight: 900,
                     }}
                   >
-                    {categoryStyle.icon}
+                    <CoverageIcon size={18} strokeWidth={2.2} aria-hidden="true" />
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</span>
                 </span>
