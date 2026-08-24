@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import inviteService from "../services/inviteService";
+import { copyTextOrPrompt, isMobileShareEnvironment, shareKakaoFeedOrCopy } from "../services/shareService";
 
 const COLORS = {
   primary: "#7C3AED",
@@ -49,7 +50,6 @@ const INVITE_EXPIRE_OPTIONS = [
 
 const INVITE_MAX_USES_LIMIT = 1000;
 const INVITE_UNLIMITED_VALUE = "unlimited";
-const KAKAO_SDK_URL = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.5/kakao.min.js";
 const INVITE_MESSAGE_COPIED_NOTICE =
   "초대 메시지를 복사했어요. 카카오톡에 붙여넣어 보내주세요.";
 
@@ -653,24 +653,7 @@ function TeamPage({ onBack }) {
 
   async function copyInviteText(text, successMessage = "초대 메시지를 복사했습니다.") {
     if (!text) return;
-
-    try {
-      if (!navigator.clipboard?.writeText) {
-        throw new Error("CLIPBOARD_API_UNAVAILABLE");
-      }
-
-      await navigator.clipboard.writeText(text);
-      alert(successMessage);
-    } catch (error) {
-      const copiedWithFallback = copyTextWithLegacyClipboard(text);
-      if (copiedWithFallback) {
-        alert(successMessage);
-        return;
-      }
-
-      window.prompt("아래 내용을 복사해주세요.", text);
-      alert("자동 복사를 사용할 수 없어 초대 메시지를 직접 복사해주세요.");
-    }
+    await copyTextOrPrompt(text, successMessage);
   }
 
   function buildInviteMessage(invite) {
@@ -695,7 +678,7 @@ function TeamPage({ onBack }) {
     const orgName = getOrgPathLabel(invite);
     const inviteUrl = buildInviteUrl(invite.code);
     const message = buildInviteMessage(invite);
-    const shouldUseNativeShare = isMobileInviteShareEnvironment(isPhone);
+    const shouldUseNativeShare = isMobileShareEnvironment(isPhone);
 
     try {
       if (!shouldUseNativeShare) {
@@ -703,43 +686,18 @@ function TeamPage({ onBack }) {
         return;
       }
 
-      const canUseKakaoShare = await loadKakaoSdk();
-
-      if (canUseKakaoShare && window.Kakao?.Share) {
-        window.Kakao.Share.sendDefault({
-          objectType: "feed",
-          content: {
-            title: "보플랜 조직 초대",
-            description: `${orgName}에서 보플랜으로 초대했습니다. 초대코드: ${invite.code}`,
-            imageUrl: `${new URL("/boplan512.png", inviteUrl).origin}/boplan512.png`,
-            link: {
-              mobileWebUrl: inviteUrl,
-              webUrl: inviteUrl,
-            },
-          },
-          buttons: [
-            {
-              title: "초대코드로 가입하기",
-              link: {
-                mobileWebUrl: inviteUrl,
-                webUrl: inviteUrl,
-              },
-            },
-          ],
-        });
-        return;
-      }
-
-      if (navigator.share) {
-        await navigator.share({
-          title: "보플랜 조직 초대",
-          text: message,
-          url: inviteUrl,
-        });
-        return;
-      }
-
-      await copyInviteText(message, INVITE_MESSAGE_COPIED_NOTICE);
+      await shareKakaoFeedOrCopy({
+        title: "보플랜 조직 초대",
+        description: `${orgName}에서 보플랜으로 초대했습니다. 초대코드: ${invite.code}`,
+        imageUrl: `${new URL("/boplan512.png", inviteUrl).origin}/boplan512.png`,
+        linkUrl: inviteUrl,
+        buttonTitle: "초대코드로 가입하기",
+        fallbackText: message,
+        preferKakao: true,
+        preferNativeShare: true,
+        copiedMessage: INVITE_MESSAGE_COPIED_NOTICE,
+        canceledMessage: "공유가 취소되었습니다. 필요하면 다시 눌러 초대 메시지를 복사할 수 있습니다.",
+      });
     } catch (error) {
       const errorName = String(error?.name || "").toLowerCase();
       if (errorName.includes("abort")) {
@@ -2082,81 +2040,6 @@ function getInviteUsageLabel(invite) {
   if (invite?.max_uses == null) return `가입 ${usedCount} / 제한 없음`;
   return `가입 ${usedCount} / ${invite.max_uses}명`;
 }
-
-function isMobileInviteShareEnvironment(isPhone) {
-  if (typeof navigator === "undefined") return false;
-
-  const userAgent = navigator.userAgent || "";
-  return (
-    isPhone ||
-    /Android|iPhone|iPad|iPod|Mobile|KAKAOTALK/i.test(userAgent) ||
-    Boolean(navigator.userAgentData?.mobile)
-  );
-}
-
-function copyTextWithLegacyClipboard(text) {
-  if (typeof document === "undefined") return false;
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "-9999px";
-  textarea.style.left = "-9999px";
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  try {
-    return document.execCommand("copy");
-  } catch {
-    return false;
-  } finally {
-    document.body.removeChild(textarea);
-  }
-}
-
-function getKakaoJavascriptKey() {
-  return process.env.REACT_APP_KAKAO_JAVASCRIPT_KEY || process.env.REACT_APP_KAKAO_JS_KEY || "";
-}
-
-function loadKakaoSdk() {
-  if (typeof window === "undefined") return Promise.resolve(false);
-  if (window.Kakao?.Share) return Promise.resolve(true);
-
-  const javascriptKey = getKakaoJavascriptKey();
-  if (!javascriptKey) return Promise.resolve(false);
-
-  return new Promise((resolve) => {
-    const existingScript = document.querySelector(`script[src="${KAKAO_SDK_URL}"]`);
-    const initialize = () => {
-      try {
-        if (window.Kakao && !window.Kakao.isInitialized()) {
-          window.Kakao.init(javascriptKey);
-        }
-        resolve(Boolean(window.Kakao?.Share));
-      } catch {
-        resolve(false);
-      }
-    };
-
-    if (existingScript) {
-      existingScript.addEventListener("load", initialize, { once: true });
-      existingScript.addEventListener("error", () => resolve(false), { once: true });
-      initialize();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = KAKAO_SDK_URL;
-    script.async = true;
-    script.onload = initialize;
-    script.onerror = () => resolve(false);
-    document.head.appendChild(script);
-  });
-}
-
 
 const makeStyles = (isPhone) => ({
   page: {

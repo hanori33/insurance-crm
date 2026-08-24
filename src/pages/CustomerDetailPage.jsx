@@ -8,6 +8,7 @@ import AddressSearchField from '../components/AddressSearchField';
 import CurrentInsuranceManager from '../components/CurrentInsuranceManager';
 import customerService from '../services/customerService';
 import consultationService from '../services/consultationService';
+import designRequestService from '../services/designRequestService';
 import policyFileService from '../services/policyFileService';
 import { formatDate, formatDueDateWithDDay } from '../utils';
 import scheduleService from '../services/scheduleService';
@@ -15,6 +16,17 @@ import { supabase } from '../supabaseClient';
 import getFunctionErrorMessage from '../services/functionErrorService';
 
 const RELATION_OPTIONS = ['가족', '지인', '친구', '동료', '고객', '고객소개', '기타'];
+
+function getDesignRequestStatusLabel(status) {
+  const labels = {
+    draft: '작성중',
+    sent: '의뢰완료',
+    received: '설계수신',
+    reviewed: '검토완료',
+    canceled: '취소',
+  };
+  return labels[status] || '의뢰완료';
+}
 
 function InfoRow({ label, value, isLast }) {
   if (!value || value === 'EMPTY' || value === '') return null;
@@ -588,6 +600,7 @@ export default function CustomerDetailPage({
   const [selectedConsultation, setSelectedConsultation] = useState(null);
   const [selectedRiskModal, setSelectedRiskModal] = useState(null);
   const [consultations, setConsultations] = useState([]);
+  const [designRequests, setDesignRequests] = useState([]);
   const [consultLoading, setConsultLoading] = useState(false);
   const [customerSchedules, setCustomerSchedules] = useState([]);
   const [policyFiles, setPolicyFiles] = useState([]);
@@ -663,16 +676,26 @@ setCustomerSchedules(scheduleData || []);
 
 const policyFileData = await policyFileService.listByCustomer(realId);
 setPolicyFiles(policyFileData || []);
+
+try {
+  const designRequestData = await designRequestService.listRequestsByCustomer(realId);
+  setDesignRequests(designRequestData || []);
+} catch (designRequestError) {
+  console.error(designRequestError);
+  setDesignRequests([]);
+}
         
         } catch (consultError) {
           console.error(consultError);
           setConsultations([]);
           setPolicyFiles([]);
+          setDesignRequests([]);
         } finally {
           setConsultLoading(false);
         }
       } else {
         setConsultations([]);
+        setDesignRequests([]);
       }
     } catch (e) {
       console.error(e);
@@ -1004,6 +1027,54 @@ function handlePolicyAnalysisView(file) {
               onOpenAnalysis={() => onNavigate?.('coverageAnalysis')}
             />
           </div>
+
+          <Section title="설계의뢰 이력" icon="📨">
+            {designRequests.length === 0 ? (
+              <div style={{ fontSize: 13, color: COLORS.textGray, padding: '8px 0' }}>
+                저장된 설계의뢰 이력이 없습니다.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {designRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    style={{
+                      border: `1px solid ${COLORS.border}`,
+                      borderRadius: 14,
+                      padding: 14,
+                      background: '#fff',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, color: COLORS.text, fontSize: 14 }}>
+                          {request.manager_company_snapshot || '보험회사 미입력'} / {request.manager_name_snapshot || '매니저 미입력'}
+                        </div>
+                        <div style={{ color: COLORS.textGray, fontSize: 12, marginTop: 5 }}>
+                          {formatDate(request.created_at)}
+                          {request.manager_phone_snapshot ? ` · ${request.manager_phone_snapshot}` : ''}
+                          {request.manager_specialty_snapshot ? ` · ${request.manager_specialty_snapshot}` : ''}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          background: COLORS.primaryBg,
+                          color: COLORS.primary,
+                          borderRadius: 999,
+                          padding: '4px 9px',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {getDesignRequestStatusLabel(request.status)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
 
           <Section
             title="증권 관리"

@@ -7,10 +7,28 @@ import CurrentInsuranceManager from '../components/CurrentInsuranceManager';
 import customerService from '../services/customerService';
 import customerInsuranceService from '../services/customerInsuranceService';
 import coverageCriteriaService from '../services/coverageCriteriaService';
+import consultationService from '../services/consultationService';
+import designRequestService from '../services/designRequestService';
+import { copyTextOrPrompt, isMobileShareEnvironment, shareKakaoTextOrCopy } from '../services/shareService';
 import { formatDate } from '../utils';
 
 function getCustomerId(customer) {
   return customer?.db_id || customer?.id || customer?.app_customer_id;
+}
+
+function maskCustomerName(name) {
+  const clean = String(name || '').trim();
+  if (!clean) return '고객';
+  if (clean.length <= 1) return `${clean}○`;
+  return `${clean[0]}${'○'.repeat(Math.max(1, clean.length - 1))}`;
+}
+
+function calculateAgeFromBirth(birth) {
+  const clean = String(birth || '').replace(/[^0-9]/g, '');
+  if (clean.length < 4) return '';
+  const year = Number(clean.slice(0, 4));
+  if (!Number.isFinite(year) || year < 1900) return '';
+  return String(new Date().getFullYear() - year);
 }
 
 function getStatus(overview) {
@@ -449,6 +467,14 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
               isNarrow={isNarrow}
             />
 
+            <DesignRequestPanel
+              customer={selectedCustomer}
+              customerId={selectedCustomerId}
+              criteriaSet={criteriaSet}
+              refreshKey={insuranceRefreshKey}
+              isNarrow={isNarrow}
+            />
+
             <CurrentInsuranceManager customerId={selectedCustomerId} onChanged={handleInsuranceChanged} />
           </div>
         ) : (
@@ -626,6 +652,711 @@ function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChang
   );
 }
 
+const defaultIncludeSections = {
+  maskedName: true,
+  birth: false,
+  age: true,
+  job: true,
+  medical: false,
+  disclosure: false,
+  exclusions: false,
+  currentCoverage: true,
+  shortageCoverage: true,
+  memo: true,
+};
+
+const managerEmptyForm = {
+  insurance_company: '',
+  name: '',
+  phone: '',
+  specialty: '',
+  memo: '',
+  is_active: true,
+};
+
+const requestEmptyForm = {
+  manager_id: '',
+  manual_company: '',
+  manual_manager_name: '',
+  manual_manager_phone: '',
+  request_note: '',
+  consent_checked: false,
+};
+
+function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isNarrow }) {
+  const [managers, setManagers] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [includeInactiveManagers, setIncludeInactiveManagers] = useState(false);
+  const [managerModalOpen, setManagerModalOpen] = useState(false);
+  const [managerForm, setManagerForm] = useState(managerEmptyForm);
+  const [editingManager, setEditingManager] = useState(null);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestForm, setRequestForm] = useState(requestEmptyForm);
+  const [includeSections, setIncludeSections] = useState(defaultIncludeSections);
+  const [messagePreview, setMessagePreview] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [contracts, setContracts] = useState([]);
+  const [consultations, setConsultations] = useState([]);
+
+  useEffect(() => {
+    loadPanelData();
+  }, [customerId, includeInactiveManagers, refreshKey]);
+
+  async function loadPanelData() {
+    if (!customerId) return;
+    setLoading(true);
+
+    try {
+      const [managerData, requestData, contractData, consultationData] = await Promise.all([
+        designRequestService.listManagers({ includeInactive: includeInactiveManagers }),
+        designRequestService.listRequestsByCustomer(customerId),
+        customerInsuranceService.listContracts(customerId),
+        consultationService.listByCustomer(customerId),
+      ]);
+
+      setManagers(managerData);
+      setRequests(requestData);
+      setContracts(contractData);
+      setConsultations(consultationData);
+    } catch (error) {
+      alert(error.message || '설계의뢰 정보를 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const summary = useMemo(
+    () => customerInsuranceService.calculateCoverageSummary(contracts),
+    [contracts],
+  );
+
+  const analysisRows = useMemo(
+    () => customerInsuranceService.calculateCoverageAnalysis(summary, criteriaSet?.items || []),
+    [summary, criteriaSet],
+  );
+
+  const activeManagers = useMemo(
+    () => managers.filter((manager) => manager.is_active),
+    [managers],
+  );
+
+  const selectedManager = useMemo(
+    () => managers.find((manager) => String(manager.id) === String(requestForm.manager_id)) || null,
+    [managers, requestForm.manager_id],
+  );
+
+  const includesSensitiveInfo = includeSections.medical || includeSections.disclosure || includeSections.exclusions;
+
+  function openManagerModal(manager = null) {
+    setEditingManager(manager);
+    setManagerForm(manager ? {
+      insurance_company: manager.insurance_company || '',
+      name: manager.name || '',
+      phone: manager.phone || '',
+      specialty: manager.specialty || '',
+      memo: manager.memo || '',
+      is_active: manager.is_active !== false,
+    } : managerEmptyForm);
+    setManagerModalOpen(true);
+  }
+
+  async function saveManager() {
+    setSaving(true);
+
+    try {
+      if (editingManager?.id) {
+        await designRequestService.updateManager(editingManager.id, managerForm);
+      } else {
+        await designRequestService.createManager(managerForm);
+      }
+      setManagerModalOpen(false);
+      await loadPanelData();
+    } catch (error) {
+      alert(error.message || '설계매니저 저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleManagerActive(manager) {
+    const nextActive = !manager.is_active;
+    if (!nextActive && !window.confirm('이 매니저를 비활성화할까요? 과거 설계의뢰 이력은 유지됩니다.')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await designRequestService.setManagerActive(manager.id, nextActive);
+      await loadPanelData();
+    } catch (error) {
+      alert(error.message || '매니저 상태 변경에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openRequestModal() {
+    const firstManager = activeManagers[0] || null;
+    const nextForm = {
+      ...requestEmptyForm,
+      manager_id: firstManager?.id || '',
+      manual_company: firstManager ? '' : '',
+      manual_manager_name: '',
+      manual_manager_phone: '',
+    };
+    setRequestForm(nextForm);
+    setIncludeSections(defaultIncludeSections);
+    setMessagePreview(buildDesignRequestMessage({
+      customer,
+      consultations,
+      summary,
+      analysisRows,
+      includeSections: defaultIncludeSections,
+      requestNote: '',
+    }));
+    setRequestModalOpen(true);
+  }
+
+  function updateIncludeSection(key, value) {
+    const nextSections = { ...includeSections, [key]: value };
+    setIncludeSections(nextSections);
+    setMessagePreview(buildDesignRequestMessage({
+      customer,
+      consultations,
+      summary,
+      analysisRows,
+      includeSections: nextSections,
+      requestNote: requestForm.request_note,
+    }));
+  }
+
+  function updateRequestForm(key, value) {
+    const nextForm = { ...requestForm, [key]: value };
+    setRequestForm(nextForm);
+
+    if (key === 'request_note') {
+      setMessagePreview(buildDesignRequestMessage({
+        customer,
+        consultations,
+        summary,
+        analysisRows,
+        includeSections,
+        requestNote: value,
+      }));
+    }
+  }
+
+  async function shareRequestMessage() {
+    if (includesSensitiveInfo && !requestForm.consent_checked) {
+      alert('병력 등 민감정보 포함 확인을 체크해주세요.');
+      return false;
+    }
+
+    const isMobile = isMobileShareEnvironment(isNarrow);
+    if (isMobile) {
+      await shareKakaoTextOrCopy({
+        text: messagePreview,
+        linkUrl: window.location.origin,
+        buttonTitle: '보플랜 열기',
+        preferKakao: true,
+        preferNativeShare: true,
+        copiedMessage: '설계의뢰 내용을 복사했습니다.',
+        canceledMessage: '공유가 취소되었습니다. 필요하면 다시 시도해주세요.',
+      });
+      return true;
+    }
+
+    await copyTextOrPrompt(messagePreview, '설계의뢰 내용을 복사했습니다.');
+    return true;
+  }
+
+  async function saveSentRequest() {
+    if (includesSensitiveInfo && !requestForm.consent_checked) {
+      alert('병력 등 민감정보 포함 확인을 체크해주세요.');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await designRequestService.createRequest({
+        customerId,
+        manager: selectedManager,
+        managerFallback: {
+          insurance_company: requestForm.manual_company,
+          manager_name: requestForm.manual_manager_name,
+          manager_phone: requestForm.manual_manager_phone,
+          manager_specialty: null,
+        },
+        requestMessage: messagePreview,
+        includedSections: {
+          ...includeSections,
+          sensitive_confirmed: includesSensitiveInfo ? Boolean(requestForm.consent_checked) : false,
+        },
+        status: 'sent',
+      });
+
+      setRequestModalOpen(false);
+      await loadPanelData();
+      alert('설계의뢰 이력을 저장했습니다.');
+    } catch (error) {
+      alert(error.message || '설계의뢰 이력 저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 16 }}>설계의뢰</div>
+          <div style={{ color: COLORS.textGray, fontSize: 12, marginTop: 5, lineHeight: 1.5 }}>
+            보장분석 결과와 선택한 고객 정보를 조합해 설계매니저에게 보낼 요청문을 만듭니다.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={() => openManagerModal()} style={ghostSmallButtonStyle}>설계매니저 관리</button>
+          <button type="button" onClick={openRequestModal} style={primarySmallButtonStyle}>설계 의뢰하기</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <LoadingSpinner />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontWeight: 900, fontSize: 13, color: COLORS.text }}>설계매니저 {activeManagers.length}명</div>
+            <label style={{ color: COLORS.textGray, fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={includeInactiveManagers}
+                onChange={(event) => setIncludeInactiveManagers(event.target.checked)}
+              />
+              비활성 포함
+            </label>
+          </div>
+
+          {managers.length === 0 ? (
+            <div style={{ color: COLORS.textGray, fontSize: 13 }}>등록된 설계매니저가 없습니다.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {managers.map((manager) => (
+                <div key={manager.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 12, background: manager.is_active ? '#fff' : '#F8FAFC' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
+                        {manager.insurance_company} · {manager.name}
+                      </div>
+                      <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 12 }}>
+                        {manager.phone || '전화번호 없음'} / {manager.specialty || '담당영역 미입력'} / {manager.is_active ? '활성' : '비활성'}
+                      </div>
+                      {manager.memo && <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 12 }}>메모: {manager.memo}</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={() => openManagerModal(manager)} style={tinyButtonStyle}>수정</button>
+                      <button type="button" onClick={() => toggleManagerActive(manager)} style={tinyButtonStyle}>
+                        {manager.is_active ? '비활성화' : '재활성화'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 12 }}>
+            <div style={{ fontWeight: 900, fontSize: 13, color: COLORS.text, marginBottom: 8 }}>고객별 설계의뢰 이력</div>
+            {requests.length === 0 ? (
+              <div style={{ color: COLORS.textGray, fontSize: 13 }}>저장된 설계의뢰 이력이 없습니다.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {requests.map((request) => (
+                  <div key={request.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 12, background: '#fff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <div>
+                        <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
+                          {request.manager_company_snapshot || '보험회사 미입력'} / {request.manager_name_snapshot || '매니저 미입력'}
+                        </div>
+                        <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 12 }}>
+                          {formatDate(request.created_at)} · {getDesignRequestStatusLabel(request.status)}
+                          {request.manager_phone_snapshot ? ` · ${request.manager_phone_snapshot}` : ''}
+                          {request.manager_specialty_snapshot ? ` · ${request.manager_specialty_snapshot}` : ''}
+                        </div>
+                      </div>
+                      <AnalysisStatusPill status={getDesignRequestStatusLabel(request.status)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ManagerModal
+        visible={managerModalOpen}
+        form={managerForm}
+        editing={Boolean(editingManager)}
+        saving={saving}
+        onChange={(key, value) => setManagerForm((prev) => ({ ...prev, [key]: value }))}
+        onSave={saveManager}
+        onClose={() => setManagerModalOpen(false)}
+      />
+
+      <DesignRequestModal
+        visible={requestModalOpen}
+        managers={activeManagers}
+        selectedManager={selectedManager}
+        form={requestForm}
+        includeSections={includeSections}
+        includesSensitiveInfo={includesSensitiveInfo}
+        messagePreview={messagePreview}
+        saving={saving}
+        onChangeForm={updateRequestForm}
+        onChangeInclude={updateIncludeSection}
+        onChangeMessage={setMessagePreview}
+        onShare={shareRequestMessage}
+        onSave={saveSentRequest}
+        onClose={() => setRequestModalOpen(false)}
+      />
+    </Card>
+  );
+}
+
+function ManagerModal({ visible, form, editing, saving, onChange, onSave, onClose }) {
+  return (
+    <Modal visible={visible} onClose={onClose} title={editing ? '설계매니저 수정' : '설계매니저 등록'}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ background: '#F8FAFC', borderRadius: 14, padding: 12, color: COLORS.textGray, fontSize: 12, lineHeight: 1.55 }}>
+          실제 담당자가 바뀐 경우에는 기존 매니저를 비활성화하고 새 매니저로 등록하는 흐름을 권장합니다.
+          과거 설계의뢰 이력에는 당시 매니저 정보가 보존됩니다.
+        </div>
+
+        <label style={labelStyle}>
+          보험회사
+          <input
+            value={form.insurance_company}
+            onChange={(event) => onChange('insurance_company', event.target.value)}
+            placeholder="예: DB손해보험"
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={labelStyle}>
+          이름
+          <input
+            value={form.name}
+            onChange={(event) => onChange('name', event.target.value)}
+            placeholder="매니저 이름"
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={labelStyle}>
+          전화번호
+          <input
+            value={form.phone}
+            onChange={(event) => onChange('phone', event.target.value)}
+            placeholder="선택 입력"
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={labelStyle}>
+          담당영역
+          <input
+            value={form.specialty}
+            onChange={(event) => onChange('specialty', event.target.value)}
+            placeholder="예: 어린이보험, 유병자, 운전자"
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={labelStyle}>
+          메모
+          <textarea
+            value={form.memo}
+            onChange={(event) => onChange('memo', event.target.value)}
+            placeholder="업무 메모"
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', color: COLORS.text, fontSize: 13, fontWeight: 800 }}>
+          <input
+            type="checkbox"
+            checked={form.is_active !== false}
+            onChange={(event) => onChange('is_active', event.target.checked)}
+          />
+          활성 매니저로 사용
+        </label>
+
+        <button type="button" onClick={onSave} disabled={saving} style={{ ...primarySmallButtonStyle, width: '100%', justifyContent: 'center', padding: '12px 14px' }}>
+          {saving ? '저장 중...' : editing ? '수정 저장' : '매니저 등록'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function DesignRequestModal({
+  visible,
+  managers,
+  selectedManager,
+  form,
+  includeSections,
+  includesSensitiveInfo,
+  messagePreview,
+  saving,
+  onChangeForm,
+  onChangeInclude,
+  onChangeMessage,
+  onShare,
+  onSave,
+  onClose,
+}) {
+  const useManualManager = !form.manager_id;
+
+  return (
+    <Modal visible={visible} onClose={onClose} title="설계 의뢰하기">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ background: '#F8FAFC', borderRadius: 14, padding: 12, color: COLORS.textGray, fontSize: 12, lineHeight: 1.55 }}>
+          전송 전 메시지를 직접 확인하고 수정할 수 있습니다. 주민번호, 연락처, 상세주소, 계좌번호, 증권번호는 자동 포함하지 않습니다.
+        </div>
+
+        <label style={labelStyle}>
+          설계매니저
+          <select
+            value={form.manager_id}
+            onChange={(event) => onChangeForm('manager_id', event.target.value)}
+            style={inputStyle}
+          >
+            <option value="">직접 입력</option>
+            {managers.map((manager) => (
+              <option key={manager.id} value={manager.id}>
+                {manager.insurance_company} / {manager.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {selectedManager ? (
+          <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 12, fontSize: 12, color: COLORS.textGray }}>
+            {selectedManager.phone || '전화번호 없음'} · {selectedManager.specialty || '담당영역 미입력'}
+          </div>
+        ) : useManualManager ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <label style={labelStyle}>
+              보험회사
+              <input
+                value={form.manual_company}
+                onChange={(event) => onChangeForm('manual_company', event.target.value)}
+                placeholder="보험회사"
+                style={inputStyle}
+              />
+            </label>
+            <label style={labelStyle}>
+              매니저 이름
+              <input
+                value={form.manual_manager_name}
+                onChange={(event) => onChangeForm('manual_manager_name', event.target.value)}
+                placeholder="이름"
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ ...labelStyle, gridColumn: '1 / -1' }}>
+              매니저 연락처
+              <input
+                value={form.manual_manager_phone}
+                onChange={(event) => onChangeForm('manual_manager_phone', event.target.value)}
+                placeholder="선택 입력"
+                style={inputStyle}
+              />
+            </label>
+          </div>
+        ) : null}
+
+        <div>
+          <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13, marginBottom: 8 }}>포함할 정보</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+            <IncludeCheckbox label="고객명 마스킹" checked={includeSections.maskedName} onChange={(value) => onChangeInclude('maskedName', value)} />
+            <IncludeCheckbox label="생년월일" checked={includeSections.birth} onChange={(value) => onChangeInclude('birth', value)} />
+            <IncludeCheckbox label="나이" checked={includeSections.age} onChange={(value) => onChangeInclude('age', value)} />
+            <IncludeCheckbox label="직업" checked={includeSections.job} onChange={(value) => onChangeInclude('job', value)} />
+            <IncludeCheckbox label="병력" checked={includeSections.medical} onChange={(value) => onChangeInclude('medical', value)} />
+            <IncludeCheckbox label="알릴의무" checked={includeSections.disclosure} onChange={(value) => onChangeInclude('disclosure', value)} />
+            <IncludeCheckbox label="부담보" checked={includeSections.exclusions} onChange={(value) => onChangeInclude('exclusions', value)} />
+            <IncludeCheckbox label="현재 주요보장" checked={includeSections.currentCoverage} onChange={(value) => onChangeInclude('currentCoverage', value)} />
+            <IncludeCheckbox label="부족보장" checked={includeSections.shortageCoverage} onChange={(value) => onChangeInclude('shortageCoverage', value)} />
+          </div>
+        </div>
+
+        {includesSensitiveInfo && (
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: COLORS.redBg, borderRadius: 12, padding: 12, color: COLORS.red, fontSize: 12, fontWeight: 800, lineHeight: 1.45 }}>
+            <input
+              type="checkbox"
+              checked={form.consent_checked}
+              onChange={(event) => onChangeForm('consent_checked', event.target.checked)}
+              style={{ marginTop: 2 }}
+            />
+            고객 동의 또는 업무상 필요한 전달 범위를 확인했습니다. 민감정보는 전송 전 메시지에서 다시 검토합니다.
+          </label>
+        )}
+
+        <label style={labelStyle}>
+          설계사 메모 / 요청 조건
+          <textarea
+            value={form.request_note}
+            onChange={(event) => onChangeForm('request_note', event.target.value)}
+            placeholder="예: 20년납 비갱신 위주, 암/뇌/심장 보강안 요청"
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+          />
+        </label>
+
+        <label style={labelStyle}>
+          전송 전 미리보기
+          <textarea
+            value={messagePreview}
+            onChange={(event) => onChangeMessage(event.target.value)}
+            rows={14}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.55, fontFamily: 'inherit' }}
+          />
+        </label>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onShare} disabled={saving || !messagePreview.trim()} style={ghostSmallButtonStyle}>
+            공유/복사
+          </button>
+          <button type="button" onClick={onSave} disabled={saving || !messagePreview.trim()} style={primarySmallButtonStyle}>
+            {saving ? '저장 중...' : '의뢰완료로 저장'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function IncludeCheckbox({ label, checked, onChange }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 7, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: '9px 10px', color: COLORS.text, fontSize: 12, fontWeight: 800 }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      {label}
+    </label>
+  );
+}
+
+function buildDesignRequestMessage({ customer, consultations, summary, analysisRows, includeSections, requestNote }) {
+  const lines = ['[보플랜 설계의뢰]'];
+  const customerLines = [];
+  const age = calculateAgeFromBirth(customer?.birth);
+
+  if (includeSections.maskedName) customerLines.push(`고객명: ${maskCustomerName(customer?.name)}`);
+  if (includeSections.birth && customer?.birth) customerLines.push(`생년월일: ${customer.birth}`);
+  if (includeSections.age && age) customerLines.push(`나이: ${age}세`);
+  if (includeSections.job && customer?.job) customerLines.push(`직업: ${customer.job}`);
+
+  if (customerLines.length) {
+    lines.push('', '고객 기본정보', ...customerLines.map((line) => `- ${line}`));
+  }
+
+  if (includeSections.currentCoverage) {
+    const coverageLines = (summary || [])
+      .slice(0, 10)
+      .map((item) => `- ${item.name}: ${formatCoverageAmount(item.totalAmount)} (${item.contractCount || 0}건, ${item.statusLabel || '확인 필요'})`);
+    lines.push('', '현재 주요보장', ...(coverageLines.length ? coverageLines : ['- 등록된 현재보장 없음']));
+  }
+
+  if (includeSections.shortageCoverage) {
+    const shortageLines = (analysisRows || [])
+      .filter((row) => row.status === '부족')
+      .slice(0, 10)
+      .map((row) => `- ${row.name}: 현재 ${formatCoverageAmount(row.currentAmount)} / 기준 ${formatCoverageAmount(row.targetAmount)} / 부족 ${formatCoverageAmount(Math.abs(row.difference || 0))}`);
+    lines.push('', '부족보장', ...(shortageLines.length ? shortageLines : ['- 부족으로 표시된 보장 없음']));
+  }
+
+  if (includeSections.medical) {
+    lines.push('', '병력', ...getMedicalLines(consultations));
+  }
+
+  if (includeSections.disclosure) {
+    lines.push('', '알릴의무', ...getDisclosureLines(consultations));
+  }
+
+  if (includeSections.exclusions) {
+    lines.push('', '부담보', ...getExclusionLines(consultations));
+  }
+
+  if (includeSections.memo && String(requestNote || '').trim()) {
+    lines.push('', '설계 요청 메모', String(requestNote).trim());
+  }
+
+  lines.push('', '※ 주민번호, 연락처, 상세주소, 계좌번호, 증권번호는 자동 포함하지 않았습니다.');
+  return lines.join('\n');
+}
+
+function getMedicalLines(consultations) {
+  const items = (consultations || []).flatMap((item) => item.medical_history || []);
+  if (!items.length) return ['- 등록된 병력 없음'];
+
+  return items.slice(0, 10).map((item) => {
+    const parts = [
+      item.disease || item.name || '질병명 미입력',
+      item.diagnosed_at || item.diagnosis_date ? `진단: ${item.diagnosed_at || item.diagnosis_date}` : '',
+      item.treatment || item.treatment_detail ? `치료: ${item.treatment || item.treatment_detail}` : '',
+      item.memo ? `메모: ${item.memo}` : '',
+    ].filter(Boolean);
+    return `- ${parts.join(' / ')}`;
+  });
+}
+
+function getDisclosureLines(consultations) {
+  const disclosures = (consultations || [])
+    .map((item) => item.disclosure_info)
+    .filter(Boolean);
+
+  if (!disclosures.length) return ['- 등록된 알릴의무 정보 없음'];
+
+  return disclosures.slice(0, 5).map((info) => {
+    const checked = info.checked ? '확인됨' : '미확인';
+    const memo = info.memo || info.detail || info.note || '';
+    return `- ${checked}${memo ? ` / ${memo}` : ''}`;
+  });
+}
+
+function getExclusionLines(consultations) {
+  const items = (consultations || []).flatMap((item) => item.exclusions || []);
+  if (!items.length) return ['- 등록된 부담보 없음'];
+
+  return items.slice(0, 10).map((item) => {
+    const parts = [
+      item.body_part || item.part || item.disease || '부담보 항목',
+      item.period ? `기간: ${item.period}` : '',
+      item.result ? `결과: ${item.result}` : '',
+      item.memo ? `메모: ${item.memo}` : '',
+    ].filter(Boolean);
+    return `- ${parts.join(' / ')}`;
+  });
+}
+
+function getDesignRequestStatusLabel(status) {
+  const labels = {
+    draft: '작성중',
+    sent: '의뢰완료',
+    received: '설계수신',
+    reviewed: '검토완료',
+    canceled: '취소',
+  };
+  return labels[status] || '의뢰완료';
+}
+
 function CriteriaModal({ visible, name, items, saving, onNameChange, onChangeItem, onSave, onClose }) {
   return (
     <Modal visible={visible} onClose={onClose} title="내 분석기준 설정">
@@ -800,6 +1531,18 @@ const ghostSmallButtonStyle = {
   borderRadius: 999,
   padding: '9px 12px',
   fontSize: 12,
+  fontWeight: 900,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+const tinyButtonStyle = {
+  border: 'none',
+  background: '#F3F4F6',
+  color: COLORS.text,
+  borderRadius: 999,
+  padding: '6px 9px',
+  fontSize: 11,
   fontWeight: 900,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
