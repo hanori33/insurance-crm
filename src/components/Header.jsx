@@ -37,7 +37,7 @@ export default function Header({
     { id: 'customers',        icon: '👥', label: '고객 관리' },
     { id: 'schedule',         icon: '📅', label: '일정 관리' },
     { id: 'consulting',       icon: '📝', label: '상담 기록' },
-    { id: 'sales',            icon: '📊', label: '통계 / 분석' },
+    { id: 'coverageAnalysis', icon: '🛡️', label: '보장분석' },
     { id: 'tree',             icon: '🌳', label: '소개 트리' },
     { id: 'team',             icon: '👨‍👩‍👧', label: '팀 관리' },
     { id: 'fax',              icon: '📠', label: '보험팩스청구' },

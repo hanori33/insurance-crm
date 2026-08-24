@@ -416,10 +416,10 @@ const QUICK_MENU_OPTIONS = [
     action: ({ onNavigate }) => onNavigate('tree'),
   },
   {
-    id: 'sales',
-    icon: '📊',
-    label: '통계분석',
-    action: ({ onNavigate }) => onNavigate('sales'),
+    id: 'coverageAnalysis',
+    icon: '🛡️',
+    label: '보장분석',
+    action: ({ onNavigate }) => onNavigate('coverageAnalysis'),
   },
   {
     id: 'notices',
@@ -478,9 +478,17 @@ const DEFAULT_QUICK_MENU_IDS = [
   'insuranceContact',
   'scheduleAdd',
   'tree',
-  'sales',
+  'coverageAnalysis',
   'aiCenter',
 ];
+
+function normalizeQuickMenuIds(ids) {
+  const source = Array.isArray(ids) && ids.length > 0 ? ids : DEFAULT_QUICK_MENU_IDS;
+  const normalized = source.map(id => (id === 'sales' ? 'coverageAnalysis' : id));
+  return Array.from(new Set(normalized)).filter(id =>
+    QUICK_MENU_OPTIONS.some(menu => menu.id === id)
+  );
+}
 
 function QuickMenuSection({ isMobile = false, onNavigate, setShowScheduleForm }) {
   const storageKey = 'boplan_quick_menu_ids_v1';
@@ -488,7 +496,13 @@ function QuickMenuSection({ isMobile = false, onNavigate, setShowScheduleForm })
   const [selectedIds, setSelectedIds] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
-      if (Array.isArray(saved) && saved.length > 0) return saved;
+      if (Array.isArray(saved) && saved.length > 0) {
+        const normalized = normalizeQuickMenuIds(saved);
+        if (JSON.stringify(normalized) !== JSON.stringify(saved)) {
+          localStorage.setItem(storageKey, JSON.stringify(normalized));
+        }
+        return normalized;
+      }
     } catch (_e) {}
 
     return DEFAULT_QUICK_MENU_IDS;
@@ -500,8 +514,9 @@ function QuickMenuSection({ isMobile = false, onNavigate, setShowScheduleForm })
 
   function toggleMenu(id) {
     setSelectedIds(prev => {
-      if (prev.includes(id)) return prev.filter(item => item !== id);
-      return [...prev, id];
+      const normalized = normalizeQuickMenuIds(prev);
+      if (normalized.includes(id)) return normalized.filter(item => item !== id);
+      return [...normalized, id];
     });
   }
 
@@ -531,7 +546,7 @@ function QuickMenuSection({ isMobile = false, onNavigate, setShowScheduleForm })
       return;
     }
 
-    localStorage.setItem(storageKey, JSON.stringify(selectedIds));
+    localStorage.setItem(storageKey, JSON.stringify(normalizeQuickMenuIds(selectedIds)));
     setShowEdit(false);
   }
 

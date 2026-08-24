@@ -999,7 +999,10 @@ function handlePolicyAnalysisView(file) {
           </Section>
 
           <div id="quick-section-current-insurance">
-            <CurrentInsuranceManager customerId={customer.db_id || customer.id} />
+            <CurrentInsuranceManager
+              customerId={customer.db_id || customer.id}
+              onOpenAnalysis={() => onNavigate?.('coverageAnalysis')}
+            />
           </div>
 
           <Section

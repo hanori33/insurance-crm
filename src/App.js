@@ -21,6 +21,7 @@ import TeamPage from './pages/TeamPage';
 import ReferralTreePage from './pages/ReferralTreePage';
 import MorePage from './pages/MorePage';
 import SalesPage from './pages/SalesPage';
+import CoverageAnalysisPage from './pages/CoverageAnalysisPage';
 import NotificationsPage from './pages/NotificationsPage';
 import RoleRequestPage from './pages/RoleRequestPage';
 import Header from './components/Header';
@@ -838,9 +839,9 @@ useEffect(() => {
       return;
     }
 
-    if (page === 'sales') {
+    if (page === 'sales' || page === 'coverageAnalysis') {
       setStack([]);
-      setActiveTab('sales');
+      setActiveTab('coverageAnalysis');
       return;
     }
 
@@ -959,6 +960,9 @@ if (page === 'adminInquiry') {
       case 'sales':
         return <SalesPage onBack={goBack} />;
 
+      case 'coverageAnalysis':
+        return <CoverageAnalysisPage onBack={goBack} onNavigate={navigate} />;
+
       case 'notifications':
         return (
           <NotificationsPage
@@ -1053,6 +1057,9 @@ if (page === 'adminInquiry') {
 
       case 'sales':
         return <SalesPage onBack={() => setActiveTab('home')} />;
+
+      case 'coverageAnalysis':
+        return <CoverageAnalysisPage onBack={() => setActiveTab('home')} onNavigate={navigate} />;
 
       case 'notifications':
         return (
@@ -1297,7 +1304,7 @@ if (!session) {
             { id: 'customers', icon: '👥', label: '고객 관리' },
             { id: 'schedule', icon: '📅', label: '일정 관리' },
             { id: 'consulting', icon: '📝', label: '상담 기록' },
-            { id: 'sales', icon: '📊', label: '통계 / 분석' },
+            { id: 'coverageAnalysis', icon: '🛡️', label: '보장분석' },
             { id: 'tree', icon: '🌳', label: '소개 트리' },
             { id: 'team', icon: '👨‍👩‍👧', label: '팀 관리' },
             { id: 'fax', icon: '📠', label: '보험팩스청구' },

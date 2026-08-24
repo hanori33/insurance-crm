@@ -210,7 +210,7 @@ function makeCoverageForm(coverage, uncategorizedCategory) {
   };
 }
 
-export default function CurrentInsuranceManager({ customerId }) {
+export default function CurrentInsuranceManager({ customerId, onOpenAnalysis }) {
   const [contracts, setContracts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -390,9 +390,16 @@ export default function CurrentInsuranceManager({ customerId }) {
           </div>
         </div>
 
-        <PrimaryButton onClick={() => openContractModal()} disabled={saving}>
-          + 보험 추가
-        </PrimaryButton>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {onOpenAnalysis && (
+            <GhostButton onClick={onOpenAnalysis}>
+              보장분석 열기
+            </GhostButton>
+          )}
+          <PrimaryButton onClick={() => openContractModal()} disabled={saving}>
+            + 보험 추가
+          </PrimaryButton>
+        </div>
       </div>
 
       {loading ? (

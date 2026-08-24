@@ -132,6 +132,48 @@ const customerInsuranceService = {
     }));
   },
 
+  async listCustomerInsuranceOverview(customerIds) {
+    const ids = (customerIds || []).filter(Boolean);
+    if (ids.length === 0) return {};
+
+    const { data, error } = await supabase
+      .from('customer_insurance_contracts')
+      .select(`
+        id,
+        customer_id,
+        updated_at,
+        coverages:customer_insurance_coverages (
+          id,
+          updated_at
+        )
+      `)
+      .in('customer_id', ids);
+
+    if (error) throw error;
+
+    return (data || []).reduce((map, contract) => {
+      const key = contract.customer_id;
+      const current = map[key] || {
+        contractCount: 0,
+        coverageCount: 0,
+        latestUpdatedAt: '',
+      };
+
+      current.contractCount += 1;
+      current.coverageCount += contract.coverages?.length || 0;
+
+      const dates = [
+        current.latestUpdatedAt,
+        contract.updated_at,
+        ...(contract.coverages || []).map((coverage) => coverage.updated_at),
+      ].filter(Boolean);
+
+      current.latestUpdatedAt = dates.sort().at(-1) || '';
+      map[key] = current;
+      return map;
+    }, {});
+  },
+
   async createContract(customerId, payload) {
     const userId = await getCurrentUserId();
     const nextPayload = normalizeContractPayload(payload);
