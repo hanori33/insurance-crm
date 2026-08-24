@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import EmptyState from '../components/EmptyState';
@@ -603,6 +603,8 @@ function AnalysisStatusPill({ status }) {
 export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth <= 900);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth || 1280);
+  const detailContainerRef = useRef(null);
+  const [detailWidth, setDetailWidth] = useState(0);
   const [customers, setCustomers] = useState([]);
   const [overviewMap, setOverviewMap] = useState({});
   const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
@@ -620,7 +622,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const [criteriaDraft, setCriteriaDraft] = useState([]);
   const [analysisFilter, setAnalysisFilter] = useState('all');
   const [insuranceRefreshKey, setInsuranceRefreshKey] = useState(0);
-  const [customerDrawerOpen, setCustomerDrawerOpen] = useState(false);
+  const [customerListCollapsed, setCustomerListCollapsed] = useState(false);
 
   useEffect(() => {
     load();
@@ -635,6 +637,15 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
+
+  useEffect(() => {
+    if (!detailContainerRef.current || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      setDetailWidth(entry?.contentRect?.width || 0);
+    });
+    observer.observe(detailContainerRef.current);
+    return () => observer.disconnect();
+  }, [selectedCustomerId]);
 
   async function load() {
     setLoading(true);
@@ -722,14 +733,11 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
     if (typeof window !== 'undefined' && customerId) {
       window.sessionStorage.setItem('boplan_coverage_selected_customer_id', String(customerId));
     }
-    if (!isNarrow && customerId) {
-      setCustomerDrawerOpen(false);
-    }
   }
 
   function clearSelectedCustomer() {
     setSelectedCustomerId('');
-    setCustomerDrawerOpen(false);
+    setCustomerListCollapsed(false);
     if (typeof window !== 'undefined') {
       window.sessionStorage.removeItem('boplan_coverage_selected_customer_id');
     }
@@ -753,9 +761,9 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   );
   const selectedCustomerDbId = selectedCustomer ? getCustomerId(selectedCustomer) : selectedCustomerId;
   const hasSelectedCustomer = Boolean(selectedCustomerId);
-  const shouldCollapseCustomerList = hasSelectedCustomer && !isNarrow;
-  const showCustomerList = !(hasSelectedCustomer && isNarrow) && (!shouldCollapseCustomerList || customerDrawerOpen);
-  const useTwoColumnDetail = !isNarrow && viewportWidth >= 1180;
+  const isCustomerListCollapsed = hasSelectedCustomer && !isNarrow && customerListCollapsed;
+  const showCustomerList = !(hasSelectedCustomer && isNarrow) && !isCustomerListCollapsed;
+  const useTwoColumnDetail = !isNarrow && (detailWidth || viewportWidth) >= 900;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -810,20 +818,19 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
           overflowY: 'auto',
           padding: '16px 18px 26px',
           display: 'grid',
-          gridTemplateColumns: shouldCollapseCustomerList
+          gridTemplateColumns: isCustomerListCollapsed
             ? '42px minmax(0, 1fr)'
             : hasSelectedCustomer && !isNarrow
-              ? 'minmax(320px, 0.42fr) minmax(0, 1.58fr)'
+              ? 'minmax(300px, 330px) minmax(0, 1fr)'
               : '1fr',
-          gap: shouldCollapseCustomerList ? 12 : 16,
+          gap: isCustomerListCollapsed ? 8 : 16,
           alignItems: 'start',
           position: 'relative',
           background: 'linear-gradient(135deg, #F5F1FF 0%, #FCFAFF 46%, #F4FAFF 100%)',
         }}
       >
-        {shouldCollapseCustomerList && (
+        {isCustomerListCollapsed && (
           <div
-            onMouseEnter={() => setCustomerDrawerOpen(true)}
             style={{
               width: 42,
               minHeight: 220,
@@ -837,9 +844,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
           >
             <button
               type="button"
-              onClick={() => {
-                setCustomerDrawerOpen((prev) => !prev);
-              }}
+              onClick={() => setCustomerListCollapsed(false)}
               style={{
                 width: 40,
                 minHeight: 148,
@@ -868,18 +873,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
 
         {showCustomerList && (
         <div
-          onMouseEnter={() => shouldCollapseCustomerList && setCustomerDrawerOpen(true)}
-          onMouseLeave={() => shouldCollapseCustomerList && setCustomerDrawerOpen(false)}
-          style={shouldCollapseCustomerList ? {
-            position: 'absolute',
-            top: 16,
-            left: 18,
-            width: 400,
-            maxWidth: 'calc(100% - 36px)',
-            maxHeight: 'calc(100% - 32px)',
-            overflowY: 'auto',
-            zIndex: 30,
-          } : { minWidth: 0 }}
+          style={{ minWidth: 0 }}
         >
         <Card style={{ border: `1px solid ${PASTEL.grayPurpleBorder}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12 }}>
@@ -894,9 +888,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
               {hasSelectedCustomer && !isNarrow && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setCustomerDrawerOpen(false);
-                  }}
+                  onClick={() => setCustomerListCollapsed(true)}
                   style={{
                     border: `1px solid ${PASTEL.purpleBorder}`,
                     background: PASTEL.purple,
@@ -1004,13 +996,14 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
 
         {hasSelectedCustomer ? (
           <div
+            ref={detailContainerRef}
             style={{
               display: 'flex',
               flexDirection: 'column',
               gap: 14,
               minWidth: 0,
               width: '100%',
-              gridColumn: shouldCollapseCustomerList ? '2 / -1' : undefined,
+              gridColumn: isCustomerListCollapsed ? '2 / -1' : undefined,
             }}
           >
             {!selectedCustomer ? (
@@ -1066,7 +1059,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                 <div
           style={{
             display: 'grid',
-            gridTemplateColumns: useTwoColumnDetail ? 'minmax(0, 1.15fr) minmax(380px, 0.85fr)' : '1fr',
+            gridTemplateColumns: useTwoColumnDetail ? 'minmax(0, 1.15fr) minmax(360px, 0.85fr)' : '1fr',
             gap: 16,
                     alignItems: 'start',
                     width: '100%',
