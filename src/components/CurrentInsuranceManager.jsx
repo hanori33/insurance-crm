@@ -155,8 +155,8 @@ function PrimaryButton({ children, onClick, disabled, style }) {
         border: 'none',
         background: disabled ? '#C4B5FD' : COLORS.primary,
         color: '#fff',
-        borderRadius: 12,
-        padding: '11px 14px',
+        borderRadius: 999,
+        padding: '10px 14px',
         fontSize: 13,
         fontWeight: 900,
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -177,10 +177,10 @@ function GhostButton({ children, onClick, danger, style }) {
         border: 'none',
         background: danger ? '#FEE2E2' : COLORS.primaryBg,
         color: danger ? '#DC2626' : COLORS.primary,
-        borderRadius: 12,
-        padding: '9px 12px',
-        fontSize: 12,
-        fontWeight: 800,
+        borderRadius: 999,
+        padding: '7px 10px',
+        fontSize: 11,
+        fontWeight: 900,
         cursor: 'pointer',
         ...style,
       }}
@@ -399,12 +399,12 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
       style={{
         background: COLORS.white,
         borderRadius: 16,
-        padding: 16,
+        padding: 14,
         boxShadow: `0 2px 14px rgba(124,92,252,0.10)`,
         border: `1px solid ${PASTEL.grayPurpleBorder}`,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12, background: `linear-gradient(135deg, ${PASTEL.mint} 0%, ${PASTEL.sky} 100%)`, border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 16, padding: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12, background: `linear-gradient(135deg, ${PASTEL.mint} 0%, ${PASTEL.sky} 100%)`, border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 16, padding: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 18 }}>🛡️</span>
           <div>
@@ -431,7 +431,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
         <LoadingSpinner />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 14, padding: 14, background: PASTEL.mint }}>
+          <div style={{ border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 14, padding: 12, background: PASTEL.mint }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 14 }}>현재보장 합산</div>
               <div style={{ color: COLORS.textGray, fontSize: 12 }}>{summary.length}개 담보군</div>
@@ -464,7 +464,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                         cursor: 'pointer',
                         textAlign: 'left',
                         display: 'grid',
-                        gridTemplateColumns: 'minmax(110px, 1.3fr) minmax(90px, 1fr) 70px 76px',
+                        gridTemplateColumns: 'minmax(100px, 1.3fr) minmax(80px, 1fr) 58px 74px',
                         gap: 8,
                         alignItems: 'center',
                         color: COLORS.text,
@@ -521,7 +521,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                 style={{
                   border: `1px solid ${PASTEL.skyBorder}`,
                   borderRadius: 14,
-                  padding: 14,
+                  padding: 12,
                   background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FCFF 100%)',
                 }}
               >
