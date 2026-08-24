@@ -16,6 +16,17 @@ function getCustomerId(customer) {
   return customer?.db_id || customer?.id || customer?.app_customer_id;
 }
 
+function getCustomerIdCandidates(customer) {
+  return [customer?.db_id, customer?.id, customer?.app_customer_id]
+    .filter((value) => value !== null && value !== undefined && value !== '')
+    .map((value) => String(value));
+}
+
+function isSameCustomerId(customer, customerId) {
+  if (!customerId) return false;
+  return getCustomerIdCandidates(customer).includes(String(customerId));
+}
+
 function maskCustomerName(name) {
   const clean = String(name || '').trim();
   if (!clean) return '고객';
@@ -23,18 +34,426 @@ function maskCustomerName(name) {
   return `${clean[0]}${'○'.repeat(Math.max(1, clean.length - 1))}`;
 }
 
+function parseBirthDateForAge(birth) {
+  const raw = String(birth || '').trim();
+  const clean = raw.replace(/[^0-9]/g, '');
+  let year = null;
+  let month = null;
+  let day = null;
+
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(raw)) {
+    const parts = raw.split('-').map(Number);
+    [year, month, day] = parts;
+  } else if (clean.length === 8) {
+    year = Number(clean.slice(0, 4));
+    month = Number(clean.slice(4, 6));
+    day = Number(clean.slice(6, 8));
+  } else {
+    return null;
+  }
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  if (year < 1900 || year > new Date().getFullYear()) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function calculateAgeFromBirth(birth) {
-  const clean = String(birth || '').replace(/[^0-9]/g, '');
-  if (clean.length < 4) return '';
-  const year = Number(clean.slice(0, 4));
-  if (!Number.isFinite(year) || year < 1900) return '';
-  return String(new Date().getFullYear() - year);
+  const birthDate = parseBirthDateForAge(birth);
+  if (!birthDate) return '';
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const birthdayPassed =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+
+  if (!birthdayPassed) age -= 1;
+  if (!Number.isFinite(age) || age < 0 || age > 120) return '';
+  return String(age);
+}
+
+function getCustomerGender(customer) {
+  const value = customer?.gender || customer?.sex || customer?.gender_label || customer?.genderLabel;
+  return String(value || '').trim();
+}
+
+function getCustomerJobDetail(customer) {
+  const value =
+    customer?.job_detail ||
+    customer?.jobDetail ||
+    customer?.job_description ||
+    customer?.occupation_detail ||
+    customer?.occupationDetail;
+  return String(value || '').trim();
 }
 
 function getStatus(overview) {
   if (!overview?.contractCount) return '보험 미등록';
   if (!overview?.coverageCount) return '보험 등록됨';
   return '보장 데이터 있음';
+}
+
+const PASTEL = {
+  purple: '#F3EEFF',
+  pink: '#FFF1F5',
+  sky: '#EEF7FF',
+  mint: '#EFFAF5',
+  apricot: '#FFF6EA',
+  grayPurple: '#F7F5FB',
+  gray: '#F6F7FB',
+  purpleBorder: '#CDBDFF',
+  pinkBorder: '#FFD2DF',
+  skyBorder: '#CFE8FF',
+  mintBorder: '#CBEFDA',
+  apricotBorder: '#FFE2BA',
+  grayPurpleBorder: '#E5E0EE',
+};
+
+const INSURANCE_TYPE_OPTIONS = [
+  { value: 'casualty', label: '손해보험' },
+  { value: 'life', label: '생명보험' },
+];
+
+const MANAGER_TYPE_FILTERS = [
+  { value: 'all', label: '전체' },
+  ...INSURANCE_TYPE_OPTIONS,
+];
+
+const INSURANCE_TYPE_LABELS = {
+  casualty: '손해보험',
+  life: '생명보험',
+  unknown: '미분류',
+};
+
+const casualtyCompanyKeywords = [
+  '손해보험',
+  '손보',
+  '화재',
+  '해상',
+  '메리츠',
+  '캐롯',
+  '하나손',
+  'MG손',
+];
+
+const lifeCompanyKeywords = [
+  '생명',
+  '라이프',
+  '연금보험',
+];
+
+function inferInsuranceType(insuranceCompany) {
+  const name = String(insuranceCompany || '').replace(/\s/g, '');
+  if (!name) return 'unknown';
+  if (casualtyCompanyKeywords.some((keyword) => name.includes(keyword))) return 'casualty';
+  if (lifeCompanyKeywords.some((keyword) => name.includes(keyword))) return 'life';
+  return 'unknown';
+}
+
+function getManagerInsuranceType(manager) {
+  return inferInsuranceType(manager?.insurance_company);
+}
+
+function getManagerInsuranceTypeLabel(manager) {
+  return INSURANCE_TYPE_LABELS[getManagerInsuranceType(manager)] || INSURANCE_TYPE_LABELS.unknown;
+}
+
+function startsWithEnglish(value) {
+  return /^[A-Za-z]/.test(String(value || '').trim());
+}
+
+function compareKoreanFirst(a = '', b = '') {
+  const aEnglish = startsWithEnglish(a);
+  const bEnglish = startsWithEnglish(b);
+  if (aEnglish !== bEnglish) return aEnglish ? 1 : -1;
+  return String(a || '').localeCompare(String(b || ''), 'ko-KR', {
+    numeric: true,
+    sensitivity: 'base',
+  });
+}
+
+function compareManagers(a, b) {
+  const companyCompare = compareKoreanFirst(a?.insurance_company, b?.insurance_company);
+  if (companyCompare !== 0) return companyCompare;
+  return compareKoreanFirst(a?.name, b?.name);
+}
+
+function groupManagersByInsuranceType(managers, filter = 'all') {
+  const groups = [
+    { type: 'casualty', label: INSURANCE_TYPE_LABELS.casualty, managers: [] },
+    { type: 'life', label: INSURANCE_TYPE_LABELS.life, managers: [] },
+    { type: 'unknown', label: INSURANCE_TYPE_LABELS.unknown, managers: [] },
+  ];
+
+  (managers || []).forEach((manager) => {
+    const type = getManagerInsuranceType(manager);
+    if (filter !== 'all' && type !== filter) return;
+    const group = groups.find((item) => item.type === type) || groups[2];
+    group.managers.push(manager);
+  });
+
+  return groups
+    .map((group) => ({ ...group, managers: [...group.managers].sort(compareManagers) }))
+    .filter((group) => group.managers.length > 0 || (filter !== 'all' && group.type === filter));
+}
+
+function getCustomerStatusStyle(status) {
+  if (status === '보장 데이터 있음') return { bg: PASTEL.mint, color: '#15803D', border: PASTEL.mintBorder };
+  if (status === '보험 등록됨') return { bg: PASTEL.apricot, color: '#B45309', border: PASTEL.apricotBorder };
+  return { bg: PASTEL.gray, color: COLORS.textGray, border: '#E5E7EB' };
+}
+
+function getManagerGroupStyle(type) {
+  if (type === 'casualty') return { bg: PASTEL.sky, border: PASTEL.skyBorder, chipBg: '#E0F2FE', chipColor: '#0369A1' };
+  if (type === 'life') return { bg: PASTEL.pink, border: PASTEL.pinkBorder, chipBg: '#FFE4EC', chipColor: '#BE185D' };
+  return { bg: PASTEL.gray, border: '#E5E7EB', chipBg: PASTEL.grayPurple, chipColor: COLORS.textGray };
+}
+
+function getShareStatusStyle(status) {
+  if (status === '미가입') return { bg: PASTEL.pink, color: '#BE123C' };
+  if (status === '부족') return { bg: PASTEL.apricot, color: '#B45309' };
+  if (status === '충족') return { bg: PASTEL.mint, color: '#15803D' };
+  if (status === '기준 초과') return { bg: PASTEL.sky, color: '#1D4ED8' };
+  if (status === '별도') return { bg: PASTEL.purple, color: COLORS.primary };
+  return { bg: PASTEL.grayPurple, color: COLORS.textGray };
+}
+
+function getCoverageShareRows(rows, scope) {
+  const source = Array.isArray(rows) ? rows : [];
+  if (scope === 'shortage') {
+    return source.filter((row) => row.status === '부족' || row.status === '미가입');
+  }
+  return source;
+}
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks.length ? chunks : [[]];
+}
+
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function drawText(ctx, text, x, y, maxWidth, options = {}) {
+  const {
+    font = '28px Arial',
+    color = '#111827',
+    align = 'left',
+    baseline = 'top',
+  } = options;
+
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = baseline;
+  ctx.fillText(String(text || ''), x, y, maxWidth);
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+
+  const lines = [];
+  let current = '';
+
+  words.forEach((word) => {
+    const next = current ? `${current} ${word}` : word;
+    if (ctx.measureText(next).width <= maxWidth || !current) {
+      current = next;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  });
+
+  if (current) lines.push(current);
+  return lines;
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('이미지 생성에 실패했습니다.'));
+    }, 'image/png', 0.95);
+  });
+}
+
+async function createCoverageShareImageFile({ customer, rows, scope, maskName, pageIndex, pageCount, analysisDate }) {
+  const rowHeight = 74;
+  const width = 1200;
+  const height = 330 + Math.max(rows.length, 1) * rowHeight + 150;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const logo = await loadImage('/boplan512.png');
+  const customerName = maskName ? maskCustomerName(customer?.name) : String(customer?.name || '고객').trim();
+  const scopeLabel = scope === 'shortage' ? '부족/미가입 보장' : '전체 보장';
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#F8F5FF';
+  ctx.fillRect(0, 0, width, 170);
+
+  if (logo) {
+    ctx.save();
+    drawRoundedRect(ctx, 64, 42, 74, 74, 18);
+    ctx.clip();
+    ctx.drawImage(logo, 64, 42, 74, 74);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#7C3AED';
+    drawRoundedRect(ctx, 64, 42, 74, 74, 18);
+    ctx.fill();
+    drawText(ctx, 'B', 101, 79, 60, { font: 'bold 34px Arial', color: '#FFFFFF', align: 'center', baseline: 'middle' });
+  }
+
+  drawText(ctx, '보플랜 보장분석', 158, 48, 600, { font: 'bold 40px Arial', color: '#111827' });
+  drawText(ctx, '담당 설계사 기준과 현재 등록 보험정보 비교', 160, 98, 620, { font: '24px Arial', color: '#6B7280' });
+  drawText(ctx, `분석 기준일 ${analysisDate}`, width - 64, 58, 360, { font: '24px Arial', color: '#4B5563', align: 'right' });
+  drawText(ctx, `${scopeLabel}${pageCount > 1 ? ` · ${pageIndex + 1}/${pageCount}` : ''}`, width - 64, 98, 360, { font: 'bold 24px Arial', color: '#7C3AED', align: 'right' });
+
+  drawText(ctx, `고객명: ${customerName}`, 64, 202, 740, { font: 'bold 32px Arial', color: '#111827' });
+
+  const tableX = 64;
+  const tableY = 260;
+  const tableWidth = width - 128;
+  const columns = [
+    { label: '담보명', x: tableX + 24, width: 300 },
+    { label: '현재 보장금액', x: tableX + 380, width: 170 },
+    { label: '내 분석기준', x: tableX + 590, width: 170 },
+    { label: '차이', x: tableX + 790, width: 150 },
+    { label: '상태', x: tableX + 960, width: 90 },
+  ];
+
+  ctx.fillStyle = '#F3F4F6';
+  drawRoundedRect(ctx, tableX, tableY, tableWidth, 52, 18);
+  ctx.fill();
+  columns.forEach((column) => {
+    drawText(ctx, column.label, column.x, tableY + 15, column.width, { font: 'bold 21px Arial', color: '#374151' });
+  });
+
+  const displayRows = rows.length ? rows : [{ name: '표시할 분석 항목이 없습니다.', currentAmount: null, targetAmount: null, difference: null, status: '-' }];
+
+  displayRows.forEach((row, index) => {
+    const y = tableY + 62 + index * rowHeight;
+    const statusStyle = getShareStatusStyle(row.status);
+    ctx.fillStyle = row.status && row.status !== '-' ? statusStyle.bg : (index % 2 === 0 ? '#FFFFFF' : '#FAFAFA');
+    drawRoundedRect(ctx, tableX, y, tableWidth, rowHeight - 8, 14);
+    ctx.fill();
+
+    ctx.font = 'bold 23px Arial';
+    const nameLines = wrapText(ctx, row.name || '-', columns[0].width).slice(0, 2);
+    nameLines.forEach((line, lineIndex) => {
+      drawText(ctx, line, columns[0].x, y + 14 + lineIndex * 25, columns[0].width, { font: 'bold 23px Arial', color: '#111827' });
+    });
+
+    drawText(ctx, formatCoverageAmount(row.currentAmount), columns[1].x, y + 23, columns[1].width, { font: '22px Arial', color: '#111827' });
+    drawText(ctx, formatCoverageAmount(row.targetAmount), columns[2].x, y + 23, columns[2].width, { font: '22px Arial', color: '#111827' });
+    drawText(ctx, formatDifference(row.difference), columns[3].x, y + 23, columns[3].width, { font: '22px Arial', color: '#111827' });
+
+    ctx.fillStyle = statusStyle.bg;
+    drawRoundedRect(ctx, columns[4].x - 8, y + 17, 116, 34, 17);
+    ctx.fill();
+    drawText(ctx, row.status || '-', columns[4].x + 50, y + 35, 100, { font: 'bold 18px Arial', color: statusStyle.color, align: 'center', baseline: 'middle' });
+  });
+
+  const footerY = height - 112;
+  ctx.fillStyle = '#F9FAFB';
+  drawRoundedRect(ctx, 64, footerY, width - 128, 68, 18);
+  ctx.fill();
+  const notice = '본 자료는 담당 설계사가 설정한 분석기준과 등록된 보험정보를 비교한 참고자료입니다. 실제 보장 여부 및 지급조건은 해당 보험계약 및 약관을 확인해주세요.';
+  const noticeLines = wrapText(ctx, notice, width - 180).slice(0, 2);
+  noticeLines.forEach((line, index) => {
+    drawText(ctx, line, 90, footerY + 14 + index * 24, width - 180, { font: '19px Arial', color: '#6B7280' });
+  });
+
+  const blob = await canvasToBlob(canvas);
+  return new File([blob], `boplan-coverage-analysis-${pageIndex + 1}.png`, { type: 'image/png' });
+}
+
+async function createCoverageShareImageFiles({ customer, rows, scope, maskName }) {
+  const analysisDate = formatAnalysisDate();
+  const chunks = chunkArray(rows, 12);
+  const files = [];
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const file = await createCoverageShareImageFile({
+      customer,
+      rows: chunks[index],
+      scope,
+      maskName,
+      pageIndex: index,
+      pageCount: chunks.length,
+      analysisDate,
+    });
+    files.push(file);
+  }
+
+  return files;
+}
+
+function downloadFiles(files) {
+  files.forEach((file) => {
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+}
+
+async function shareCoverageImageFiles(files) {
+  if (navigator.share && navigator.canShare?.({ files })) {
+    await navigator.share({
+      title: '보플랜 보장분석',
+      text: '보플랜 보장분석 결과 이미지입니다.',
+      files,
+    });
+    return 'shared';
+  }
+
+  downloadFiles(files);
+  alert('공유 이미지 PNG를 저장했습니다. 카카오톡이나 메신저에서 파일로 첨부해 보내주세요.');
+  return 'downloaded';
 }
 
 function toManwon(value) {
@@ -71,6 +490,14 @@ function formatDifference(value) {
   return '0';
 }
 
+function formatAnalysisDate(date = new Date()) {
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+}
+
 function getRenewableLabel(value) {
   if (value === true) return '갱신';
   if (value === false) return '비갱신';
@@ -78,11 +505,12 @@ function getRenewableLabel(value) {
 }
 
 function getAnalysisStatusStyle(status) {
-  if (status === '부족' || status === '미가입') return { bg: COLORS.redBg, color: COLORS.red };
-  if (status === '충족') return { bg: COLORS.greenBg, color: '#16A34A' };
-  if (status === '기준 초과') return { bg: COLORS.blueBg, color: COLORS.blue };
-  if (status === '별도') return { bg: '#FEF3C7', color: '#92400E' };
-  return { bg: '#F3F4F6', color: COLORS.textGray };
+  if (status === '미가입') return { bg: PASTEL.pink, rowBg: '#FFFAFC', border: PASTEL.pinkBorder, color: '#BE123C' };
+  if (status === '부족') return { bg: PASTEL.apricot, rowBg: '#FFFCF6', border: PASTEL.apricotBorder, color: '#B45309' };
+  if (status === '충족') return { bg: PASTEL.mint, rowBg: '#FAFFFC', border: PASTEL.mintBorder, color: '#15803D' };
+  if (status === '기준 초과') return { bg: PASTEL.sky, rowBg: '#F8FCFF', border: PASTEL.skyBorder, color: '#1D4ED8' };
+  if (status === '별도') return { bg: PASTEL.purple, rowBg: '#FCFAFF', border: PASTEL.purpleBorder, color: COLORS.primary };
+  return { bg: PASTEL.grayPurple, rowBg: '#FCFBFE', border: PASTEL.grayPurpleBorder, color: COLORS.textGray };
 }
 
 function makeCriteriaDraft(categories, criteriaSet) {
@@ -106,14 +534,14 @@ function makeCriteriaDraft(categories, criteriaSet) {
 }
 
 function StatusPill({ status }) {
-  const isReady = status === '보장 데이터 있음';
-  const isContractOnly = status === '보험 등록됨';
+  const style = getCustomerStatusStyle(status);
 
   return (
     <span
       style={{
-        background: isReady ? COLORS.primaryBg : isContractOnly ? '#FEF3C7' : '#F3F4F6',
-        color: isReady ? COLORS.primary : isContractOnly ? '#92400E' : COLORS.textGray,
+        background: style.bg,
+        color: style.color,
+        border: `1px solid ${style.border}`,
         borderRadius: 999,
         padding: '4px 9px',
         fontSize: 11,
@@ -133,6 +561,7 @@ function AnalysisStatusPill({ status }) {
       style={{
         background: style.bg,
         color: style.color,
+        border: `1px solid ${style.border}`,
         borderRadius: 999,
         padding: '4px 9px',
         fontSize: 11,
@@ -149,7 +578,10 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth <= 900);
   const [customers, setCustomers] = useState([]);
   const [overviewMap, setOverviewMap] = useState({});
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.sessionStorage.getItem('boplan_coverage_selected_customer_id') || '';
+  });
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -184,13 +616,6 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
 
       setCustomers(customerData || []);
       setOverviewMap(nextOverviewMap || {});
-
-      if (selectedCustomer) {
-        const nextSelected = (customerData || []).find(
-          (customer) => String(getCustomerId(customer)) === String(getCustomerId(selectedCustomer)),
-        );
-        setSelectedCustomer(nextSelected || null);
-      }
     } catch (error) {
       alert(error.message || '보장분석 정보를 불러오지 못했습니다.');
       setCustomers([]);
@@ -260,6 +685,21 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
     load();
   }
 
+  function selectCustomer(customer) {
+    const customerId = getCustomerId(customer);
+    setSelectedCustomerId(customerId || '');
+    if (typeof window !== 'undefined' && customerId) {
+      window.sessionStorage.setItem('boplan_coverage_selected_customer_id', String(customerId));
+    }
+  }
+
+  function clearSelectedCustomer() {
+    setSelectedCustomerId('');
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('boplan_coverage_selected_customer_id');
+    }
+  }
+
   const filteredCustomers = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return customers;
@@ -272,23 +712,28 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
     });
   }, [customers, search]);
 
-  const selectedCustomerId = getCustomerId(selectedCustomer);
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => isSameCustomerId(customer, selectedCustomerId)) || null,
+    [customers, selectedCustomerId],
+  );
+  const selectedCustomerDbId = selectedCustomer ? getCustomerId(selectedCustomer) : selectedCustomerId;
+  const hasSelectedCustomer = Boolean(selectedCustomerId);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div
         style={{
-          background: COLORS.white,
+          background: 'linear-gradient(90deg, #FFFFFF 0%, #FCFAFF 100%)',
           padding: '14px 20px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          borderBottom: `1px solid ${COLORS.border}`,
+          borderBottom: `1px solid ${PASTEL.purpleBorder}`,
           flexShrink: 0,
         }}
       >
         <button
-          onClick={onBack}
+          onClick={hasSelectedCustomer ? clearSelectedCustomer : onBack}
           style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.textGray }}
         >
           ←
@@ -300,7 +745,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
             disabled={criteriaLoading}
             style={{
               border: 'none',
-              background: COLORS.primaryBg,
+              background: PASTEL.purple,
               color: COLORS.primary,
               borderRadius: 999,
               padding: '8px 11px',
@@ -327,11 +772,13 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
           overflowY: 'auto',
           padding: '14px 16px 24px',
           display: 'grid',
-          gridTemplateColumns: selectedCustomer && !isNarrow ? 'minmax(280px, 0.85fr) minmax(320px, 1.15fr)' : '1fr',
+          gridTemplateColumns: hasSelectedCustomer && !isNarrow ? 'minmax(280px, 0.85fr) minmax(320px, 1.15fr)' : '1fr',
           gap: 14,
           alignItems: 'start',
+          background: 'linear-gradient(135deg, #FFFFFF 0%, #FCFAFF 45%, #F8FBFF 100%)',
         }}
       >
+        {!(hasSelectedCustomer && isNarrow) && (
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12 }}>
             <div>
@@ -344,7 +791,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
           </div>
 
           {!criteriaSet && !criteriaLoading && (
-            <div style={{ background: COLORS.primaryBg, color: COLORS.primary, borderRadius: 14, padding: 12, fontSize: 12, fontWeight: 800, marginBottom: 12, lineHeight: 1.5 }}>
+            <div style={{ background: PASTEL.purple, color: COLORS.primary, border: `1px solid ${PASTEL.purpleBorder}`, borderRadius: 14, padding: 12, fontSize: 12, fontWeight: 800, marginBottom: 12, lineHeight: 1.5 }}>
               내 분석기준을 설정해주세요. 보플랜은 기본 적정보장금액을 자동 추천하지 않습니다.
             </div>
           )}
@@ -354,10 +801,10 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: `1.5px solid ${COLORS.border}`,
+              border: `1.5px solid ${PASTEL.grayPurpleBorder}`,
               borderRadius: 12,
               padding: '10px 12px',
-              background: '#FAFAFA',
+              background: '#FFFFFF',
               marginBottom: 12,
             }}
           >
@@ -389,21 +836,23 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                 const customerId = getCustomerId(customer);
                 const overview = overviewMap[customerId] || {};
                 const status = getStatus(overview);
-                const active = selectedCustomerId && String(selectedCustomerId) === String(customerId);
+                const active = selectedCustomerId && isSameCustomerId(customer, selectedCustomerId);
+                const statusStyle = getCustomerStatusStyle(status);
 
                 return (
                   <button
                     key={customerId}
                     type="button"
-                    onClick={() => setSelectedCustomer(customer)}
+                    onClick={() => selectCustomer(customer)}
                     style={{
                       width: '100%',
-                      border: `1px solid ${active ? COLORS.primary : COLORS.border}`,
-                      background: active ? COLORS.primaryBg : '#fff',
+                      border: `1.5px solid ${active ? COLORS.primary : statusStyle.border}`,
+                      background: active ? `linear-gradient(135deg, ${PASTEL.purple} 0%, #FFFFFF 100%)` : '#fff',
                       borderRadius: 14,
                       padding: 12,
                       cursor: 'pointer',
                       textAlign: 'left',
+                      boxShadow: active ? '0 8px 20px rgba(124,92,252,0.12)' : 'none',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
@@ -425,57 +874,71 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
             </div>
           )}
         </Card>
+        )}
 
-        {selectedCustomer ? (
+        {hasSelectedCustomer ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-            <Card>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 16 }}>{selectedCustomer.name}</div>
-                  <div style={{ marginTop: 3, color: COLORS.textGray, fontSize: 12 }}>
-                    {selectedCustomer.phone || '-'} · 고객상세와 동일한 현재보험 데이터를 표시합니다.
+            {!selectedCustomer ? (
+              <Card>
+                {loading ? (
+                  <LoadingSpinner />
+                ) : (
+                  <EmptyState icon="🛡️" message="선택한 고객을 찾을 수 없습니다" sub="목록으로 돌아가 다시 선택해주세요." />
+                )}
+              </Card>
+            ) : (
+              <>
+                <Card>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', background: PASTEL.purple, border: `1px solid ${PASTEL.purpleBorder}`, borderRadius: 16, padding: 14 }}>
+                    <div>
+                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 16 }}>{selectedCustomer.name}</div>
+                      <div style={{ marginTop: 3, color: COLORS.textGray, fontSize: 12 }}>
+                        {selectedCustomer.phone || '-'} · 고객상세와 동일한 현재보험 데이터를 표시합니다.
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.('customerDetail', { id: selectedCustomerDbId })}
+                      style={{
+                        border: 'none',
+                        background: COLORS.primary,
+                        color: '#fff',
+                        borderRadius: 999,
+                        padding: '9px 12px',
+                        fontSize: 12,
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      고객 상세 보기
+                    </button>
                   </div>
-                </div>
+                </Card>
 
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.('customerDetail', { id: selectedCustomerId })}
-                  style={{
-                    border: 'none',
-                    background: COLORS.primary,
-                    color: '#fff',
-                    borderRadius: 999,
-                    padding: '9px 12px',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  고객 상세 보기
-                </button>
-              </div>
-            </Card>
+                <CoverageAnalysisResult
+                  customer={selectedCustomer}
+                  customerId={selectedCustomerDbId}
+                  criteriaSet={criteriaSet}
+                  filter={analysisFilter}
+                  onFilterChange={setAnalysisFilter}
+                  onOpenCriteria={openCriteriaModal}
+                  refreshKey={insuranceRefreshKey}
+                  isNarrow={isNarrow}
+                />
 
-            <CoverageAnalysisResult
-              customerId={selectedCustomerId}
-              criteriaSet={criteriaSet}
-              filter={analysisFilter}
-              onFilterChange={setAnalysisFilter}
-              onOpenCriteria={openCriteriaModal}
-              refreshKey={insuranceRefreshKey}
-              isNarrow={isNarrow}
-            />
+                <DesignRequestPanel
+                  customer={selectedCustomer}
+                  customerId={selectedCustomerDbId}
+                  criteriaSet={criteriaSet}
+                  refreshKey={insuranceRefreshKey}
+                  isNarrow={isNarrow}
+                />
 
-            <DesignRequestPanel
-              customer={selectedCustomer}
-              customerId={selectedCustomerId}
-              criteriaSet={criteriaSet}
-              refreshKey={insuranceRefreshKey}
-              isNarrow={isNarrow}
-            />
-
-            <CurrentInsuranceManager customerId={selectedCustomerId} onChanged={handleInsuranceChanged} />
+                <CurrentInsuranceManager customerId={selectedCustomerDbId} onChanged={handleInsuranceChanged} />
+              </>
+            )}
           </div>
         ) : (
           <Card>
@@ -502,10 +965,13 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   );
 }
 
-function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChange, onOpenCriteria, refreshKey, isNarrow }) {
+function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onFilterChange, onOpenCriteria, refreshKey, isNarrow }) {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedKey, setExpandedKey] = useState('');
+  const [shareScope, setShareScope] = useState('all');
+  const [shareMaskName, setShareMaskName] = useState(false);
+  const [sharingImage, setSharingImage] = useState(false);
 
   useEffect(() => {
     load();
@@ -546,6 +1012,25 @@ function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChang
     return analysisRows;
   }, [analysisRows, filter]);
 
+  async function handleShareImage() {
+    const shareRows = getCoverageShareRows(analysisRows, shareScope);
+    setSharingImage(true);
+
+    try {
+      const files = await createCoverageShareImageFiles({
+        customer,
+        rows: shareRows,
+        scope: shareScope,
+        maskName: shareMaskName,
+      });
+      await shareCoverageImageFiles(files);
+    } catch (error) {
+      alert(error.message || '보장분석 공유 이미지를 만들지 못했습니다.');
+    } finally {
+      setSharingImage(false);
+    }
+  }
+
   if (!criteriaSet) {
     return (
       <Card>
@@ -566,7 +1051,7 @@ function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChang
 
   return (
     <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12, background: PASTEL.grayPurple, border: `1px solid ${PASTEL.grayPurpleBorder}`, borderRadius: 16, padding: 14 }}>
         <div>
           <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 16 }}>현재 / 기준 비교</div>
           <div style={{ color: COLORS.textGray, fontSize: 12, marginTop: 5, lineHeight: 1.5 }}>
@@ -576,6 +1061,44 @@ function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChang
         </div>
         <button type="button" onClick={onOpenCriteria} style={ghostSmallButtonStyle}>
           기준 수정
+        </button>
+      </div>
+
+      <div style={{ background: PASTEL.purple, border: `1px solid ${PASTEL.purpleBorder}`, borderRadius: 14, padding: 12, marginBottom: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ ...labelStyle, minWidth: 160 }}>
+            공유 범위
+            <select
+              value={shareScope}
+              onChange={(event) => setShareScope(event.target.value)}
+              style={{ ...inputStyle, padding: '8px 10px', fontSize: 12, background: '#fff' }}
+            >
+              <option value="all">전체 보장</option>
+              <option value="shortage">부족/미가입 보장만</option>
+            </select>
+          </label>
+
+          <label style={{ color: COLORS.textGray, fontSize: 12, fontWeight: 800, display: 'flex', gap: 7, alignItems: 'center', marginTop: 20 }}>
+            <input
+              type="checkbox"
+              checked={shareMaskName}
+              onChange={(event) => setShareMaskName(event.target.checked)}
+            />
+            고객명 마스킹
+          </label>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleShareImage}
+          disabled={sharingImage || loading}
+          style={{
+            ...primarySmallButtonStyle,
+            opacity: sharingImage || loading ? 0.65 : 1,
+            cursor: sharingImage || loading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {sharingImage ? '이미지 생성 중...' : '이미지로 공유'}
         </button>
       </div>
 
@@ -593,15 +1116,17 @@ function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChang
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filteredRows.map((row) => (
-            <div key={row.key} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
+          {filteredRows.map((row) => {
+            const statusStyle = getAnalysisStatusStyle(row.status);
+            return (
+            <div key={row.key} style={{ border: `1px solid ${statusStyle.border}`, borderRadius: 14, overflow: 'hidden', background: statusStyle.rowBg }}>
               <button
                 type="button"
                 onClick={() => setExpandedKey((prev) => (prev === row.key ? '' : row.key))}
                 style={{
                   width: '100%',
                   border: 'none',
-                  background: '#fff',
+                  background: statusStyle.rowBg,
                   padding: 12,
                   cursor: 'pointer',
                   textAlign: 'left',
@@ -645,7 +1170,8 @@ function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChang
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Card>
@@ -653,9 +1179,13 @@ function CoverageAnalysisResult({ customerId, criteriaSet, filter, onFilterChang
 }
 
 const defaultIncludeSections = {
-  maskedName: true,
-  birth: false,
+  customerName: true,
+  maskedName: false,
+  phone: true,
+  birth: true,
   age: true,
+  gender: true,
+  address: true,
   job: true,
   medical: false,
   disclosure: false,
@@ -687,6 +1217,7 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
   const [managers, setManagers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [includeInactiveManagers, setIncludeInactiveManagers] = useState(false);
+  const [managerTypeFilter, setManagerTypeFilter] = useState('all');
   const [managerModalOpen, setManagerModalOpen] = useState(false);
   const [managerForm, setManagerForm] = useState(managerEmptyForm);
   const [editingManager, setEditingManager] = useState(null);
@@ -741,12 +1272,25 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
     [managers],
   );
 
+  const groupedManagers = useMemo(
+    () => groupManagersByInsuranceType(managers, managerTypeFilter),
+    [managers, managerTypeFilter],
+  );
+
   const selectedManager = useMemo(
     () => managers.find((manager) => String(manager.id) === String(requestForm.manager_id)) || null,
     [managers, requestForm.manager_id],
   );
 
+  const includesPersonalInfo =
+    includeSections.customerName ||
+    includeSections.phone ||
+    includeSections.birth ||
+    includeSections.gender ||
+    includeSections.address ||
+    includeSections.job;
   const includesSensitiveInfo = includeSections.medical || includeSections.disclosure || includeSections.exclusions;
+  const needsInfoConfirm = includesPersonalInfo || includesSensitiveInfo;
 
   function openManagerModal(manager = null) {
     setEditingManager(manager);
@@ -848,8 +1392,8 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
   }
 
   async function shareRequestMessage() {
-    if (includesSensitiveInfo && !requestForm.consent_checked) {
-      alert('병력 등 민감정보 포함 확인을 체크해주세요.');
+    if (needsInfoConfirm && !requestForm.consent_checked) {
+      alert('개인정보 또는 민감정보 포함 확인을 체크해주세요.');
       return false;
     }
 
@@ -872,8 +1416,8 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
   }
 
   async function saveSentRequest() {
-    if (includesSensitiveInfo && !requestForm.consent_checked) {
-      alert('병력 등 민감정보 포함 확인을 체크해주세요.');
+    if (needsInfoConfirm && !requestForm.consent_checked) {
+      alert('개인정보 또는 민감정보 포함 확인을 체크해주세요.');
       return;
     }
 
@@ -892,6 +1436,7 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
         requestMessage: messagePreview,
         includedSections: {
           ...includeSections,
+          info_confirmed: needsInfoConfirm ? Boolean(requestForm.consent_checked) : false,
           sensitive_confirmed: includesSensitiveInfo ? Boolean(requestForm.consent_checked) : false,
         },
         status: 'sent',
@@ -909,7 +1454,7 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
 
   return (
     <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12, background: PASTEL.purple, border: `1px solid ${PASTEL.purpleBorder}`, borderRadius: 16, padding: 14 }}>
         <div>
           <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 16 }}>설계의뢰</div>
           <div style={{ color: COLORS.textGray, fontSize: 12, marginTop: 5, lineHeight: 1.5 }}>
@@ -937,30 +1482,73 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
               비활성 포함
             </label>
           </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {MANAGER_TYPE_FILTERS.map((option) => {
+              const active = managerTypeFilter === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setManagerTypeFilter(option.value)}
+                  style={{
+                    ...tinyButtonStyle,
+                    borderColor: active ? COLORS.primary : COLORS.border,
+                    background: active ? '#EEF2FF' : '#fff',
+                    color: active ? COLORS.primary : COLORS.text,
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
 
           {managers.length === 0 ? (
             <div style={{ color: COLORS.textGray, fontSize: 13 }}>등록된 설계매니저가 없습니다.</div>
+          ) : groupedManagers.length === 0 ? (
+            <div style={{ color: COLORS.textGray, fontSize: 13 }}>선택한 보험사 유형의 설계매니저가 없습니다.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {managers.map((manager) => (
-                <div key={manager.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 12, background: manager.is_active ? '#fff' : '#F8FAFC' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
-                        {manager.insurance_company} · {manager.name}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {groupedManagers.map((group) => (
+                <div
+                  key={group.type}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    background: getManagerGroupStyle(group.type).bg,
+                    border: `1px solid ${getManagerGroupStyle(group.type).border}`,
+                    borderRadius: 14,
+                    padding: 10,
+                  }}
+                >
+                  <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>{group.label}</div>
+                  {group.managers.map((manager) => (
+                    <div key={manager.id} style={{ border: `1px solid ${getManagerGroupStyle(group.type).border}`, borderRadius: 12, padding: 12, background: manager.is_active ? 'rgba(255,255,255,0.78)' : PASTEL.gray }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
+                              {manager.insurance_company} · {manager.name}
+                            </span>
+                            <span style={{ border: `1px solid ${getManagerGroupStyle(group.type).border}`, borderRadius: 999, padding: '2px 7px', background: getManagerGroupStyle(group.type).chipBg, color: getManagerGroupStyle(group.type).chipColor, fontSize: 11, fontWeight: 800 }}>
+                              {getManagerInsuranceTypeLabel(manager)}
+                            </span>
+                          </div>
+                          <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 12 }}>
+                            {manager.phone || '전화번호 없음'} / {manager.specialty || '담당영역 미입력'} / {manager.is_active ? '활성' : '비활성'}
+                          </div>
+                          {manager.memo && <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 12 }}>메모: {manager.memo}</div>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button type="button" onClick={() => openManagerModal(manager)} style={tinyButtonStyle}>수정</button>
+                          <button type="button" onClick={() => toggleManagerActive(manager)} style={tinyButtonStyle}>
+                            {manager.is_active ? '비활성화' : '재활성화'}
+                          </button>
+                        </div>
                       </div>
-                      <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 12 }}>
-                        {manager.phone || '전화번호 없음'} / {manager.specialty || '담당영역 미입력'} / {manager.is_active ? '활성' : '비활성'}
-                      </div>
-                      {manager.memo && <div style={{ marginTop: 4, color: COLORS.textGray, fontSize: 12 }}>메모: {manager.memo}</div>}
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <button type="button" onClick={() => openManagerModal(manager)} style={tinyButtonStyle}>수정</button>
-                      <button type="button" onClick={() => toggleManagerActive(manager)} style={tinyButtonStyle}>
-                        {manager.is_active ? '비활성화' : '재활성화'}
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -1011,6 +1599,7 @@ function DesignRequestPanel({ customer, customerId, criteriaSet, refreshKey, isN
         selectedManager={selectedManager}
         form={requestForm}
         includeSections={includeSections}
+        needsInfoConfirm={needsInfoConfirm}
         includesSensitiveInfo={includesSensitiveInfo}
         messagePreview={messagePreview}
         saving={saving}
@@ -1108,6 +1697,7 @@ function DesignRequestModal({
   selectedManager,
   form,
   includeSections,
+  needsInfoConfirm,
   includesSensitiveInfo,
   messagePreview,
   saving,
@@ -1124,7 +1714,7 @@ function DesignRequestModal({
     <Modal visible={visible} onClose={onClose} title="설계 의뢰하기">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ background: '#F8FAFC', borderRadius: 14, padding: 12, color: COLORS.textGray, fontSize: 12, lineHeight: 1.55 }}>
-          전송 전 메시지를 직접 확인하고 수정할 수 있습니다. 주민번호, 연락처, 상세주소, 계좌번호, 증권번호는 자동 포함하지 않습니다.
+          전송 전 메시지를 직접 확인하고 수정할 수 있습니다. 주민등록번호 전체, 계좌번호, 은행정보, 증권번호는 자동 포함하지 않습니다.
         </div>
 
         <label style={labelStyle}>
@@ -1182,9 +1772,13 @@ function DesignRequestModal({
         <div>
           <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13, marginBottom: 8 }}>포함할 정보</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+            <IncludeCheckbox label="고객명" checked={includeSections.customerName} onChange={(value) => onChangeInclude('customerName', value)} />
             <IncludeCheckbox label="고객명 마스킹" checked={includeSections.maskedName} onChange={(value) => onChangeInclude('maskedName', value)} />
+            <IncludeCheckbox label="휴대폰번호" checked={includeSections.phone} onChange={(value) => onChangeInclude('phone', value)} />
             <IncludeCheckbox label="생년월일" checked={includeSections.birth} onChange={(value) => onChangeInclude('birth', value)} />
             <IncludeCheckbox label="나이" checked={includeSections.age} onChange={(value) => onChangeInclude('age', value)} />
+            <IncludeCheckbox label="성별" checked={includeSections.gender} onChange={(value) => onChangeInclude('gender', value)} />
+            <IncludeCheckbox label="주소" checked={includeSections.address} onChange={(value) => onChangeInclude('address', value)} />
             <IncludeCheckbox label="직업" checked={includeSections.job} onChange={(value) => onChangeInclude('job', value)} />
             <IncludeCheckbox label="병력" checked={includeSections.medical} onChange={(value) => onChangeInclude('medical', value)} />
             <IncludeCheckbox label="알릴의무" checked={includeSections.disclosure} onChange={(value) => onChangeInclude('disclosure', value)} />
@@ -1194,7 +1788,7 @@ function DesignRequestModal({
           </div>
         </div>
 
-        {includesSensitiveInfo && (
+        {needsInfoConfirm && (
           <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: COLORS.redBg, borderRadius: 12, padding: 12, color: COLORS.red, fontSize: 12, fontWeight: 800, lineHeight: 1.45 }}>
             <input
               type="checkbox"
@@ -1202,7 +1796,8 @@ function DesignRequestModal({
               onChange={(event) => onChangeForm('consent_checked', event.target.checked)}
               style={{ marginTop: 2 }}
             />
-            고객 동의 또는 업무상 필요한 전달 범위를 확인했습니다. 민감정보는 전송 전 메시지에서 다시 검토합니다.
+            고객 동의 또는 업무상 필요한 전달 범위를 확인했습니다. 개인정보와 민감정보는 전송 전 메시지에서 다시 검토합니다.
+            {includesSensitiveInfo ? ' 병력/알릴의무/부담보가 포함되어 있습니다.' : ''}
           </label>
         )}
 
@@ -1257,11 +1852,18 @@ function buildDesignRequestMessage({ customer, consultations, summary, analysisR
   const lines = ['[보플랜 설계의뢰]'];
   const customerLines = [];
   const age = calculateAgeFromBirth(customer?.birth);
+  const customerName = includeSections.maskedName ? maskCustomerName(customer?.name) : String(customer?.name || '').trim();
+  const gender = getCustomerGender(customer);
+  const jobDetail = getCustomerJobDetail(customer);
 
-  if (includeSections.maskedName) customerLines.push(`고객명: ${maskCustomerName(customer?.name)}`);
+  if (includeSections.customerName && customerName) customerLines.push(`고객명: ${customerName}`);
+  if (includeSections.phone && customer?.phone) customerLines.push(`휴대폰번호: ${customer.phone}`);
   if (includeSections.birth && customer?.birth) customerLines.push(`생년월일: ${customer.birth}`);
-  if (includeSections.age && age) customerLines.push(`나이: ${age}세`);
+  if (includeSections.age) customerLines.push(`나이: ${age ? `${age}세` : '확인 필요'}`);
+  if (includeSections.gender) customerLines.push(`성별: ${gender || '확인 필요'}`);
+  if (includeSections.address && customer?.address) customerLines.push(`주소: ${customer.address}`);
   if (includeSections.job && customer?.job) customerLines.push(`직업: ${customer.job}`);
+  if (includeSections.job && jobDetail) customerLines.push(`직업 상세: ${jobDetail}`);
 
   if (customerLines.length) {
     lines.push('', '고객 기본정보', ...customerLines.map((line) => `- ${line}`));
@@ -1298,7 +1900,7 @@ function buildDesignRequestMessage({ customer, consultations, summary, analysisR
     lines.push('', '설계 요청 메모', String(requestNote).trim());
   }
 
-  lines.push('', '※ 주민번호, 연락처, 상세주소, 계좌번호, 증권번호는 자동 포함하지 않았습니다.');
+  lines.push('', '※ 주민등록번호 전체, 계좌번호, 은행정보, 증권번호는 자동 포함하지 않았습니다.');
   return lines.join('\n');
 }
 
@@ -1456,7 +2058,7 @@ function FilterButton({ label, active, onClick }) {
         border: 'none',
         background: active ? COLORS.primary : '#fff',
         color: active ? '#fff' : COLORS.textGray,
-        boxShadow: active ? 'none' : `inset 0 0 0 1px ${COLORS.border}`,
+        boxShadow: active ? '0 7px 16px rgba(124,92,252,0.16)' : `inset 0 0 0 1px ${PASTEL.purpleBorder}`,
         borderRadius: 999,
         padding: '7px 11px',
         fontSize: 12,
@@ -1482,7 +2084,7 @@ function MetricText({ label, value }) {
 
 function SmallMetric({ label, value }) {
   return (
-    <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '8px 9px', minWidth: 0 }}>
+    <div style={{ background: PASTEL.grayPurple, border: `1px solid ${PASTEL.grayPurpleBorder}`, borderRadius: 10, padding: '8px 9px', minWidth: 0 }}>
       <div style={{ color: COLORS.textGray, fontSize: 10, fontWeight: 800 }}>{label}</div>
       <div style={{ color: COLORS.text, fontSize: 12, fontWeight: 900, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {value}

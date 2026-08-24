@@ -34,6 +34,19 @@ const emptyCoverageForm = {
 const renewalOptions = ['확인필요', '갱신형', '비갱신형', '혼합'];
 const statusOptions = ['유지중', '납입중', '납입완료', '실효', '해지', '만기', '확인필요'];
 
+const PASTEL = {
+  purple: '#F3EEFF',
+  sky: '#EEF7FF',
+  mint: '#EFFAF5',
+  apricot: '#FFF6EA',
+  grayPurple: '#F7F5FB',
+  skyBorder: '#CFE8FF',
+  mintBorder: '#CBEFDA',
+  apricotBorder: '#FFE2BA',
+  purpleBorder: '#CDBDFF',
+  grayPurpleBorder: '#E5E0EE',
+};
+
 function formatWon(value) {
   if (value === null || value === undefined || value === '') return '-';
   const numberValue = Number(value);
@@ -55,6 +68,13 @@ function getRenewableLabel(value) {
   if (value === true) return '갱신';
   if (value === false) return '비갱신';
   return '확인필요';
+}
+
+function getContractChipStyle(type) {
+  if (type === 'premium') return { ...chipStyle, background: PASTEL.apricot, color: '#B45309', border: `1px solid ${PASTEL.apricotBorder}` };
+  if (type === 'renewal') return { ...chipStyle, background: PASTEL.purple, color: COLORS.primary, border: `1px solid ${PASTEL.purpleBorder}` };
+  if (type === 'status') return { ...chipStyle, background: PASTEL.mint, color: '#15803D', border: `1px solid ${PASTEL.mintBorder}` };
+  return chipStyle;
 }
 
 function toManwon(value) {
@@ -381,9 +401,10 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
         borderRadius: 16,
         padding: 16,
         boxShadow: `0 2px 14px rgba(124,92,252,0.10)`,
+        border: `1px solid ${PASTEL.grayPurpleBorder}`,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12, background: `linear-gradient(135deg, ${PASTEL.mint} 0%, ${PASTEL.sky} 100%)`, border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 16, padding: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 18 }}>🛡️</span>
           <div>
@@ -410,7 +431,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
         <LoadingSpinner />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: 14, background: '#F8FAFC' }}>
+          <div style={{ border: `1px solid ${PASTEL.mintBorder}`, borderRadius: 14, padding: 14, background: PASTEL.mint }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 14 }}>현재보장 합산</div>
               <div style={{ color: COLORS.textGray, fontSize: 12 }}>{summary.length}개 담보군</div>
@@ -427,7 +448,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                     key={item.key}
                     style={{
                       background: '#fff',
-                      border: `1px solid ${COLORS.border}`,
+                      border: `1px solid ${PASTEL.mintBorder}`,
                       borderRadius: 12,
                       overflow: 'hidden',
                     }}
@@ -456,8 +477,9 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                       <span
                         style={{
                           justifySelf: 'start',
-                          background: item.aggregationMode === 'sum' ? COLORS.primaryBg : '#FEF3C7',
+                          background: item.aggregationMode === 'sum' ? PASTEL.purple : PASTEL.apricot,
                           color: item.aggregationMode === 'sum' ? COLORS.primary : '#92400E',
+                          border: `1px solid ${item.aggregationMode === 'sum' ? PASTEL.purpleBorder : PASTEL.apricotBorder}`,
                           borderRadius: 999,
                           padding: '4px 8px',
                           fontSize: 11,
@@ -497,10 +519,10 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
               <div
                 key={contract.id}
                 style={{
-                  border: `1px solid ${COLORS.border}`,
+                  border: `1px solid ${PASTEL.skyBorder}`,
                   borderRadius: 14,
                   padding: 14,
-                  background: '#fff',
+                  background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FCFF 100%)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
@@ -512,9 +534,9 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                       {contract.product_name || '상품명 미입력'}
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                      <span style={chipStyle}>월 {formatWon(contract.monthly_premium)}</span>
-                      <span style={chipStyle}>{contract.renewal_type || '확인필요'}</span>
-                      <span style={chipStyle}>{contract.contract_status || '상태 미입력'}</span>
+                      <span style={getContractChipStyle('premium')}>월 {formatWon(contract.monthly_premium)}</span>
+                      <span style={getContractChipStyle('renewal')}>{contract.renewal_type || '확인필요'}</span>
+                      <span style={getContractChipStyle('status')}>{contract.contract_status || '상태 미입력'}</span>
                     </div>
                   </div>
 
@@ -549,7 +571,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
                           gap: 10,
                           padding: 10,
                           borderRadius: 12,
-                          background: '#F8FAFC',
+                          background: PASTEL.grayPurple,
                         }}
                       >
                         <div style={{ minWidth: 0, fontSize: 12, color: COLORS.text, lineHeight: 1.5 }}>
