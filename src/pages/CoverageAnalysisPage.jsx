@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import EmptyState from '../components/EmptyState';
@@ -536,46 +536,166 @@ const COVERAGE_COLOR_THEMES = {
   pink: { bg: '#FFF0F6', iconBg: '#FCE7F3', border: '#FFD1E3', color: '#EC4899' },
 };
 
+const REQUIRED_COVERAGE_DISPLAY_ORDER = [
+  {
+    key: 'general_cancer',
+    name: '일반암 진단비',
+    theme: 'red',
+    Icon: Ribbon,
+    match: (label) => label.includes('일반암') || (label.includes('암') && !label.includes('유사') && !label.includes('소액')),
+  },
+  {
+    key: 'minor_cancer',
+    name: '유사암 진단비',
+    theme: 'orange',
+    Icon: ShieldCheck,
+    match: (label) => label.includes('유사암') || label.includes('소액암'),
+  },
+  {
+    key: 'cerebrovascular',
+    name: '뇌혈관질환 진단비',
+    theme: 'yellow',
+    Icon: Brain,
+    match: (label) => label.includes('뇌혈관'),
+  },
+  {
+    key: 'ischemic_heart',
+    name: '허혈성심장질환 진단비',
+    theme: 'green',
+    Icon: HeartPulse,
+    match: (label) => label.includes('허혈') || label.includes('심장') || label.includes('심근'),
+  },
+  {
+    key: 'surgery',
+    name: '수술비',
+    theme: 'blue',
+    Icon: Stethoscope,
+    match: (label) => label.includes('수술'),
+  },
+  {
+    key: 'fracture',
+    name: '골절진단비',
+    theme: 'indigo',
+    Icon: Bone,
+    match: (label) => label.includes('골절'),
+  },
+  {
+    key: 'burn',
+    name: '화상진단비',
+    theme: 'purple',
+    Icon: Flame,
+    match: (label) => label.includes('화상'),
+  },
+  {
+    key: 'liability',
+    name: '일상생활배상책임',
+    theme: 'sky',
+    Icon: ShieldCheck,
+    match: (label) => label.includes('일상생활배상') || label.includes('배상책임') || label.includes('일배책'),
+  },
+  {
+    key: 'care',
+    name: '간병비',
+    theme: 'pink',
+    Icon: Users,
+    match: (label) => label.includes('간병') || label.includes('간호'),
+  },
+];
+
 function withCoverageIcon(theme, Icon) {
   return { ...theme, Icon };
 }
 
-function getCoverageCategoryVisual(name) {
+function getCoverageDisplayItem(name) {
   const label = String(name || '').replace(/\s/g, '');
-  if (label.includes('심장') || label.includes('심근') || label.includes('허혈')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.red, HeartPulse);
+  return REQUIRED_COVERAGE_DISPLAY_ORDER.find((item) => item.match(label)) || null;
+}
+
+function getCoverageCategoryVisual(name) {
+  const displayItem = getCoverageDisplayItem(name);
+  if (displayItem) {
+    return withCoverageIcon(COVERAGE_COLOR_THEMES[displayItem.theme], displayItem.Icon);
   }
-  if (label.includes('유사암')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.yellow, ShieldCheck);
-  }
-  if (label.includes('암')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.orange, Ribbon);
-  }
-  if (label.includes('뇌')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.green, Brain);
-  }
-  if (label.includes('골절')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.blue, Bone);
-  }
-  if (label.includes('화상')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.indigo, Flame);
-  }
-  if (label.includes('수술')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.purple, Stethoscope);
-  }
-  if (label.includes('간병') || label.includes('간호')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.pink, Users);
+
+  const label = String(name || '').replace(/\s/g, '');
+  if (label.includes('운전자')) {
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.purple, ShieldCheck);
   }
   if (label.includes('입원')) {
     return withCoverageIcon(COVERAGE_COLOR_THEMES.sky, Bed);
   }
-  if (label.includes('운전자')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.purple, ShieldCheck);
-  }
-  if (label.includes('진단')) {
-    return withCoverageIcon(COVERAGE_COLOR_THEMES.purple, Stethoscope);
-  }
   return withCoverageIcon(COVERAGE_COLOR_THEMES.sky, Stethoscope);
+}
+
+function mergeCoverageDisplayRows(displayItem, rows, orderIndex) {
+  if (rows.length === 1) {
+    return {
+      ...rows[0],
+      key: `display:${displayItem.key}:${rows[0].key}`,
+      name: displayItem.name,
+      displayOrder: orderIndex,
+    };
+  }
+
+  if (rows.length === 0) {
+    return {
+      key: `display:${displayItem.key}`,
+      standardCoverageId: null,
+      name: displayItem.name,
+      groupName: '보장분석',
+      aggregationMode: 'review_required',
+      currentAmount: null,
+      targetAmount: null,
+      difference: null,
+      status: '확인 필요',
+      displayOrder: orderIndex,
+      memo: displayItem.key === 'liability'
+        ? '현재 표준담보에 일상생활배상책임 항목이 없어 별도 매핑이 필요합니다.'
+        : '분석기준 또는 표준담보 매핑이 필요합니다.',
+      summary: null,
+      details: [],
+    };
+  }
+
+  return {
+    key: `display:${displayItem.key}`,
+    standardCoverageId: null,
+    name: displayItem.name,
+    groupName: rows[0]?.groupName || '보장분석',
+    aggregationMode: 'review_required',
+    currentAmount: null,
+    targetAmount: null,
+    difference: null,
+    status: '확인 필요',
+    displayOrder: orderIndex,
+    memo: '여러 담보가 포함될 수 있어 단순 합산하지 않고 확인 필요로 표시합니다.',
+    summary: null,
+    details: rows.flatMap((row) => row.details || []),
+    sourceRows: rows,
+  };
+}
+
+function orderCoverageAnalysisRows(rows) {
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  const usedKeys = new Set();
+  const orderedRows = REQUIRED_COVERAGE_DISPLAY_ORDER.map((displayItem, index) => {
+    const matchedRows = sourceRows.filter((row) => {
+      if (getCoverageDisplayItem(row.name)?.key !== displayItem.key) return false;
+      usedKeys.add(row.key);
+      return true;
+    });
+
+    return mergeCoverageDisplayRows(displayItem, matchedRows, index + 1);
+  });
+
+  const extraRows = sourceRows
+    .filter((row) => !usedKeys.has(row.key))
+    .map((row, index) => ({
+      ...row,
+      displayOrder: REQUIRED_COVERAGE_DISPLAY_ORDER.length + index + 1,
+    }));
+
+  return [...orderedRows, ...extraRows];
 }
 
 function makeCriteriaDraft(categories, criteriaSet) {
@@ -624,6 +744,9 @@ function AnalysisStatusPill({ status, compact = false }) {
   return (
     <span
       style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         background: style.bg,
         color: style.color,
         border: `1px solid ${style.border}`,
@@ -633,6 +756,10 @@ function AnalysisStatusPill({ status, compact = false }) {
         fontWeight: 900,
         whiteSpace: 'nowrap',
         textAlign: 'center',
+        minWidth: compact ? 62 : 76,
+        justifySelf: 'end',
+        flexShrink: 0,
+        boxSizing: 'border-box',
       }}
     >
       {status}
@@ -642,9 +769,6 @@ function AnalysisStatusPill({ status, compact = false }) {
 
 export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth <= 900);
-  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth || 1280);
-  const detailContainerRef = useRef(null);
-  const [detailWidth, setDetailWidth] = useState(0);
   const [customers, setCustomers] = useState([]);
   const [overviewMap, setOverviewMap] = useState({});
   const [selectedCustomerId, setSelectedCustomerId] = useState(() => {
@@ -671,21 +795,11 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
 
   useEffect(() => {
     const handler = () => {
-      setViewportWidth(window.innerWidth || 1280);
       setIsNarrow(window.innerWidth <= 900);
     };
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
-
-  useEffect(() => {
-    if (!detailContainerRef.current || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(([entry]) => {
-      setDetailWidth(entry?.contentRect?.width || 0);
-    });
-    observer.observe(detailContainerRef.current);
-    return () => observer.disconnect();
-  }, [selectedCustomerId]);
 
   async function load() {
     setLoading(true);
@@ -803,7 +917,6 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const hasSelectedCustomer = Boolean(selectedCustomerId);
   const isCustomerListCollapsed = hasSelectedCustomer && !isNarrow && customerListCollapsed;
   const showCustomerList = !(hasSelectedCustomer && isNarrow) && !isCustomerListCollapsed;
-  const useTwoColumnDetail = !isNarrow && (detailWidth || viewportWidth) >= 900;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -1022,7 +1135,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                       <StatusPill status={status} />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 0.8fr 1.25fr', gap: 8, marginTop: 12 }}>
                       <SmallMetric label="현재보험" value={`${overview.contractCount || 0}건`} />
                       <SmallMetric label="담보" value={`${overview.coverageCount || 0}건`} />
                       <SmallMetric label="최근 수정" value={overview.latestUpdatedAt ? formatDate(overview.latestUpdatedAt) : '-'} />
@@ -1038,7 +1151,6 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
 
         {hasSelectedCustomer ? (
           <div
-            ref={detailContainerRef}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -1087,6 +1199,8 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                   </div>
                 </Card>
 
+                <CurrentInsuranceManager customerId={selectedCustomerDbId} onChanged={handleInsuranceChanged} />
+
                 <CoverageAnalysisResult
                   customer={selectedCustomer}
                   customerId={selectedCustomerDbId}
@@ -1098,26 +1212,13 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                   isNarrow={isNarrow}
                 />
 
-                <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: useTwoColumnDetail ? 'minmax(0, 1.15fr) minmax(360px, 0.85fr)' : '1fr',
-            gap: 16,
-                    alignItems: 'start',
-                    width: '100%',
-                    minWidth: 0,
-                  }}
-                >
-                  <DesignRequestPanel
-                    customer={selectedCustomer}
-                    customerId={selectedCustomerDbId}
-                    criteriaSet={criteriaSet}
-                    refreshKey={insuranceRefreshKey}
-                    isNarrow={isNarrow}
-                  />
-
-                  <CurrentInsuranceManager customerId={selectedCustomerDbId} onChanged={handleInsuranceChanged} />
-                </div>
+                <DesignRequestPanel
+                  customer={selectedCustomer}
+                  customerId={selectedCustomerDbId}
+                  criteriaSet={criteriaSet}
+                  refreshKey={insuranceRefreshKey}
+                  isNarrow={isNarrow}
+                />
               </>
             )}
           </div>
@@ -1183,18 +1284,23 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
     [summary, criteriaSet],
   );
 
+  const displayRows = useMemo(
+    () => orderCoverageAnalysisRows(analysisRows),
+    [analysisRows],
+  );
+
   const filteredRows = useMemo(() => {
     if (filter === 'shortage') {
-      return analysisRows.filter((row) => row.status === '부족' || row.status === '미가입');
+      return displayRows.filter((row) => row.status === '부족' || row.status === '미가입');
     }
     if (filter === 'review') {
-      return analysisRows.filter((row) => row.status === '확인 필요' || row.status === '별도');
+      return displayRows.filter((row) => row.status === '확인 필요' || row.status === '별도');
     }
-    return analysisRows;
-  }, [analysisRows, filter]);
+    return displayRows;
+  }, [displayRows, filter]);
 
   async function handleShareImage() {
-    const shareRows = getCoverageShareRows(analysisRows, shareScope);
+    const shareRows = getCoverageShareRows(displayRows, shareScope);
     setSharingImage(true);
 
     try {
@@ -1310,13 +1416,13 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
                   width: '100%',
                   border: 'none',
                   background: categoryStyle.bg,
-                  padding: isNarrow ? '7px 9px' : '10px 12px',
+                  padding: isNarrow ? '7px 11px 7px 9px' : '10px 16px 10px 12px',
                   cursor: 'pointer',
                   textAlign: 'left',
                   display: 'grid',
                   gridTemplateColumns: isNarrow
-                    ? 'minmax(120px, 1fr) repeat(3, minmax(38px, 0.36fr)) minmax(58px, 0.5fr)'
-                    : 'minmax(210px, 1.15fr) repeat(3, minmax(82px, 0.72fr)) 104px',
+                    ? 'minmax(112px, 1fr) repeat(3, minmax(36px, 0.34fr)) minmax(66px, 0.54fr)'
+                    : 'minmax(210px, 1.15fr) repeat(3, minmax(82px, 0.72fr)) minmax(116px, 116px)',
                   gap: isNarrow ? 6 : 10,
                   alignItems: 'center',
                   color: COLORS.text,
