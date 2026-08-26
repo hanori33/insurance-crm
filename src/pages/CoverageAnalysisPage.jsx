@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
 import EmptyState from '../components/EmptyState';
@@ -8,6 +8,8 @@ import {
   Bed,
   Bone,
   Brain,
+  ChevronDown,
+  ChevronUp,
   Flame,
   HeartPulse,
   Ribbon,
@@ -787,6 +789,8 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
   const [analysisFilter, setAnalysisFilter] = useState('all');
   const [insuranceRefreshKey, setInsuranceRefreshKey] = useState(0);
   const [customerListCollapsed, setCustomerListCollapsed] = useState(false);
+  const [customerListExpanded, setCustomerListExpanded] = useState(false);
+  const customerListTopRef = useRef(null);
 
   useEffect(() => {
     load();
@@ -800,6 +804,12 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
+
+  useEffect(() => {
+    if (!search.trim()) {
+      setCustomerListExpanded(false);
+    }
+  }, [search]);
 
   async function load() {
     setLoading(true);
@@ -897,6 +907,18 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
     }
   }
 
+  function toggleCustomerListExpanded() {
+    setCustomerListExpanded((prev) => {
+      const next = !prev;
+      if (!next && typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          customerListTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+      return next;
+    });
+  }
+
   const filteredCustomers = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return customers;
@@ -908,6 +930,13 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
       );
     });
   }, [customers, search]);
+  const isCustomerSearchActive = search.trim().length > 0;
+  const visibleCustomers = useMemo(() => {
+    if (isCustomerSearchActive || customerListExpanded) return filteredCustomers;
+    return filteredCustomers.slice(0, 5);
+  }, [filteredCustomers, isCustomerSearchActive, customerListExpanded]);
+  const hiddenCustomerCount = isCustomerSearchActive ? 0 : Math.max(filteredCustomers.length - visibleCustomers.length, 0);
+  const showCustomerListMoreButton = !isCustomerSearchActive && filteredCustomers.length > 5;
 
   const selectedCustomer = useMemo(
     () => customers.find((customer) => isSameCustomerId(customer, selectedCustomerId)) || null,
@@ -1026,6 +1055,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
 
         {showCustomerList && (
         <div
+          ref={customerListTopRef}
           style={{ minWidth: 0 }}
         >
         <Card style={{ border: `1px solid ${PASTEL.grayPurpleBorder}` }}>
@@ -1104,7 +1134,7 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
             <EmptyState icon="🛡️" message="조회할 고객이 없습니다" />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {filteredCustomers.map((customer) => {
+              {visibleCustomers.map((customer) => {
                 const customerId = getCustomerId(customer);
                 const overview = overviewMap[customerId] || {};
                 const status = getStatus(overview);
@@ -1143,6 +1173,41 @@ export default function CoverageAnalysisPage({ onBack, onNavigate }) {
                   </button>
                 );
               })}
+              {showCustomerListMoreButton && (
+                <button
+                  type="button"
+                  onClick={toggleCustomerListExpanded}
+                  style={{
+                    width: '100%',
+                    border: `1.5px solid ${PASTEL.purpleBorder}`,
+                    background: 'linear-gradient(135deg, #F7F2FF 0%, #FFFFFF 100%)',
+                    color: COLORS.primary,
+                    borderRadius: 14,
+                    padding: '10px 12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    fontSize: 13,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    boxShadow: '0 6px 14px rgba(124,92,252,0.08)',
+                  }}
+                >
+                  {customerListExpanded ? (
+                    <>
+                      고객 접기
+                      <ChevronUp size={16} strokeWidth={2.4} aria-hidden="true" />
+                    </>
+                  ) : (
+                    <>
+                      고객 더보기 ({hiddenCustomerCount}명)
+                      <ChevronDown size={16} strokeWidth={2.4} aria-hidden="true" />
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
         </Card>
