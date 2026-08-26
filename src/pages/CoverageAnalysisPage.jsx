@@ -756,7 +756,7 @@ function AnalysisStatusPill({ status, compact = false }) {
         fontWeight: 900,
         whiteSpace: 'nowrap',
         textAlign: 'center',
-        minWidth: compact ? 62 : 76,
+        minWidth: compact ? 62 : 82,
         justifySelf: 'end',
         flexShrink: 0,
         boxSizing: 'border-box',
@@ -1414,16 +1414,18 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
                 onClick={() => setExpandedKey((prev) => (prev === row.key ? '' : row.key))}
                 style={{
                   width: '100%',
+                  boxSizing: 'border-box',
+                  minWidth: 0,
                   border: 'none',
                   background: categoryStyle.bg,
-                  padding: isNarrow ? '7px 11px 7px 9px' : '10px 16px 10px 12px',
+                  padding: isNarrow ? '7px 11px 7px 9px' : '10px 18px 10px 12px',
                   cursor: 'pointer',
                   textAlign: 'left',
                   display: 'grid',
                   gridTemplateColumns: isNarrow
                     ? 'minmax(112px, 1fr) repeat(3, minmax(36px, 0.34fr)) minmax(66px, 0.54fr)'
-                    : 'minmax(210px, 1.15fr) repeat(3, minmax(82px, 0.72fr)) minmax(116px, 116px)',
-                  gap: isNarrow ? 6 : 10,
+                    : 'minmax(170px, 1fr) repeat(3, minmax(64px, 0.48fr)) minmax(86px, 96px)',
+                  gap: isNarrow ? 6 : 8,
                   alignItems: 'center',
                   color: COLORS.text,
                   fontFamily: 'inherit',

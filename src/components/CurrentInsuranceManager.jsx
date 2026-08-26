@@ -4,6 +4,7 @@ import { LoadingSpinner } from './Common';
 import Modal from './Modal';
 import Field from './Field';
 import customerInsuranceService from '../services/customerInsuranceService';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const emptyContractForm = {
   insurance_company: '',
@@ -241,6 +242,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
   const [contractForm, setContractForm] = useState(emptyContractForm);
   const [coverageForm, setCoverageForm] = useState(emptyCoverageForm);
   const [expandedSummaryKey, setExpandedSummaryKey] = useState('');
+  const [showAllContracts, setShowAllContracts] = useState(false);
 
   const uncategorizedCategory = useMemo(
     () => customerInsuranceService.getUncategorizedCategory(categories),
@@ -251,6 +253,8 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
     () => customerInsuranceService.calculateCoverageSummary(contracts),
     [contracts],
   );
+  const visibleContracts = showAllContracts ? contracts : contracts.slice(0, 2);
+  const hiddenContractCount = Math.max(contracts.length - 2, 0);
 
   async function load() {
     if (!customerId) return;
@@ -273,6 +277,7 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
   }
 
   useEffect(() => {
+    setShowAllContracts(false);
     load();
   }, [customerId]);
 
@@ -519,85 +524,123 @@ export default function CurrentInsuranceManager({ customerId, onOpenAnalysis, on
               등록된 현재보험이 없습니다.
             </div>
           ) : (
-            contracts.map((contract) => (
-              <div
-                key={contract.id}
-                style={{
-                  border: `1px solid ${PASTEL.skyBorder}`,
-                  borderRadius: 14,
-                  padding: 14,
-                  background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FCFF 100%)',
-                  minWidth: 0,
-                }}
-              >
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', minWidth: 0 }}>
-                  <div style={{ flex: '1 1 230px', minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 900, color: COLORS.text }}>
-                      {contract.insurance_company || '보험회사 미입력'}
-                    </div>
-                    <div style={{ marginTop: 3, fontSize: 13, color: COLORS.text }}>
-                      {contract.product_name || '상품명 미입력'}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                      <span style={getContractChipStyle('premium')}>월 {formatWon(contract.monthly_premium)}</span>
-                      <span style={getContractChipStyle('renewal')}>{contract.renewal_type || '확인필요'}</span>
-                      <span style={getContractChipStyle('status')}>{contract.contract_status || '상태 미입력'}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', flex: '0 0 auto', maxWidth: '100%' }}>
-                    <GhostButton onClick={() => openContractModal(contract)}>수정</GhostButton>
-                    <GhostButton danger onClick={() => removeContract(contract)}>삭제</GhostButton>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 10, fontSize: 12, color: COLORS.textGray, lineHeight: 1.6 }}>
-                  가입일: {contract.joined_at || '-'} / 납입기간: {contract.payment_period || '-'} / 보험기간: {contract.coverage_period || '-'}
-                  <br />
-                  계약자: {contract.contractor || '-'} / 피보험자: {contract.insured || '-'} / 증권번호: {contract.policy_number || '-'}
-                  {contract.memo && <div>메모: {contract.memo}</div>}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: COLORS.text }}>담보 {contract.coverages?.length || 0}건</div>
-                  <GhostButton onClick={() => openCoverageModal(contract)}>+ 담보 추가</GhostButton>
-                </div>
-
-                {(contract.coverages || []).length === 0 ? (
-                  <div style={{ color: COLORS.textGray, fontSize: 12 }}>등록된 담보가 없습니다.</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {(contract.coverages || []).map((coverage) => (
-                      <div
-                        key={coverage.id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          gap: 10,
-                          padding: 10,
-                          borderRadius: 12,
-                          background: PASTEL.grayPurple,
-                        }}
-                      >
-                        <div style={{ minWidth: 0, fontSize: 12, color: COLORS.text, lineHeight: 1.5 }}>
-                          <b>{coverage.standard_coverage_categories?.name || '기타/미분류'}</b>
-                          <br />
-                          원문: {coverage.original_name || '-'} / 가입금액: {formatCoverageAmount(coverage.coverage_amount)}
-                          <br />
-                          <span style={{ color: COLORS.textGray }}>
-                            보험기간: {coverage.coverage_period || '-'} / 납입기간: {coverage.payment_period || '-'} / {getRenewableLabel(coverage.is_renewable)}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'flex-start' }}>
-                          <GhostButton onClick={() => openCoverageModal(contract, coverage)}>수정</GhostButton>
-                          <GhostButton danger onClick={() => removeCoverage(coverage)}>삭제</GhostButton>
-                        </div>
+            <>
+              {visibleContracts.map((contract) => (
+                <div
+                  key={contract.id}
+                  style={{
+                    border: `1px solid ${PASTEL.skyBorder}`,
+                    borderRadius: 14,
+                    padding: 14,
+                    background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FCFF 100%)',
+                    minWidth: 0,
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', minWidth: 0 }}>
+                    <div style={{ flex: '1 1 230px', minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: COLORS.text }}>
+                        {contract.insurance_company || '보험회사 미입력'}
                       </div>
-                    ))}
+                      <div style={{ marginTop: 3, fontSize: 13, color: COLORS.text }}>
+                        {contract.product_name || '상품명 미입력'}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                        <span style={getContractChipStyle('premium')}>월 {formatWon(contract.monthly_premium)}</span>
+                        <span style={getContractChipStyle('renewal')}>{contract.renewal_type || '확인필요'}</span>
+                        <span style={getContractChipStyle('status')}>{contract.contract_status || '상태 미입력'}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', flex: '0 0 auto', maxWidth: '100%' }}>
+                      <GhostButton onClick={() => openContractModal(contract)}>수정</GhostButton>
+                      <GhostButton danger onClick={() => removeContract(contract)}>삭제</GhostButton>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))
+
+                  <div style={{ marginTop: 10, fontSize: 12, color: COLORS.textGray, lineHeight: 1.6 }}>
+                    가입일: {contract.joined_at || '-'} / 납입기간: {contract.payment_period || '-'} / 보험기간: {contract.coverage_period || '-'}
+                    <br />
+                    계약자: {contract.contractor || '-'} / 피보험자: {contract.insured || '-'} / 증권번호: {contract.policy_number || '-'}
+                    {contract.memo && <div>메모: {contract.memo}</div>}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: COLORS.text }}>담보 {contract.coverages?.length || 0}건</div>
+                    <GhostButton onClick={() => openCoverageModal(contract)}>+ 담보 추가</GhostButton>
+                  </div>
+
+                  {(contract.coverages || []).length === 0 ? (
+                    <div style={{ color: COLORS.textGray, fontSize: 12 }}>등록된 담보가 없습니다.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {(contract.coverages || []).map((coverage) => (
+                        <div
+                          key={coverage.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                            padding: 10,
+                            borderRadius: 12,
+                            background: PASTEL.grayPurple,
+                          }}
+                        >
+                          <div style={{ minWidth: 0, fontSize: 12, color: COLORS.text, lineHeight: 1.5 }}>
+                            <b>{coverage.standard_coverage_categories?.name || '기타/미분류'}</b>
+                            <br />
+                            원문: {coverage.original_name || '-'} / 가입금액: {formatCoverageAmount(coverage.coverage_amount)}
+                            <br />
+                            <span style={{ color: COLORS.textGray }}>
+                              보험기간: {coverage.coverage_period || '-'} / 납입기간: {coverage.payment_period || '-'} / {getRenewableLabel(coverage.is_renewable)}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'flex-start' }}>
+                            <GhostButton onClick={() => openCoverageModal(contract, coverage)}>수정</GhostButton>
+                            <GhostButton danger onClick={() => removeCoverage(coverage)}>삭제</GhostButton>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {hiddenContractCount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: -2 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllContracts((prev) => !prev)}
+                    style={{
+                      border: `1px solid ${PASTEL.purpleBorder}`,
+                      background: '#FBF9FF',
+                      color: '#6D4AFF',
+                      borderRadius: 999,
+                      padding: '6px 12px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: 12,
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {showAllContracts ? (
+                      <>
+                        현재보장 접기
+                        <ChevronUp size={14} strokeWidth={2.3} aria-hidden="true" />
+                      </>
+                    ) : (
+                      <>
+                        현재보장 더보기 ({hiddenContractCount})
+                        <ChevronDown size={14} strokeWidth={2.3} aria-hidden="true" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
