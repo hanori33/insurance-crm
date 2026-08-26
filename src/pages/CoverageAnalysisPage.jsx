@@ -10,7 +10,6 @@ import {
   Brain,
   Flame,
   HeartPulse,
-  Hospital,
   Ribbon,
   ShieldCheck,
   Stethoscope,
@@ -525,42 +524,58 @@ function getAnalysisStatusStyle(status) {
   return { bg: PASTEL.grayPurple, rowBg: '#FCFBFE', border: PASTEL.grayPurpleBorder, color: COLORS.textGray };
 }
 
+const COVERAGE_COLOR_THEMES = {
+  red: { bg: '#FFF1F1', iconBg: '#FFE4E8', border: '#FFD6D6', color: '#F43F5E' },
+  orange: { bg: '#FFF7ED', iconBg: '#FFEAD5', border: '#FFDEB8', color: '#F97316' },
+  yellow: { bg: '#FFFFEB', iconBg: '#FEF3C7', border: '#FFF0AB', color: '#D9A506' },
+  green: { bg: '#F0FDF4', iconBg: '#DCFCE7', border: '#C8F1D2', color: '#22C55E' },
+  blue: { bg: '#EEF6FF', iconBg: '#DBEAFE', border: '#CDE2FF', color: '#3B82F6' },
+  indigo: { bg: '#EEF0FF', iconBg: '#E0E7FF', border: '#D6DAFF', color: '#6366F1' },
+  purple: { bg: '#FAF5FF', iconBg: '#F3E8FF', border: '#E9D5FF', color: '#A855F7' },
+  sky: { bg: '#ECFAFF', iconBg: '#E0F2FE', border: '#BFEFFF', color: '#0EA5E9' },
+  pink: { bg: '#FFF0F6', iconBg: '#FCE7F3', border: '#FFD1E3', color: '#EC4899' },
+};
+
+function withCoverageIcon(theme, Icon) {
+  return { ...theme, Icon };
+}
+
 function getCoverageCategoryVisual(name) {
   const label = String(name || '').replace(/\s/g, '');
-  if (label.includes('뇌')) {
-    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', Icon: Brain };
+  if (label.includes('심장') || label.includes('심근') || label.includes('허혈')) {
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.red, HeartPulse);
   }
   if (label.includes('유사암')) {
-    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#16A34A', Icon: ShieldCheck };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.yellow, ShieldCheck);
   }
   if (label.includes('암')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', Icon: Ribbon };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.orange, Ribbon);
   }
-  if (label.includes('심장') || label.includes('심근') || label.includes('허혈')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#E11D48', Icon: HeartPulse };
+  if (label.includes('뇌')) {
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.green, Brain);
   }
   if (label.includes('골절')) {
-    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, Icon: Bone };
-  }
-  if (label.includes('운전자')) {
-    return { bg: '#FCFAFF', iconBg: PASTEL.purple, border: PASTEL.purpleBorder, color: COLORS.primary, Icon: ShieldCheck };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.blue, Bone);
   }
   if (label.includes('화상')) {
-    return { bg: '#FFFAFC', iconBg: PASTEL.pink, border: PASTEL.pinkBorder, color: '#BE123C', Icon: Flame };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.indigo, Flame);
   }
   if (label.includes('수술')) {
-    return { bg: '#FAFFFC', iconBg: PASTEL.mint, border: PASTEL.mintBorder, color: '#15803D', Icon: Stethoscope };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.purple, Stethoscope);
   }
   if (label.includes('간병') || label.includes('간호')) {
-    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', Icon: Users };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.pink, Users);
   }
   if (label.includes('입원')) {
-    return { bg: '#F8FCFF', iconBg: PASTEL.sky, border: PASTEL.skyBorder, color: '#0284C7', Icon: Bed };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.sky, Bed);
+  }
+  if (label.includes('운전자')) {
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.purple, ShieldCheck);
   }
   if (label.includes('진단')) {
-    return { bg: '#FFFCF6', iconBg: PASTEL.apricot, border: PASTEL.apricotBorder, color: '#D97706', Icon: Hospital };
+    return withCoverageIcon(COVERAGE_COLOR_THEMES.purple, Stethoscope);
   }
-  return { bg: '#FCFBFE', iconBg: PASTEL.grayPurple, border: PASTEL.grayPurpleBorder, color: COLORS.textGray, Icon: Stethoscope };
+  return withCoverageIcon(COVERAGE_COLOR_THEMES.sky, Stethoscope);
 }
 
 function makeCriteriaDraft(categories, criteriaSet) {
@@ -604,7 +619,7 @@ function StatusPill({ status }) {
   );
 }
 
-function AnalysisStatusPill({ status }) {
+function AnalysisStatusPill({ status, compact = false }) {
   const style = getAnalysisStatusStyle(status);
   return (
     <span
@@ -613,10 +628,11 @@ function AnalysisStatusPill({ status }) {
         color: style.color,
         border: `1px solid ${style.border}`,
         borderRadius: 999,
-        padding: '4px 9px',
-        fontSize: 11,
+        padding: compact ? '3px 7px' : '4px 9px',
+        fontSize: compact ? 10 : 11,
         fontWeight: 900,
         whiteSpace: 'nowrap',
+        textAlign: 'center',
       }}
     >
       {status}
@@ -1294,22 +1310,24 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
                   width: '100%',
                   border: 'none',
                   background: categoryStyle.bg,
-                  padding: '10px 12px',
+                  padding: isNarrow ? '7px 9px' : '10px 12px',
                   cursor: 'pointer',
                   textAlign: 'left',
                   display: 'grid',
-                  gridTemplateColumns: isNarrow ? '1fr 1fr' : 'minmax(210px, 1.15fr) repeat(3, minmax(82px, 0.72fr)) 104px',
-                  gap: 10,
+                  gridTemplateColumns: isNarrow
+                    ? 'minmax(120px, 1fr) repeat(3, minmax(38px, 0.36fr)) minmax(58px, 0.5fr)'
+                    : 'minmax(210px, 1.15fr) repeat(3, minmax(82px, 0.72fr)) 104px',
+                  gap: isNarrow ? 6 : 10,
                   alignItems: 'center',
                   color: COLORS.text,
                   fontFamily: 'inherit',
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: isNarrow ? 8 : 10, minWidth: 0 }}>
                   <span
                     style={{
-                      width: 34,
-                      height: 34,
+                      width: isNarrow ? 30 : 34,
+                      height: isNarrow ? 30 : 34,
                       borderRadius: '50%',
                       flexShrink: 0,
                       display: 'inline-flex',
@@ -1320,18 +1338,18 @@ function CoverageAnalysisResult({ customer, customerId, criteriaSet, filter, onF
                       border: `1px solid ${categoryStyle.border}`,
                     }}
                   >
-                    <CoverageIcon size={18} strokeWidth={2.2} aria-hidden="true" />
+                    <CoverageIcon size={isNarrow ? 17 : 18} strokeWidth={2.2} aria-hidden="true" />
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</span>
+                  <span style={{ fontSize: isNarrow ? 12 : 13, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
                 </span>
-                <MetricText label="현재" value={formatCoverageAmount(row.currentAmount)} />
-                <MetricText label="내 기준" value={formatCoverageAmount(row.targetAmount)} />
-                <MetricText label="차이" value={formatDifference(row.difference)} />
-                <AnalysisStatusPill status={row.status} />
+                <MetricText label="현재" value={formatCoverageAmount(row.currentAmount)} compact={isNarrow} />
+                <MetricText label="내 기준" value={formatCoverageAmount(row.targetAmount)} compact={isNarrow} />
+                <MetricText label="차이" value={formatDifference(row.difference)} compact={isNarrow} />
+                <AnalysisStatusPill status={row.status} compact={isNarrow} />
               </button>
 
               {expandedKey === row.key && (
-                <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: isNarrow ? 9 : 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {row.memo && <div style={{ color: COLORS.textGray, fontSize: 12 }}>메모: {row.memo}</div>}
                   {row.status === '기준 초과' && (
                     <div style={{ color: COLORS.textGray, fontSize: 12 }}>
@@ -2265,11 +2283,11 @@ function FilterButton({ label, active, onClick }) {
   );
 }
 
-function MetricText({ label, value }) {
+function MetricText({ label, value, compact = false }) {
   return (
     <span style={{ minWidth: 0 }}>
-      <span style={{ display: 'block', color: COLORS.textGray, fontSize: 10, fontWeight: 800 }}>{label}</span>
-      <span style={{ display: 'block', color: COLORS.text, fontSize: 12, fontWeight: 900, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ display: 'block', color: COLORS.textGray, fontSize: compact ? 9 : 10, fontWeight: 800 }}>{label}</span>
+      <span style={{ display: 'block', color: COLORS.text, fontSize: compact ? 11 : 12, fontWeight: 900, marginTop: compact ? 1 : 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {value}
       </span>
     </span>
