@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS } from '../constants';
 import { Card, LoadingSpinner } from '../components/Common';
+import ClaimFormEditor from '../components/ClaimFormEditor';
 import customerService from '../services/customerService';
 import faxHistoryService from '../services/faxHistoryService';
 import consultationService from '../services/consultationService';
@@ -90,6 +91,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const [filePageCounts, setFilePageCounts] = useState([]);
   const [isCountingPages, setIsCountingPages] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [claimEditorOpen, setClaimEditorOpen] = useState(false);
   const fileSelectionIdRef = useRef(0);
   const faxRequestIdRef = useRef(null);
   const [claims, setClaims] = useState([]);
@@ -446,6 +448,39 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     window.open(selectedCompanyInfo.pdf, '_blank');
   }
 
+  function openClaimEditor() {
+    if (selectedCompanyInfo?.name !== 'DB손해보험') {
+      alert('현재 청구서 작성은 DB손해보험만 지원합니다.');
+      return;
+    }
+
+    if (!selectedCustomer) {
+      alert('고객을 먼저 선택해주세요.');
+      return;
+    }
+
+    setClaimEditorOpen(true);
+  }
+
+  async function addGeneratedClaimFormFile(file) {
+    if (!file) return;
+
+    faxRequestIdRef.current = null;
+    setSelectedFiles((prev) => [...prev, file]);
+    setIsCountingPages(true);
+
+    try {
+      const pageCount = await countFilePages(file);
+      setFilePageCounts((prev) => [...prev, pageCount]);
+      alert('작성된 청구서가 팩스 첨부파일에 추가되었습니다.');
+    } catch (error) {
+      console.error('작성 청구서 첨부 실패:', error);
+      alert('작성된 청구서를 첨부하지 못했습니다.');
+    } finally {
+      setIsCountingPages(false);
+    }
+  }
+
   function renderCustomerCard() {
     return (
       <Card>
@@ -544,9 +579,16 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
           </button>
         </div>
 
-        <button type="button" onClick={openClaimForm} style={styles.formButton}>
-          📄 청구서 보기
-        </button>
+        <div style={styles.formButtonRow}>
+          <button type="button" onClick={openClaimForm} style={styles.formButton}>
+            📄 청구서 보기
+          </button>
+          {selectedCompanyInfo?.name === 'DB손해보험' && (
+            <button type="button" onClick={openClaimEditor} style={styles.writeFormButton}>
+              ✍️ 청구서 작성
+            </button>
+          )}
+        </div>
 
         {selectedCompanyInfo?.faxType === 'manual' && (
           <div style={styles.manualNotice}>
@@ -774,6 +816,13 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
           </div>
         )}
       </div>
+      <ClaimFormEditor
+        visible={claimEditorOpen}
+        onClose={() => setClaimEditorOpen(false)}
+        customer={selectedCustomer}
+        company={selectedCompanyInfo}
+        onAddFile={addGeneratedClaimFormFile}
+      />
     </div>
   );
 }
@@ -866,12 +915,27 @@ const styles = {
     cursor: 'pointer',
     flexShrink: 0,
   },
-  formButton: {
+  formButtonRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: 8,
     marginTop: 10,
+  },
+  formButton: {
     width: '100%',
     border: 'none',
     background: '#EEF2FF',
     color: COLORS.primary,
+    borderRadius: 12,
+    padding: '12px 0',
+    fontWeight: 900,
+    cursor: 'pointer',
+  },
+  writeFormButton: {
+    width: '100%',
+    border: 'none',
+    background: COLORS.primary,
+    color: '#fff',
     borderRadius: 12,
     padding: '12px 0',
     fontWeight: 900,
