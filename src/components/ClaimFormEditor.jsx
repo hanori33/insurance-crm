@@ -7,6 +7,12 @@ const CLAIM_TYPE_OPTIONS = [
   { value: 'disease', label: '질병' },
   { value: 'injury', label: '상해' },
   { value: 'traffic', label: '교통사고' },
+  { value: 'other', label: '기타' },
+];
+
+const RECEIPT_TYPE_OPTIONS = [
+  { value: 'initial', label: '최초청구' },
+  { value: 'additional', label: '동일사고 추가접수' },
 ];
 
 const REQUIRED_CONSENT_OPTIONS = [
@@ -44,7 +50,10 @@ function createInitialValues(customer) {
     address: customer?.address || '',
     claimType: 'disease',
     accidentDate: '',
+    accidentHour: '',
+    accidentMinute: '',
     diagnosis: '',
+    treatmentHospital: '',
     claimDescription: '',
     accountHolder: customer?.name || '',
     bank: '',
@@ -52,6 +61,12 @@ function createInitialValues(customer) {
     receiveSamePerson: true,
     beneficiarySameAsInsured: true,
     beneficiaryName: customer?.name || '',
+    receiptType: '',
+    noticePolicyholder: false,
+    noticeInsured: false,
+    noticeOther: false,
+    noticeOtherName: '',
+    noticeOtherRelation: '',
   };
 }
 
@@ -116,6 +131,18 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
       }
       if (name === 'beneficiarySameAsInsured' && value) {
         next.beneficiaryName = prev.insuredName;
+      }
+      return next;
+    });
+    setPreviewFile(null);
+  }
+
+  function updateNoticeField(name, checked) {
+    setValues((prev) => {
+      const next = { ...prev, [name]: checked };
+      if (name === 'noticeOther' && !checked) {
+        next.noticeOtherName = '';
+        next.noticeOtherRelation = '';
       }
       return next;
     });
@@ -313,8 +340,69 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
               </div>
             </div>
             <Field label="사고 또는 발병일" value={values.accidentDate} onChange={(v) => updateField('accidentDate', v)} placeholder="예: 2026-09-01" />
+            <div style={styles.inlineGrid}>
+              <Field label="시" value={values.accidentHour} onChange={(v) => updateField('accidentHour', v)} placeholder="선택" />
+              <Field label="분" value={values.accidentMinute} onChange={(v) => updateField('accidentMinute', v)} placeholder="선택" />
+            </div>
             <Field label="진단명" value={values.diagnosis} onChange={(v) => updateField('diagnosis', v)} />
+            <Field label="치료병원" value={values.treatmentHospital} onChange={(v) => updateField('treatmentHospital', v)} />
             <Field label="사고내용 또는 청구내용" value={values.claimDescription} onChange={(v) => updateField('claimDescription', v)} multiline rows={5} />
+            <div style={styles.fieldBlock}>
+              <div style={styles.label}>접수종류</div>
+              <div style={styles.segmented}>
+                {RECEIPT_TYPE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => updateField('receiptType', values.receiptType === option.value ? '' : option.value)}
+                    style={{
+                      ...styles.segmentButton,
+                      background: values.receiptType === option.value ? COLORS.primary : '#fff',
+                      color: values.receiptType === option.value ? '#fff' : COLORS.primary,
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="보상안내 받으실 분">
+            <label style={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={values.noticePolicyholder}
+                onChange={(e) => updateNoticeField('noticePolicyholder', e.target.checked)}
+              />
+              <span>보험계약자</span>
+            </label>
+            <label style={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={values.noticeInsured}
+                onChange={(e) => updateNoticeField('noticeInsured', e.target.checked)}
+              />
+              <span>피보험자</span>
+            </label>
+            <label style={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={values.noticeOther}
+                onChange={(e) => updateNoticeField('noticeOther', e.target.checked)}
+              />
+              <span>기타</span>
+            </label>
+            {values.noticeOther && (
+              <div style={styles.inlineGrid}>
+                <Field label="기타 성명" value={values.noticeOtherName} onChange={(v) => updateField('noticeOtherName', v)} />
+                <Field
+                  label="피보험자와의 관계"
+                  value={values.noticeOtherRelation}
+                  onChange={(v) => updateField('noticeOtherRelation', v)}
+                />
+              </div>
+            )}
           </Section>
 
           <Section title="보험금 수령">
@@ -595,6 +683,11 @@ const styles = {
     display: 'flex',
     gap: 8,
     flexWrap: 'wrap',
+  },
+  inlineGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: 10,
   },
   segmentButton: {
     border: `1px solid ${COLORS.border}`,

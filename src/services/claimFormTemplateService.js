@@ -34,14 +34,18 @@ function datePartsFromValue(value) {
   const digits = raw.replace(/\D/g, '');
 
   if (digits.length >= 8) {
+    const hh = digits.length >= 10 ? digits.slice(8, 10) : '';
+    const min = digits.length >= 12 ? digits.slice(10, 12) : '';
     return {
       yyyy: digits.slice(0, 4),
       mm: digits.slice(4, 6),
       dd: digits.slice(6, 8),
+      hh,
+      min,
     };
   }
 
-  return { yyyy: raw, mm: '', dd: '' };
+  return { yyyy: raw, mm: '', dd: '', hh: '', min: '' };
 }
 
 function wrapCanvasText(ctx, text, maxWidth) {
@@ -164,7 +168,15 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
   await drawTextImage(pdfDoc, pages[fields.accidentYear.page], accidentDate.yyyy, fields.accidentYear);
   await drawTextImage(pdfDoc, pages[fields.accidentMonth.page], accidentDate.mm, fields.accidentMonth);
   await drawTextImage(pdfDoc, pages[fields.accidentDay.page], accidentDate.dd, fields.accidentDay);
+  await drawTextImage(pdfDoc, pages[fields.accidentHour.page], cleanText(values.accidentHour) || accidentDate.hh, fields.accidentHour);
+  await drawTextImage(
+    pdfDoc,
+    pages[fields.accidentMinute.page],
+    cleanText(values.accidentMinute) || accidentDate.min,
+    fields.accidentMinute
+  );
   await drawTextImage(pdfDoc, pages[fields.diagnosis.page], values.diagnosis, fields.diagnosis);
+  await drawTextImage(pdfDoc, pages[fields.treatmentHospital.page], values.treatmentHospital, fields.treatmentHospital);
   await drawTextImage(pdfDoc, pages[fields.claimDescription.page], values.claimDescription, fields.claimDescription);
   await drawTextImage(pdfDoc, pages[fields.accountNumber.page], values.accountNumber, fields.accountNumber);
   await drawTextImage(pdfDoc, pages[fields.bank.page], values.bank, fields.bank);
@@ -196,6 +208,23 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
     other: template.checkboxes.claimType.other,
   };
   drawCheck(firstPage, claimTypeMap[values.claimType]);
+
+  const receiptTypeMap = template.checkboxes.receiptType || {};
+  drawCheck(firstPage, receiptTypeMap[values.receiptType]);
+
+  const noticeRecipientMap = template.checkboxes.noticeRecipient || {};
+  if (values.noticePolicyholder) drawCheck(firstPage, noticeRecipientMap.policyholder);
+  if (values.noticeInsured) drawCheck(firstPage, noticeRecipientMap.insured);
+  if (values.noticeOther) {
+    drawCheck(firstPage, noticeRecipientMap.other);
+    await drawTextImage(pdfDoc, pages[fields.noticeOtherName.page], values.noticeOtherName, fields.noticeOtherName);
+    await drawTextImage(
+      pdfDoc,
+      pages[fields.noticeOtherRelation.page],
+      values.noticeOtherRelation,
+      fields.noticeOtherRelation
+    );
+  }
 
   Object.entries(values.consents || {}).forEach(([key, checked]) => {
     if (!checked) return;
