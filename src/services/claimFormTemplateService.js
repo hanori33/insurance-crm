@@ -114,13 +114,13 @@ function drawCheck(page, box) {
   page.drawLine({
     start: { x: box.x + 1, y: box.y + size * 0.45 },
     end: { x: box.x + size * 0.38, y: box.y + 1 },
-    thickness: 1.4,
+    thickness: 1.8,
     color: CHECK_COLOR,
   });
   page.drawLine({
     start: { x: box.x + size * 0.38, y: box.y + 1 },
     end: { x: box.x + size - 1, y: box.y + size - 1 },
-    thickness: 1.4,
+    thickness: 1.8,
     color: CHECK_COLOR,
   });
 }
@@ -140,7 +140,7 @@ export function getClaimFormTemplate(companyName) {
   return getClaimFormTemplateByCompany(companyName);
 }
 
-export async function generateClaimFormPdf({ companyName, values, signatureDataUrl }) {
+export async function generateClaimFormPdf({ companyName, values, signatureDataUrl, beneficiarySignatureDataUrl }) {
   const template = getClaimFormTemplate(companyName);
   if (!template) throw new Error('작성 가능한 청구서 양식이 없습니다.');
 
@@ -175,12 +175,40 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
   await drawTextImage(pdfDoc, pages[fields.signatureName.page], values.insuredName, fields.signatureName);
   await drawSignature(pdfDoc, firstPage, signatureDataUrl, fields.signature);
 
+  await drawTextImage(pdfDoc, pages[fields.consentWrittenYear.page], writtenDate.yyyy, fields.consentWrittenYear);
+  await drawTextImage(pdfDoc, pages[fields.consentWrittenMonth.page], writtenDate.mm, fields.consentWrittenMonth);
+  await drawTextImage(pdfDoc, pages[fields.consentWrittenDay.page], writtenDate.dd, fields.consentWrittenDay);
+  await drawTextImage(pdfDoc, pages[fields.consentSignatureName.page], values.insuredName, fields.consentSignatureName);
+  await drawSignature(pdfDoc, pages[fields.consentSignature.page], signatureDataUrl, fields.consentSignature);
+
+  await drawTextImage(pdfDoc, pages[fields.beneficiaryName.page], values.beneficiaryName, fields.beneficiaryName);
+  await drawSignature(
+    pdfDoc,
+    pages[fields.beneficiarySignature.page],
+    beneficiarySignatureDataUrl,
+    fields.beneficiarySignature
+  );
+
   const claimTypeMap = {
     disease: template.checkboxes.claimType.disease,
     injury: template.checkboxes.claimType.injury,
     traffic: template.checkboxes.claimType.traffic,
+    other: template.checkboxes.claimType.other,
   };
   drawCheck(firstPage, claimTypeMap[values.claimType]);
+
+  Object.entries(values.consents || {}).forEach(([key, checked]) => {
+    if (!checked) return;
+    const consentBox = template.consents?.[key]?.agree;
+    if (consentBox) drawCheck(pages[template.consents[key].page], consentBox);
+  });
+
+  if (values.consents?.providePersonalCredit && template.consents?.providePersonalCreditContinued?.agree) {
+    drawCheck(
+      pages[template.consents.providePersonalCreditContinued.page],
+      template.consents.providePersonalCreditContinued.agree
+    );
+  }
 
   const pdfBytes = await pdfDoc.save();
   const fileName = `${template.outputName}_${safeFilePart(values.insuredName)}_${todayYmd()}.pdf`;

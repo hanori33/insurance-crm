@@ -9,6 +9,25 @@ const CLAIM_TYPE_OPTIONS = [
   { value: 'traffic', label: '교통사고' },
 ];
 
+const REQUIRED_CONSENT_OPTIONS = [
+  { key: 'collectUniqueId', label: '고유식별정보 수집·이용 동의' },
+  { key: 'collectSensitive', label: '민감정보 수집·이용 동의' },
+  { key: 'collectPersonalCredit', label: '개인(신용)정보 수집·이용 동의' },
+  { key: 'provideUniqueId', label: '고유식별정보 제공 동의' },
+  { key: 'provideSensitive', label: '민감정보 제공 동의' },
+  { key: 'providePersonalCredit', label: '개인(신용)정보 제공 동의' },
+  { key: 'queryUniqueId', label: '고유식별정보 조회 동의' },
+  { key: 'querySensitive', label: '민감정보 조회 동의' },
+  { key: 'queryPersonalCredit', label: '개인(신용)정보 조회 동의' },
+];
+
+function createInitialConsents() {
+  return REQUIRED_CONSENT_OPTIONS.reduce((acc, option) => {
+    acc[option.key] = false;
+    return acc;
+  }, {});
+}
+
 function normalizeBirth(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -31,25 +50,35 @@ function createInitialValues(customer) {
     bank: '',
     accountNumber: '',
     receiveSamePerson: true,
+    beneficiarySameAsInsured: true,
+    beneficiaryName: customer?.name || '',
   };
 }
 
 export default function ClaimFormEditor({ visible, onClose, customer, company, onAddFile }) {
   const [values, setValues] = useState(() => createInitialValues(customer));
+  const [consents, setConsents] = useState(() => createInitialConsents());
   const [previewFile, setPreviewFile] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const canvasRef = useRef(null);
+  const beneficiaryCanvasRef = useRef(null);
   const drawingRef = useRef(false);
   const hasSignatureRef = useRef(false);
+  const hasBeneficiarySignatureRef = useRef(false);
 
   const companyName = company?.name || 'DB손해보험';
 
   useEffect(() => {
     if (!visible) return;
     setValues(createInitialValues(customer));
+    setConsents(createInitialConsents());
     setPreviewFile(null);
     hasSignatureRef.current = false;
-    window.setTimeout(() => clearSignature(), 0);
+    hasBeneficiarySignatureRef.current = false;
+    window.setTimeout(() => {
+      clearSignature('insured');
+      clearSignature('beneficiary');
+    }, 0);
   }, [visible, customer]);
 
   useEffect(() => {
@@ -65,21 +94,51 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
   useEffect(() => {
     if (visible) return;
     setValues(createInitialValues(customer));
+    setConsents(createInitialConsents());
     setPreviewFile(null);
     hasSignatureRef.current = false;
+    hasBeneficiarySignatureRef.current = false;
   }, [visible, customer]);
 
   const canPreview = useMemo(() => values.insuredName.trim().length > 0, [values.insuredName]);
+  const allRequiredConsentsChecked = useMemo(
+    () => REQUIRED_CONSENT_OPTIONS.every((option) => consents[option.key]),
+    [consents]
+  );
 
   if (!visible) return null;
 
   function updateField(name, value) {
-    setValues((prev) => ({ ...prev, [name]: value }));
+    setValues((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === 'insuredName' && prev.beneficiarySameAsInsured) {
+        next.beneficiaryName = value;
+      }
+      if (name === 'beneficiarySameAsInsured' && value) {
+        next.beneficiaryName = prev.insuredName;
+      }
+      return next;
+    });
     setPreviewFile(null);
   }
 
-  function prepareCanvas() {
-    const canvas = canvasRef.current;
+  function updateConsent(key, checked) {
+    setConsents((prev) => ({ ...prev, [key]: checked }));
+    setPreviewFile(null);
+  }
+
+  function toggleAllConsents(checked) {
+    setConsents(
+      REQUIRED_CONSENT_OPTIONS.reduce((acc, option) => {
+        acc[option.key] = checked;
+        return acc;
+      }, {})
+    );
+    setPreviewFile(null);
+  }
+
+  function prepareCanvas(type = 'insured') {
+    const canvas = type === 'beneficiary' ? beneficiaryCanvasRef.current : canvasRef.current;
     if (!canvas) return null;
 
     const rect = canvas.getBoundingClientRect();
@@ -97,31 +156,35 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
     return canvas;
   }
 
-  function pointFromEvent(event) {
-    const canvas = prepareCanvas();
+  function pointFromEvent(event, type = 'insured') {
+    const canvas = prepareCanvas(type);
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const point = event.touches?.[0] || event;
     return { x: point.clientX - rect.left, y: point.clientY - rect.top };
   }
 
-  function startSignature(event) {
+  function startSignature(event, type = 'insured') {
     event.preventDefault();
-    const canvas = prepareCanvas();
-    const point = pointFromEvent(event);
+    const canvas = prepareCanvas(type);
+    const point = pointFromEvent(event, type);
     if (!canvas || !point) return;
     const ctx = canvas.getContext('2d');
-    drawingRef.current = true;
-    hasSignatureRef.current = true;
+    drawingRef.current = type;
+    if (type === 'beneficiary') {
+      hasBeneficiarySignatureRef.current = true;
+    } else {
+      hasSignatureRef.current = true;
+    }
     ctx.beginPath();
     ctx.moveTo(point.x, point.y);
   }
 
-  function drawSignature(event) {
-    if (!drawingRef.current) return;
+  function drawSignature(event, type = 'insured') {
+    if (drawingRef.current !== type) return;
     event.preventDefault();
-    const canvas = prepareCanvas();
-    const point = pointFromEvent(event);
+    const canvas = prepareCanvas(type);
+    const point = pointFromEvent(event, type);
     if (!canvas || !point) return;
     const ctx = canvas.getContext('2d');
     ctx.lineTo(point.x, point.y);
@@ -133,13 +196,17 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
     drawingRef.current = false;
   }
 
-  function clearSignature() {
-    const canvas = prepareCanvas();
+  function clearSignature(type = 'insured') {
+    const canvas = prepareCanvas(type);
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, rect.width, rect.height);
-    hasSignatureRef.current = false;
+    if (type === 'beneficiary') {
+      hasBeneficiarySignatureRef.current = false;
+    } else {
+      hasSignatureRef.current = false;
+    }
     setPreviewFile(null);
   }
 
@@ -152,11 +219,21 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
     setIsGenerating(true);
     try {
       const canvas = prepareCanvas();
+      const beneficiaryCanvas = prepareCanvas('beneficiary');
       const signatureDataUrl = hasSignatureRef.current && canvas ? canvas.toDataURL('image/png') : '';
+      const beneficiarySignatureDataUrl =
+        !values.beneficiarySameAsInsured && hasBeneficiarySignatureRef.current && beneficiaryCanvas
+          ? beneficiaryCanvas.toDataURL('image/png')
+          : '';
       const file = await generateClaimFormPdf({
         companyName,
-        values,
+        values: {
+          ...values,
+          beneficiaryName: values.beneficiarySameAsInsured ? values.insuredName : values.beneficiaryName,
+          consents,
+        },
         signatureDataUrl,
+        beneficiarySignatureDataUrl: values.beneficiarySameAsInsured ? signatureDataUrl : beneficiarySignatureDataUrl,
       });
       setPreviewFile(file);
     } catch (error) {
@@ -169,13 +246,20 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
 
   function handleClose() {
     setValues(createInitialValues(customer));
+    setConsents(createInitialConsents());
     setPreviewFile(null);
     hasSignatureRef.current = false;
-    clearSignature();
+    hasBeneficiarySignatureRef.current = false;
+    clearSignature('insured');
+    clearSignature('beneficiary');
     onClose();
   }
 
   async function handleAddFile(file) {
+    if (!allRequiredConsentsChecked) {
+      alert('보험금 청구에 필요한 필수 동의 항목을 확인해주세요.');
+      return;
+    }
     await onAddFile(file);
     setPreviewFile(null);
     handleClose();
@@ -247,6 +331,78 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
             <Field label="계좌번호" value={values.accountNumber} onChange={(v) => updateField('accountNumber', v)} />
           </Section>
 
+          <Section title="보험수익자">
+            <label style={styles.checkRow}>
+              <input
+                type="radio"
+                name="beneficiaryType"
+                checked={values.beneficiarySameAsInsured}
+                onChange={() => updateField('beneficiarySameAsInsured', true)}
+              />
+              <span>피보험자와 동일</span>
+            </label>
+            <label style={styles.checkRow}>
+              <input
+                type="radio"
+                name="beneficiaryType"
+                checked={!values.beneficiarySameAsInsured}
+                onChange={() => updateField('beneficiarySameAsInsured', false)}
+              />
+              <span>별도 보험수익자</span>
+            </label>
+            <Field
+              label="보험수익자 성명"
+              value={values.beneficiarySameAsInsured ? values.insuredName : values.beneficiaryName}
+              onChange={(v) => updateField('beneficiaryName', v)}
+              placeholder="보험수익자 성명"
+              disabled={values.beneficiarySameAsInsured}
+            />
+            {!values.beneficiarySameAsInsured && (
+              <>
+                <div style={styles.label}>보험수익자 서명</div>
+                <div style={styles.signatureBox}>
+                  <canvas
+                    ref={beneficiaryCanvasRef}
+                    style={styles.signatureCanvas}
+                    onMouseDown={(event) => startSignature(event, 'beneficiary')}
+                    onMouseMove={(event) => drawSignature(event, 'beneficiary')}
+                    onMouseUp={endSignature}
+                    onMouseLeave={endSignature}
+                    onTouchStart={(event) => startSignature(event, 'beneficiary')}
+                    onTouchMove={(event) => drawSignature(event, 'beneficiary')}
+                    onTouchEnd={endSignature}
+                  />
+                </div>
+                <button type="button" onClick={() => clearSignature('beneficiary')} style={styles.secondaryButton}>
+                  보험수익자 서명 지우기
+                </button>
+              </>
+            )}
+          </Section>
+
+          <Section title="보험금 청구 필수 동의">
+            <label style={{ ...styles.checkRow, ...styles.consentAllRow }}>
+              <input
+                type="checkbox"
+                checked={allRequiredConsentsChecked}
+                onChange={(e) => toggleAllConsents(e.target.checked)}
+              />
+              <span>필수 동의 전체 선택</span>
+            </label>
+            <div style={styles.consentList}>
+              {REQUIRED_CONSENT_OPTIONS.map((option) => (
+                <label key={option.key} style={styles.consentRow}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(consents[option.key])}
+                    onChange={(e) => updateConsent(option.key, e.target.checked)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+          </Section>
+
           <Section title="서명">
             <div style={styles.signatureBox}>
               <canvas
@@ -291,14 +447,27 @@ function Section({ title, children }) {
   );
 }
 
-function Field({ label, value, onChange, placeholder = '', multiline = false, rows = 3 }) {
+function Field({ label, value, onChange, placeholder = '', multiline = false, rows = 3, disabled = false }) {
   return (
     <label style={styles.fieldBlock}>
       <span style={styles.label}>{label}</span>
       {multiline ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows} style={styles.textarea} />
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+          disabled={disabled}
+          style={{ ...styles.textarea, opacity: disabled ? 0.75 : 1 }}
+        />
       ) : (
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={styles.input} />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+          style={{ ...styles.input, opacity: disabled ? 0.75 : 1 }}
+        />
       )}
     </label>
   );
@@ -442,6 +611,30 @@ const styles = {
     color: COLORS.text,
     fontSize: 13,
     fontWeight: 800,
+  },
+  consentAllRow: {
+    padding: '10px 12px',
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 12,
+    background: '#fff',
+  },
+  consentList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  consentRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: 700,
+    lineHeight: 1.45,
+    background: '#fff',
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 12,
+    padding: '9px 10px',
   },
   signatureBox: {
     border: `1.5px dashed ${COLORS.border}`,
