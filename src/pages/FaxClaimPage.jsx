@@ -24,20 +24,44 @@ const REQUIRED_DOCS = {
 };
 
 const INSURANCE_COMPANIES = [
-  { name: '메리츠화재', type: '손해보험', faxType: 'auto', fax: '0505-021-3400', customerCenter: '1566-7711', pdf: '/insurance-forms/메리츠화재.pdf' },
+  { name: 'AIG손보', type: '손해보험', faxType: 'auto', fax: '02-2011-4607', customerCenter: '1544-2792', pdf: '' },
   { name: 'DB손해보험', type: '손해보험', faxType: 'auto', fax: '0505-181-4862', customerCenter: '1588-0100', pdf: '/insurance-forms/DB손해보험금청구서.pdf' },
-  { name: 'KB손해보험', type: '손해보험', faxType: 'auto', fax: '0505-136-6500', customerCenter: '1544-0114', pdf: '/insurance-forms/KB손해.pdf' },
-  { name: '현대해상', type: '손해보험', faxType: 'auto', fax: '0507-774-6060', customerCenter: '1588-5656', pdf: '/insurance-forms/현대해상 청구.pdf' },
-  { name: '한화손해보험', type: '손해보험', faxType: 'auto', fax: '0502-779-1004', customerCenter: '1566-8000', pdf: '/insurance-forms/한화손해.pdf' },
-  { name: '흥국화재', type: '손해보험', faxType: 'auto', fax: '0504-800-0700', customerCenter: '1688-1688', pdf: '/insurance-forms/흥국화재.pdf' },
+  { name: 'KB손해보험', type: '손해보험', faxType: 'multi', fax: '', customerCenter: '1544-0114', pdf: '/insurance-forms/KB손해.pdf', faxNumbers: [{ label: '장기', number: '0505-136-6500' }, { label: '일반', number: '055-136-6600' }] },
+  { name: 'MG손보', type: '손해보험', faxType: 'auto', fax: '0505-088-1646~9', customerCenter: '1588-5959', pdf: '' },
+  { name: '농협손보', type: '손해보험', faxType: 'auto', fax: '0505-060-7000', customerCenter: '1644-9000', pdf: '/insurance-forms/농협손해보험.pdf' },
   { name: '롯데손해보험', type: '손해보험', faxType: 'auto', fax: '0507-333-9999', customerCenter: '1588-3344', pdf: '/insurance-forms/롯데손해.pdf' },
-  { name: '삼성화재', type: '손해보험', faxType: 'auto', fax: '0505-161-1166', customerCenter: '1588-5114', pdf: '/insurance-forms/삼성화재.pdf' },
-  { name: '하나손해보험', type: '손해보험', faxType: 'manual', fax: '', customerCenter: '1566-3000', pdf: '' },
-  { name: '삼성생명', type: '생명보험', faxType: 'auto', fax: '0505-161-6000', customerCenter: '1588-3114', pdf: '/insurance-forms/삼성생명.pdf' },
-  { name: '한화생명', type: '생명보험', faxType: 'auto', fax: '0503-8863-6363', customerCenter: '1588-6363', pdf: '/insurance-forms/한화생명.pdf' },
-  { name: '흥국생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-2288', pdf: '/insurance-forms/흥국생명.pdf' },
-  { name: '교보생명', type: '생명보험', faxType: 'auto', fax: '0505-181-0033', customerCenter: '1588-1001', pdf: '/insurance-forms/교보청구서류.pdf' },
-  { name: 'ABL생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-6500', pdf: '/insurance-forms/ABL 사고보험금청구서.pdf' },
+  { name: '메리츠화재', type: '손해보험', faxType: 'multi', fax: '', customerCenter: '1566-7711', pdf: '/insurance-forms/메리츠화재.pdf', faxNumbers: [{ label: '질병', number: '0505-021-3400' }, { label: '상해', number: '0505-021-3500' }] },
+  { name: '삼성화재', type: '손해보험', faxType: 'auto', fax: '0505-162-0872', customerCenter: '1588-5114', pdf: '/insurance-forms/삼성화재.pdf' },
+  { name: '에이스손보', type: '손해보험', faxType: 'multi', fax: '', customerCenter: '1566-5800', pdf: '', faxNumbers: [{ label: '일반', number: '02-2127-2300' }, { label: '치아', number: '02-6913-8482' }] },
+  { name: '한화손해보험', type: '손해보험', faxType: 'auto', fax: '0502-779-1004', customerCenter: '1566-8000', pdf: '/insurance-forms/한화손해.pdf' },
+  { name: '하나손해보험', type: '손해보험', faxType: 'auto', fax: '0505-170-0765', customerCenter: '1566-3000', pdf: '' },
+  { name: 'AXA손보', type: '손해보험', faxType: 'manual', fax: '', customerCenter: '1566-2266', pdf: '', faxNotice: '콜센터 가상팩스 부여' },
+  { name: '현대해상', type: '손해보험', faxType: 'auto', fax: '0507-774-6060', customerCenter: '1588-5656', pdf: '/insurance-forms/현대해상 청구.pdf' },
+  { name: '흥국화재', type: '손해보험', faxType: 'auto', fax: '0504-800-0700', customerCenter: '1688-1688', pdf: '/insurance-forms/흥국화재.pdf' },
+  { name: '우체국', type: '손해보험', faxType: 'auto', fax: '0505-005-1623', customerCenter: '1588-1300', pdf: '', faxNote: '부산' },
+  { name: '신협', type: '손해보험', faxType: 'manual', fax: '', customerCenter: '1544-3030', pdf: '', faxNotice: '해당 계약지점마다 다름' },
+  { name: '수협', type: '손해보험', faxType: 'manual', fax: '', customerCenter: '1588-4119', pdf: '', faxNotice: '해당 계약지점마다 다름' },
+  { name: '새마을금고', type: '손해보험', faxType: 'manual', fax: '', customerCenter: '1599-9010', pdf: '', faxNotice: '해당 계약지점마다 다름' },
+  { name: 'ABL생명', type: '생명보험', faxType: 'auto', fax: '02-3299-5544', customerCenter: '1588-6500', pdf: '/insurance-forms/ABL 사고보험금청구서.pdf' },
+  { name: 'AIA생명', type: '생명보험', faxType: 'auto', fax: '02-2021-4540', customerCenter: '1588-9898', pdf: '' },
+  { name: 'KB생명', type: '생명보험', faxType: 'auto', fax: '02-6220-9912', customerCenter: '1599-0882', pdf: '' },
+  { name: 'KDB생명', type: '생명보험', faxType: 'auto', fax: '02-2669-7930', customerCenter: '1588-4040', pdf: '' },
+  { name: '교보생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-1001', pdf: '/insurance-forms/교보청구서류.pdf', faxNotice: '콜센터 가상팩스 부여', note: '30만원 이하' },
+  { name: '농협생명', type: '생명보험', faxType: 'auto', fax: '02-6971-6040', customerCenter: '1833-4100', pdf: '', note: '200만원 이하' },
+  { name: 'DB생명', type: '생명보험', faxType: 'auto', fax: '0505-129-3134', customerCenter: '1588-3131', pdf: '', note: '40만원 이하' },
+  { name: '동양생명', type: '생명보험', faxType: 'auto', fax: '02-3289-4517', customerCenter: '1577-1004', pdf: '', note: '정액 30 / 실손 100 이하' },
+  { name: '라이나생명', type: '생명보험', faxType: 'multi', fax: '', customerCenter: '1588-0058', pdf: '', faxNumbers: [{ label: '일반', number: '02-6944-1200' }, { label: '치아', number: '02-6944-1283' }] },
+  { name: '메트라이프', type: '생명보험', faxType: 'auto', fax: '02-3469-9428', customerCenter: '1588-9600', pdf: '', note: '50만원 이하' },
+  { name: '미래에셋생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-0220', pdf: '', faxNotice: '콜센터 가상팩스 부여' },
+  { name: '삼성생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-3114', pdf: '/insurance-forms/삼성생명.pdf', faxNotice: '콜센터 가상팩스 부여', note: '500만원 이하' },
+  { name: '신한생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-5580', pdf: '/insurance-forms/신한생명.pdf', faxNotice: '콜센터 가상팩스 부여' },
+  { name: '처브라이프', type: '생명보험', faxType: 'auto', fax: '02-3480-7801', customerCenter: '1599-4600', pdf: '' },
+  { name: '푸본현대생명', type: '생명보험', faxType: 'auto', fax: '0505-106-0311', customerCenter: '1577-3311', pdf: '' },
+  { name: '한화생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-6363', pdf: '/insurance-forms/한화생명.pdf', faxNotice: '콜센터 가상팩스 부여', note: '100만원 이하' },
+  { name: '흥국생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-2288', pdf: '/insurance-forms/흥국생명.pdf', faxNotice: '콜센터 가상팩스 부여' },
+  { name: '신한라이프', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-5580', pdf: '', faxNotice: '콜센터 가상팩스 부여' },
+  { name: '푸르덴셜생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1588-3374', pdf: '', faxNotice: '해당 계약지점마다 다름' },
+  { name: 'DGB생명', type: '생명보험', faxType: 'auto', fax: '0505-083-5420', customerCenter: '1588-4770', pdf: '' },
   { name: '하나생명', type: '생명보험', faxType: 'manual', fax: '', customerCenter: '1577-1112', pdf: '' },
 ];
 
@@ -58,6 +82,20 @@ function fileSizeText(size) {
   if (size < 1024) return `${size}B`;
   if (size < 1024 * 1024) return `${Math.round(size / 1024)}KB`;
   return `${(size / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function getFaxLabel(company) {
+  if (!company) return '-';
+  if (company.faxNumbers?.length) {
+    return company.faxNumbers.map((item) => `${item.label} ${item.number}`).join(' / ');
+  }
+  if (company.faxNotice) return company.faxNotice;
+  if (company.fax) return company.faxNote ? `${company.faxNote} ${company.fax}` : company.fax;
+  return '직접 입력 필요';
+}
+
+function needsManualFax(company) {
+  return company?.faxType === 'manual' || company?.faxType === 'multi';
 }
 
 function countPdfPagesFromText(text) {
@@ -166,7 +204,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
       return;
     }
 
-    setFaxNumber(found.faxType === 'manual' ? '' : found.fax || '');
+    setFaxNumber(found.faxType === 'auto' ? found.fax || '' : '');
   }
 
  async function handleFileChange(e) {
@@ -571,13 +609,30 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
           <input
             value={faxNumber}
             onChange={(e) => setFaxNumber(e.target.value)}
-            placeholder="팩스번호"
+            placeholder={needsManualFax(selectedCompanyInfo) ? '안내받은 팩스번호 직접 입력' : '팩스번호'}
             style={{ ...styles.input, marginTop: 0, flex: 1, minWidth: 0 }}
           />
           <button type="button" onClick={copyFaxNumber} style={styles.copyButton}>
             복사
           </button>
         </div>
+
+        {selectedCompanyInfo && (
+          <div style={styles.companyInfoBox}>
+            <div style={styles.companyInfoRow}>
+              <span>고객센터</span>
+              <strong>{selectedCompanyInfo.customerCenter || '-'}</strong>
+            </div>
+            <div style={styles.companyInfoRow}>
+              <span>팩스</span>
+              <strong>{getFaxLabel(selectedCompanyInfo)}</strong>
+            </div>
+            {selectedCompanyInfo.note && <div style={styles.companyNote}>※ {selectedCompanyInfo.note}</div>}
+            {selectedCompanyInfo.faxNumbers?.length > 0 && (
+              <div style={styles.companyNote}>※ 용도에 맞는 팩스번호를 확인한 뒤 직접 입력해주세요.</div>
+            )}
+          </div>
+        )}
 
         <div style={styles.formButtonRow}>
           <button type="button" onClick={openClaimForm} style={styles.formButton}>
@@ -590,17 +645,17 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
           )}
         </div>
 
-        {selectedCompanyInfo?.faxType === 'manual' && (
+        {needsManualFax(selectedCompanyInfo) && (
           <div style={styles.manualNotice}>
-            📢 해당 보험사는 보험금 청구용 팩스번호를 고객센터에서 확인 후 이용해주세요.
+            📢 해당 보험사는 보험금 청구용 팩스번호를 확인 후 이용해주세요.
             <br />
             고객센터 : {selectedCompanyInfo.customerCenter}
             <br />
-            안내받은 팩스번호를 직접 입력해주세요.
+            {selectedCompanyInfo.faxNotice || '용도에 맞는 팩스번호를'} 직접 입력해주세요.
           </div>
         )}
 
-        <div style={styles.helpText}>※ 보험사 연락처 페이지 데이터와 추후 연결 가능. 현재는 테스트용 기본 목록입니다.</div>
+        <div style={styles.helpText}>※ 보험사별 청구 기준과 팩스번호는 접수 전 한 번 더 확인해주세요.</div>
       </Card>
     );
   }
@@ -950,6 +1005,29 @@ const styles = {
     color: '#92400E',
     fontSize: 13,
     lineHeight: 1.6,
+  },
+  companyInfoBox: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    background: '#F8FAFC',
+    border: `1px solid ${COLORS.border}`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  companyInfoRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 10,
+    fontSize: 13,
+    color: COLORS.textGray,
+    lineHeight: 1.45,
+  },
+  companyNote: {
+    fontSize: 12,
+    color: COLORS.textGray,
+    lineHeight: 1.5,
   },
   chipButton: {
     border: 'none',
