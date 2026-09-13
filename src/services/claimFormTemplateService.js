@@ -115,16 +115,17 @@ async function drawTextImage(pdfDoc, page, text, field) {
 function drawCheck(page, box) {
   if (!box) return;
   const size = box.size || 8;
+  const thickness = box.lineWidth || Math.max(1.8, size * 0.22);
   page.drawLine({
-    start: { x: box.x + 1, y: box.y + size * 0.45 },
-    end: { x: box.x + size * 0.38, y: box.y + 1 },
-    thickness: 1.8,
+    start: { x: box.x + size * 0.16, y: box.y + size * 0.5 },
+    end: { x: box.x + size * 0.39, y: box.y + size * 0.19 },
+    thickness,
     color: CHECK_COLOR,
   });
   page.drawLine({
-    start: { x: box.x + size * 0.38, y: box.y + 1 },
-    end: { x: box.x + size - 1, y: box.y + size - 1 },
-    thickness: 1.8,
+    start: { x: box.x + size * 0.39, y: box.y + size * 0.19 },
+    end: { x: box.x + size * 0.86, y: box.y + size * 0.84 },
+    thickness,
     color: CHECK_COLOR,
   });
 }
