@@ -188,17 +188,24 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
   await drawTextImage(pdfDoc, pages[fields.signatureName.page], values.insuredName, fields.signatureName);
   await drawSignature(pdfDoc, firstPage, signatureDataUrl, fields.signature);
 
+  const beneficiaryName = cleanText(values.beneficiaryName) || (values.beneficiarySameAsInsured ? values.insuredName : '');
+  const beneficiarySignatureData =
+    beneficiarySignatureDataUrl || (values.beneficiarySameAsInsured ? signatureDataUrl : '');
+
+  await drawTextImage(pdfDoc, pages[fields.beneficiaryNamePage1.page], beneficiaryName, fields.beneficiaryNamePage1);
+  await drawSignature(pdfDoc, pages[fields.beneficiarySignaturePage1.page], beneficiarySignatureData, fields.beneficiarySignaturePage1);
+
   await drawTextImage(pdfDoc, pages[fields.consentWrittenYear.page], writtenDate.yyyy, fields.consentWrittenYear);
   await drawTextImage(pdfDoc, pages[fields.consentWrittenMonth.page], writtenDate.mm, fields.consentWrittenMonth);
   await drawTextImage(pdfDoc, pages[fields.consentWrittenDay.page], writtenDate.dd, fields.consentWrittenDay);
   await drawTextImage(pdfDoc, pages[fields.consentSignatureName.page], values.insuredName, fields.consentSignatureName);
   await drawSignature(pdfDoc, pages[fields.consentSignature.page], signatureDataUrl, fields.consentSignature);
 
-  await drawTextImage(pdfDoc, pages[fields.beneficiaryName.page], values.beneficiaryName, fields.beneficiaryName);
+  await drawTextImage(pdfDoc, pages[fields.beneficiaryName.page], beneficiaryName, fields.beneficiaryName);
   await drawSignature(
     pdfDoc,
     pages[fields.beneficiarySignature.page],
-    beneficiarySignatureDataUrl,
+    beneficiarySignatureData,
     fields.beneficiarySignature
   );
 
