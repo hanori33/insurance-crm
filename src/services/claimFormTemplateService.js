@@ -112,6 +112,12 @@ async function drawTextImage(pdfDoc, page, text, field) {
   });
 }
 
+async function drawField(pdfDoc, pages, fields, key, text) {
+  const field = fields?.[key];
+  if (!field || !pages[field.page]) return;
+  await drawTextImage(pdfDoc, pages[field.page], text, field);
+}
+
 function drawCheck(page, box) {
   if (!box) return;
   const size = box.size || 8;
@@ -141,6 +147,12 @@ async function drawSignature(pdfDoc, page, signatureDataUrl, field) {
   });
 }
 
+async function drawSignatureField(pdfDoc, pages, fields, key, signatureDataUrl) {
+  const field = fields?.[key];
+  if (!field || !pages[field.page]) return;
+  await drawSignature(pdfDoc, pages[field.page], signatureDataUrl, field);
+}
+
 export function getClaimFormTemplate(companyName) {
   return getClaimFormTemplateByCompany(companyName);
 }
@@ -161,78 +173,66 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
   const accidentDate = datePartsFromValue(values.accidentDate);
   const ssnOrBirth = cleanText(values.ssn) || cleanText(values.birth);
 
-  await drawTextImage(pdfDoc, pages[fields.insuredName.page], values.insuredName, fields.insuredName);
-  await drawTextImage(pdfDoc, pages[fields.ssn.page], ssnOrBirth, fields.ssn);
-  await drawTextImage(pdfDoc, pages[fields.job.page], values.job, fields.job);
-  await drawTextImage(pdfDoc, pages[fields.address.page], values.address, fields.address);
-  await drawTextImage(pdfDoc, pages[fields.phone.page], values.phone, fields.phone);
-  await drawTextImage(pdfDoc, pages[fields.accidentYear.page], accidentDate.yyyy, fields.accidentYear);
-  await drawTextImage(pdfDoc, pages[fields.accidentMonth.page], accidentDate.mm, fields.accidentMonth);
-  await drawTextImage(pdfDoc, pages[fields.accidentDay.page], accidentDate.dd, fields.accidentDay);
-  await drawTextImage(pdfDoc, pages[fields.accidentHour.page], cleanText(values.accidentHour) || accidentDate.hh, fields.accidentHour);
-  await drawTextImage(
-    pdfDoc,
-    pages[fields.accidentMinute.page],
-    cleanText(values.accidentMinute) || accidentDate.min,
-    fields.accidentMinute
-  );
-  await drawTextImage(pdfDoc, pages[fields.diagnosis.page], values.diagnosis, fields.diagnosis);
-  await drawTextImage(pdfDoc, pages[fields.treatmentHospital.page], values.treatmentHospital, fields.treatmentHospital);
-  await drawTextImage(pdfDoc, pages[fields.claimDescription.page], values.claimDescription, fields.claimDescription);
-  await drawTextImage(pdfDoc, pages[fields.accountNumber.page], values.accountNumber, fields.accountNumber);
-  await drawTextImage(pdfDoc, pages[fields.bank.page], values.bank, fields.bank);
-  await drawTextImage(pdfDoc, pages[fields.accountHolder.page], values.accountHolder, fields.accountHolder);
-  await drawTextImage(pdfDoc, pages[fields.writtenYear.page], writtenDate.yyyy, fields.writtenYear);
-  await drawTextImage(pdfDoc, pages[fields.writtenMonth.page], writtenDate.mm, fields.writtenMonth);
-  await drawTextImage(pdfDoc, pages[fields.writtenDay.page], writtenDate.dd, fields.writtenDay);
-  await drawTextImage(pdfDoc, pages[fields.signatureName.page], values.insuredName, fields.signatureName);
-  await drawSignature(pdfDoc, firstPage, signatureDataUrl, fields.signature);
+  await drawField(pdfDoc, pages, fields, 'insuredName', values.insuredName);
+  await drawField(pdfDoc, pages, fields, 'ssn', ssnOrBirth);
+  await drawField(pdfDoc, pages, fields, 'job', values.job);
+  await drawField(pdfDoc, pages, fields, 'address', values.address);
+  await drawField(pdfDoc, pages, fields, 'phone', values.phone);
+  await drawField(pdfDoc, pages, fields, 'accidentYear', accidentDate.yyyy);
+  await drawField(pdfDoc, pages, fields, 'accidentMonth', accidentDate.mm);
+  await drawField(pdfDoc, pages, fields, 'accidentDay', accidentDate.dd);
+  await drawField(pdfDoc, pages, fields, 'accidentHour', cleanText(values.accidentHour) || accidentDate.hh);
+  await drawField(pdfDoc, pages, fields, 'accidentMinute', cleanText(values.accidentMinute) || accidentDate.min);
+  await drawField(pdfDoc, pages, fields, 'diagnosis', values.diagnosis);
+  await drawField(pdfDoc, pages, fields, 'treatmentHospital', values.treatmentHospital);
+  await drawField(pdfDoc, pages, fields, 'claimDescription', values.claimDescription);
+  await drawField(pdfDoc, pages, fields, 'accountNumber', values.accountNumber);
+  await drawField(pdfDoc, pages, fields, 'bank', values.bank);
+  await drawField(pdfDoc, pages, fields, 'accountHolder', values.accountHolder);
+  await drawField(pdfDoc, pages, fields, 'writtenYear', writtenDate.yyyy);
+  await drawField(pdfDoc, pages, fields, 'writtenMonth', writtenDate.mm);
+  await drawField(pdfDoc, pages, fields, 'writtenDay', writtenDate.dd);
+  await drawField(pdfDoc, pages, fields, 'signatureName', values.insuredName);
+  await drawSignatureField(pdfDoc, pages, fields, 'signature', signatureDataUrl);
 
   const beneficiaryName = cleanText(values.beneficiaryName) || (values.beneficiarySameAsInsured ? values.insuredName : '');
   const beneficiarySignatureData =
     beneficiarySignatureDataUrl || (values.beneficiarySameAsInsured ? signatureDataUrl : '');
 
-  await drawTextImage(pdfDoc, pages[fields.beneficiaryNamePage1.page], beneficiaryName, fields.beneficiaryNamePage1);
-  await drawSignature(pdfDoc, pages[fields.beneficiarySignaturePage1.page], beneficiarySignatureData, fields.beneficiarySignaturePage1);
+  await drawField(pdfDoc, pages, fields, 'beneficiaryNamePage1', beneficiaryName);
+  await drawSignatureField(pdfDoc, pages, fields, 'beneficiarySignaturePage1', beneficiarySignatureData);
 
-  await drawTextImage(pdfDoc, pages[fields.consentWrittenYear.page], writtenDate.yyyy, fields.consentWrittenYear);
-  await drawTextImage(pdfDoc, pages[fields.consentWrittenMonth.page], writtenDate.mm, fields.consentWrittenMonth);
-  await drawTextImage(pdfDoc, pages[fields.consentWrittenDay.page], writtenDate.dd, fields.consentWrittenDay);
-  await drawTextImage(pdfDoc, pages[fields.consentSignatureName.page], values.insuredName, fields.consentSignatureName);
-  await drawSignature(pdfDoc, pages[fields.consentSignature.page], signatureDataUrl, fields.consentSignature);
+  await drawField(pdfDoc, pages, fields, 'consentWrittenYear', writtenDate.yyyy);
+  await drawField(pdfDoc, pages, fields, 'consentWrittenMonth', writtenDate.mm);
+  await drawField(pdfDoc, pages, fields, 'consentWrittenDay', writtenDate.dd);
+  await drawField(pdfDoc, pages, fields, 'consentSignatureName', values.insuredName);
+  await drawSignatureField(pdfDoc, pages, fields, 'consentSignature', signatureDataUrl);
 
-  await drawTextImage(pdfDoc, pages[fields.beneficiaryName.page], beneficiaryName, fields.beneficiaryName);
-  await drawSignature(
-    pdfDoc,
-    pages[fields.beneficiarySignature.page],
-    beneficiarySignatureData,
-    fields.beneficiarySignature
-  );
+  await drawField(pdfDoc, pages, fields, 'beneficiaryName', beneficiaryName);
+  await drawSignatureField(pdfDoc, pages, fields, 'beneficiarySignature', beneficiarySignatureData);
 
   const claimTypeMap = {
-    disease: template.checkboxes.claimType.disease,
-    injury: template.checkboxes.claimType.injury,
-    traffic: template.checkboxes.claimType.traffic,
-    other: template.checkboxes.claimType.other,
+    disease: template.checkboxes?.claimType?.disease,
+    injury: template.checkboxes?.claimType?.injury,
+    traffic: template.checkboxes?.claimType?.traffic,
+    other: template.checkboxes?.claimType?.other,
   };
   drawCheck(firstPage, claimTypeMap[values.claimType]);
 
-  const receiptTypeMap = template.checkboxes.receiptType || {};
+  const receiptTypeMap = template.checkboxes?.receiptType || {};
   drawCheck(firstPage, receiptTypeMap[values.receiptType]);
 
-  const noticeRecipientMap = template.checkboxes.noticeRecipient || {};
+  const noticeRecipientMap = template.checkboxes?.noticeRecipient || {};
   if (values.noticePolicyholder) drawCheck(firstPage, noticeRecipientMap.policyholder);
   if (values.noticeInsured) drawCheck(firstPage, noticeRecipientMap.insured);
   if (values.noticeOther) {
     drawCheck(firstPage, noticeRecipientMap.other);
-    await drawTextImage(pdfDoc, pages[fields.noticeOtherName.page], values.noticeOtherName, fields.noticeOtherName);
-    await drawTextImage(
-      pdfDoc,
-      pages[fields.noticeOtherRelation.page],
-      values.noticeOtherRelation,
-      fields.noticeOtherRelation
-    );
+    await drawField(pdfDoc, pages, fields, 'noticeOtherName', values.noticeOtherName);
+    await drawField(pdfDoc, pages, fields, 'noticeOtherRelation', values.noticeOtherRelation);
   }
+
+  const autoTransferBox = template.checkboxes?.autoTransfer?.receiveSamePerson;
+  if (values.receiveSamePerson && autoTransferBox) drawCheck(pages[autoTransferBox.page], autoTransferBox);
 
   Object.entries(values.consents || {}).forEach(([key, checked]) => {
     if (!checked) return;

@@ -1,8 +1,29 @@
 export const CLAIM_FORM_TEMPLATES = {
   dbInsurance: {
+    companyId: 'dbFire',
     companyName: 'DB손해보험',
+    aliases: ['DB손보'],
     formUrl: '/insurance-forms/DB손해보험금청구서.pdf',
     outputName: 'DB손해보험_보험금청구서',
+    formVersion: 'db_fire_claim_2026_08',
+    expectedPageCount: 6,
+    pageMap: {
+      claim: 0,
+      collectConsent: 3,
+      provideConsent: 4,
+      queryConsent: 5,
+    },
+    uiSchema: {
+      fields: {
+        birth: true,
+        accidentTime: true,
+        noticeRecipient: true,
+        receiptType: true,
+        receiveSamePerson: true,
+        beneficiary: true,
+      },
+      receiptTypeOptions: ['initial', 'additional'],
+    },
     pageSize: { width: 595.276, height: 841.89 },
     // page is pdf-lib's 0-based page index. The DB form's printed pages are not
     // contiguous in the source PDF: printed [1/4] is page 0, [2/4] is page 3,
@@ -61,68 +82,238 @@ export const CLAIM_FORM_TEMPLATES = {
     consents: {
       collectUniqueId: {
         label: '고유식별정보 수집·이용 동의',
+        required: true,
         page: 3,
         formPage: '2/4',
         agree: { x: 540.4, y: 436.2, size: 12.5, lineWidth: 2.8 },
       },
       collectSensitive: {
         label: '민감정보 수집·이용 동의',
+        required: true,
         page: 3,
         formPage: '2/4',
         agree: { x: 540.4, y: 344, size: 12.5, lineWidth: 2.8 },
       },
       collectPersonalCredit: {
         label: '개인(신용)정보 수집·이용 동의',
+        required: true,
         page: 3,
         formPage: '2/4',
         agree: { x: 540.4, y: 249.2, size: 12.5, lineWidth: 2.8 },
       },
       provideUniqueId: {
         label: '고유식별정보 제공 동의',
+        required: true,
         page: 4,
         formPage: '3/4',
         agree: { x: 540.4, y: 403.8, size: 12.5, lineWidth: 2.8 },
       },
       provideSensitive: {
         label: '민감정보 제공 동의',
+        required: true,
         page: 4,
         formPage: '3/4',
         agree: { x: 540.4, y: 306.1, size: 12.5, lineWidth: 2.8 },
       },
       providePersonalCredit: {
         label: '개인(신용)정보 제공 동의',
+        required: true,
         page: 4,
         formPage: '3/4',
         agree: { x: 540.4, y: 178.4, size: 12.5, lineWidth: 2.8 },
       },
       providePersonalCreditContinued: {
         label: '개인(신용)정보 제공 동의',
+        required: false,
+        mirrorOf: 'providePersonalCredit',
         page: 5,
         formPage: '4/4',
         agree: { x: 540.2, y: 624.6, size: 12.5, lineWidth: 2.8 },
       },
       queryUniqueId: {
         label: '고유식별정보 조회 동의',
+        required: true,
         page: 5,
         formPage: '4/4',
         agree: { x: 540.2, y: 352.2, size: 12.5, lineWidth: 2.8 },
       },
       querySensitive: {
         label: '민감정보 조회 동의',
+        required: true,
         page: 5,
         formPage: '4/4',
         agree: { x: 540.2, y: 286.4, size: 12.5, lineWidth: 2.8 },
       },
       queryPersonalCredit: {
         label: '개인(신용)정보 조회 동의',
+        required: true,
         page: 5,
         formPage: '4/4',
         agree: { x: 540.2, y: 158.8, size: 12.5, lineWidth: 2.8 },
       },
     },
   },
+  kbInsurance: {
+    companyId: 'kbFire',
+    companyName: 'KB손해보험',
+    aliases: ['KB손보'],
+    formUrl: '/insurance-forms/KB손해.pdf',
+    outputName: 'KB손해보험_보험금청구서',
+    formVersion: 'kb_fire_claim_2021_05',
+    expectedPageCount: 4,
+    pageSize: { width: 595.276, height: 841.89 },
+    // page is pdf-lib's 0-based page index. KB's source PDF is:
+    // page 0 = claim form [1/3], page 1 = consent [2/3],
+    // page 2 = consent [3/3], page 3 = 안내문 only.
+    pageMap: {
+      claim: 0,
+      collectConsent: 1,
+      provideAndQueryConsent: 2,
+      guide: 3,
+    },
+    uiSchema: {
+      fields: {
+        birth: true,
+        accidentTime: false,
+        noticeRecipient: true,
+        receiptType: true,
+        receiveSamePerson: false,
+        beneficiary: false,
+      },
+      receiptTypeOptions: ['additional'],
+      optionalConsentTitle: '선택 동의',
+    },
+    fields: {
+      insuredName: { page: 0, formPage: '1/3', x: 136, y: 722, width: 90, height: 16, fontSize: 10 },
+      ssn: { page: 0, formPage: '1/3', x: 286, y: 722, width: 220, height: 16, fontSize: 10 },
+      phone: { page: 0, formPage: '1/3', x: 142, y: 697, width: 220, height: 16, fontSize: 10 },
+      job: { page: 0, formPage: '1/3', x: 455, y: 697, width: 80, height: 16, fontSize: 9 },
+      address: { page: 0, formPage: '1/3', x: 130, y: 671, width: 335, height: 17, fontSize: 9 },
+      noticeOtherName: { page: 0, formPage: '1/3', x: 355, y: 614, width: 65, height: 14, fontSize: 9 },
+      noticeOtherRelation: { page: 0, formPage: '1/3', x: 468, y: 614, width: 58, height: 14, fontSize: 9 },
+      accidentYear: { page: 0, formPage: '1/3', x: 108, y: 435, width: 76, height: 16, fontSize: 10 },
+      accidentMonth: { page: 0, formPage: '1/3', x: 200, y: 435, width: 45, height: 16, fontSize: 10 },
+      accidentDay: { page: 0, formPage: '1/3', x: 253, y: 435, width: 45, height: 16, fontSize: 10 },
+      claimDescription: { page: 0, formPage: '1/3', x: 74, y: 390, width: 215, height: 42, fontSize: 9 },
+      treatmentHospital: { page: 0, formPage: '1/3', x: 395, y: 406, width: 130, height: 16, fontSize: 10 },
+      diagnosis: { page: 0, formPage: '1/3', x: 395, y: 384, width: 130, height: 16, fontSize: 10 },
+      bank: { page: 0, formPage: '1/3', x: 145, y: 222, width: 70, height: 16, fontSize: 10 },
+      accountNumber: { page: 0, formPage: '1/3', x: 255, y: 222, width: 155, height: 16, fontSize: 10 },
+      accountHolder: { page: 0, formPage: '1/3', x: 480, y: 222, width: 55, height: 16, fontSize: 10 },
+      writtenYear: { page: 0, formPage: '1/3', x: 105, y: 70, width: 76, height: 16, fontSize: 10 },
+      writtenMonth: { page: 0, formPage: '1/3', x: 205, y: 70, width: 45, height: 16, fontSize: 10 },
+      writtenDay: { page: 0, formPage: '1/3', x: 267, y: 70, width: 45, height: 16, fontSize: 10 },
+      signatureName: { page: 0, formPage: '1/3', x: 365, y: 70, width: 82, height: 16, fontSize: 10 },
+      signature: { page: 0, formPage: '1/3', x: 478, y: 73, width: 54, height: 25 },
+      consentWrittenYear: { page: 2, formPage: '3/3', x: 113, y: 81, width: 58, height: 16, fontSize: 10 },
+      consentWrittenMonth: { page: 2, formPage: '3/3', x: 202, y: 81, width: 35, height: 16, fontSize: 10 },
+      consentWrittenDay: { page: 2, formPage: '3/3', x: 263, y: 81, width: 35, height: 16, fontSize: 10 },
+      consentSignatureName: { page: 2, formPage: '3/3', x: 455, y: 120, width: 60, height: 16, fontSize: 10 },
+      consentSignature: { page: 2, formPage: '3/3', x: 520, y: 112, width: 45, height: 22 },
+    },
+    checkboxes: {
+      claimType: {
+        injury: { page: 0, formPage: '1/3', x: 84, y: 541, size: 10, lineWidth: 2.2 },
+        disease: { page: 0, formPage: '1/3', x: 158, y: 541, size: 10, lineWidth: 2.2 },
+        traffic: { page: 0, formPage: '1/3', x: 224, y: 541, size: 10, lineWidth: 2.2 },
+      },
+      receiptType: {
+        additional: { page: 0, formPage: '1/3', x: 336, y: 541, size: 10, lineWidth: 2.2 },
+      },
+      noticeRecipient: {
+        policyholder: { page: 0, formPage: '1/3', x: 88, y: 615, size: 10, lineWidth: 2.2 },
+        insured: { page: 0, formPage: '1/3', x: 195, y: 628, size: 10, lineWidth: 2.2 },
+        other: { page: 0, formPage: '1/3', x: 281, y: 615, size: 10, lineWidth: 2.2 },
+      },
+      autoTransfer: {
+        receiveSamePerson: { page: 0, formPage: '1/3', x: 85, y: 278, size: 10, lineWidth: 2.2 },
+      },
+    },
+    consents: {
+      collectUniqueId: {
+        label: '고유식별정보 수집·이용 동의',
+        required: true,
+        page: 1,
+        formPage: '2/3',
+        agree: { x: 514, y: 507, size: 10.8, lineWidth: 2.4 },
+      },
+      collectSensitive: {
+        label: '민감정보 수집·이용 동의',
+        required: true,
+        page: 1,
+        formPage: '2/3',
+        agree: { x: 514, y: 442, size: 10.8, lineWidth: 2.4 },
+      },
+      collectPersonalCredit: {
+        label: '개인(신용)정보 수집·이용 동의',
+        required: true,
+        page: 1,
+        formPage: '2/3',
+        agree: { x: 514, y: 342, size: 10.8, lineWidth: 2.4 },
+      },
+      provideUniqueId: {
+        label: '고유식별정보 제공 동의',
+        required: true,
+        page: 2,
+        formPage: '3/3',
+        agree: { x: 500, y: 719, size: 9.5, lineWidth: 2.1 },
+      },
+      provideSensitive: {
+        label: '민감정보 제공 동의',
+        required: true,
+        page: 2,
+        formPage: '3/3',
+        agree: { x: 500, y: 651, size: 9.5, lineWidth: 2.1 },
+      },
+      providePersonalCredit: {
+        label: '개인(신용)정보 제공 동의',
+        required: true,
+        page: 2,
+        formPage: '3/3',
+        agree: { x: 500, y: 560, size: 9.5, lineWidth: 2.1 },
+      },
+      providePersonalCreditOverseas: {
+        label: '국외 개인(신용)정보 제공 동의',
+        required: false,
+        page: 2,
+        formPage: '3/3',
+        agree: { x: 500, y: 480, size: 9.5, lineWidth: 2.1 },
+      },
+      queryUniqueId: {
+        label: '고유식별정보 조회 동의',
+        required: true,
+        page: 2,
+        formPage: '3/3',
+        agree: { x: 500, y: 277, size: 9.5, lineWidth: 2.1 },
+      },
+      querySensitive: {
+        label: '민감정보 조회 동의',
+        required: true,
+        page: 2,
+        formPage: '3/3',
+        agree: { x: 500, y: 237, size: 9.5, lineWidth: 2.1 },
+      },
+      queryPersonalCredit: {
+        label: '개인(신용)정보 조회 동의',
+        required: true,
+        page: 2,
+        formPage: '3/3',
+        agree: { x: 500, y: 134, size: 9.5, lineWidth: 2.1 },
+      },
+    },
+  },
 };
 
 export function getClaimFormTemplateByCompany(companyName) {
-  return Object.values(CLAIM_FORM_TEMPLATES).find((template) => template.companyName === companyName) || null;
+  const key = String(companyName || '').trim();
+  if (!key) return null;
+
+  return (
+    Object.values(CLAIM_FORM_TEMPLATES).find(
+      (template) =>
+        template.companyName === key ||
+        template.companyId === key ||
+        template.aliases?.includes(key)
+    ) || null
+  );
 }

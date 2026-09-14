@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS } from '../constants';
 import ClaimPdfPreview from './ClaimPdfPreview';
-import { generateClaimFormPdf } from '../services/claimFormTemplateService';
+import { generateClaimFormPdf, getClaimFormTemplate } from '../services/claimFormTemplateService';
 
 const CLAIM_TYPE_OPTIONS = [
   { value: 'disease', label: '질병' },
@@ -15,7 +15,7 @@ const RECEIPT_TYPE_OPTIONS = [
   { value: 'additional', label: '동일사고 추가접수' },
 ];
 
-const REQUIRED_CONSENT_OPTIONS = [
+const DEFAULT_CONSENT_OPTIONS = [
   { key: 'collectUniqueId', label: '고유식별정보 수집·이용 동의' },
   { key: 'collectSensitive', label: '민감정보 수집·이용 동의' },
   { key: 'collectPersonalCredit', label: '개인(신용)정보 수집·이용 동의' },
@@ -27,8 +27,8 @@ const REQUIRED_CONSENT_OPTIONS = [
   { key: 'queryPersonalCredit', label: '개인(신용)정보 조회 동의' },
 ];
 
-function createInitialConsents() {
-  return REQUIRED_CONSENT_OPTIONS.reduce((acc, option) => {
+function createInitialConsents(consentOptions = DEFAULT_CONSENT_OPTIONS) {
+  return consentOptions.reduce((acc, option) => {
     acc[option.key] = false;
     return acc;
   }, {});
@@ -82,11 +82,36 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
   const hasBeneficiarySignatureRef = useRef(false);
 
   const companyName = company?.name || 'DB손해보험';
+  const template = useMemo(() => getClaimFormTemplate(companyName), [companyName]);
+  const uiSchema = template?.uiSchema || {};
+  const visibleFields = uiSchema.fields || {};
+  const receiptTypeOptions = useMemo(
+    () => RECEIPT_TYPE_OPTIONS.filter((option) => !uiSchema.receiptTypeOptions || uiSchema.receiptTypeOptions.includes(option.value)),
+    [uiSchema.receiptTypeOptions]
+  );
+  const consentOptions = useMemo(() => {
+    if (!template?.consents) return DEFAULT_CONSENT_OPTIONS.map((option) => ({ ...option, required: true }));
+    return Object.entries(template.consents)
+      .filter(([, consent]) => !consent.mirrorOf)
+      .map(([key, consent]) => ({
+        key,
+        label: consent.label,
+        required: consent.required !== false,
+      }));
+  }, [template]);
+  const requiredConsentOptions = useMemo(
+    () => consentOptions.filter((option) => option.required),
+    [consentOptions]
+  );
+  const optionalConsentOptions = useMemo(
+    () => consentOptions.filter((option) => !option.required),
+    [consentOptions]
+  );
 
   useEffect(() => {
     if (!visible) return;
     setValues(createInitialValues(customer));
-    setConsents(createInitialConsents());
+    setConsents(createInitialConsents(consentOptions));
     setPreviewFile(null);
     hasSignatureRef.current = false;
     hasBeneficiarySignatureRef.current = false;
@@ -94,7 +119,7 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
       clearSignature('insured');
       clearSignature('beneficiary');
     }, 0);
-  }, [visible, customer]);
+  }, [visible, customer, consentOptions]);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -109,16 +134,16 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
   useEffect(() => {
     if (visible) return;
     setValues(createInitialValues(customer));
-    setConsents(createInitialConsents());
+    setConsents(createInitialConsents(consentOptions));
     setPreviewFile(null);
     hasSignatureRef.current = false;
     hasBeneficiarySignatureRef.current = false;
-  }, [visible, customer]);
+  }, [visible, customer, consentOptions]);
 
   const canPreview = useMemo(() => values.insuredName.trim().length > 0, [values.insuredName]);
   const allRequiredConsentsChecked = useMemo(
-    () => REQUIRED_CONSENT_OPTIONS.every((option) => consents[option.key]),
-    [consents]
+    () => requiredConsentOptions.every((option) => consents[option.key]),
+    [consents, requiredConsentOptions]
   );
 
   if (!visible) return null;
@@ -156,8 +181,8 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
 
   function toggleAllConsents(checked) {
     setConsents(
-      REQUIRED_CONSENT_OPTIONS.reduce((acc, option) => {
-        acc[option.key] = checked;
+      consentOptions.reduce((acc, option) => {
+        acc[option.key] = option.required ? checked : Boolean(consents[option.key]);
         return acc;
       }, {})
     );
@@ -273,7 +298,7 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
 
   function handleClose() {
     setValues(createInitialValues(customer));
-    setConsents(createInitialConsents());
+    setConsents(createInitialConsents(consentOptions));
     setPreviewFile(null);
     hasSignatureRef.current = false;
     hasBeneficiarySignatureRef.current = false;
@@ -297,7 +322,7 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
       <div style={styles.dialog}>
         <div style={styles.header}>
           <div>
-            <div style={styles.title}>DB손해보험 청구서 작성</div>
+            <div style={styles.title}>{companyName} 청구서 작성</div>
             <div style={styles.subtitle}>입력값은 작성 중 화면에서만 사용되며, 별도 저장하지 않습니다.</div>
           </div>
           <button type="button" onClick={handleClose} style={styles.closeButton} aria-label="닫기">
@@ -312,7 +337,9 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
         <div style={styles.formGrid}>
           <Section title="피보험자 정보">
             <Field label="이름" value={values.insuredName} onChange={(v) => updateField('insuredName', v)} />
-            <Field label="생년월일" value={values.birth} onChange={(v) => updateField('birth', v)} placeholder="예: 880606 또는 1988-06-06" />
+            {visibleFields.birth !== false && (
+              <Field label="생년월일" value={values.birth} onChange={(v) => updateField('birth', v)} placeholder="예: 880606 또는 1988-06-06" />
+            )}
             <Field label="주민등록번호" value={values.ssn} onChange={(v) => updateField('ssn', v)} placeholder="필요 시 직접 입력" />
             <Field label="연락처" value={values.phone} onChange={(v) => updateField('phone', v)} />
             <Field label="직업" value={values.job} onChange={(v) => updateField('job', v)} />
@@ -340,133 +367,143 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
               </div>
             </div>
             <Field label="사고 또는 발병일" value={values.accidentDate} onChange={(v) => updateField('accidentDate', v)} placeholder="예: 2026-09-01" />
-            <div style={styles.inlineGrid}>
-              <Field label="시" value={values.accidentHour} onChange={(v) => updateField('accidentHour', v)} placeholder="선택" />
-              <Field label="분" value={values.accidentMinute} onChange={(v) => updateField('accidentMinute', v)} placeholder="선택" />
-            </div>
+            {visibleFields.accidentTime !== false && (
+              <div style={styles.inlineGrid}>
+                <Field label="시" value={values.accidentHour} onChange={(v) => updateField('accidentHour', v)} placeholder="선택" />
+                <Field label="분" value={values.accidentMinute} onChange={(v) => updateField('accidentMinute', v)} placeholder="선택" />
+              </div>
+            )}
             <Field label="진단명" value={values.diagnosis} onChange={(v) => updateField('diagnosis', v)} />
             <Field label="치료병원" value={values.treatmentHospital} onChange={(v) => updateField('treatmentHospital', v)} />
             <Field label="사고내용 또는 청구내용" value={values.claimDescription} onChange={(v) => updateField('claimDescription', v)} multiline rows={5} />
-            <div style={styles.fieldBlock}>
-              <div style={styles.label}>접수종류</div>
-              <div style={styles.segmented}>
-                {RECEIPT_TYPE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => updateField('receiptType', values.receiptType === option.value ? '' : option.value)}
-                    style={{
-                      ...styles.segmentButton,
-                      background: values.receiptType === option.value ? COLORS.primary : '#fff',
-                      color: values.receiptType === option.value ? '#fff' : COLORS.primary,
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Section>
-
-          <Section title="보상안내 받으실 분">
-            <label style={styles.checkRow}>
-              <input
-                type="checkbox"
-                checked={values.noticePolicyholder}
-                onChange={(e) => updateNoticeField('noticePolicyholder', e.target.checked)}
-              />
-              <span>보험계약자</span>
-            </label>
-            <label style={styles.checkRow}>
-              <input
-                type="checkbox"
-                checked={values.noticeInsured}
-                onChange={(e) => updateNoticeField('noticeInsured', e.target.checked)}
-              />
-              <span>피보험자</span>
-            </label>
-            <label style={styles.checkRow}>
-              <input
-                type="checkbox"
-                checked={values.noticeOther}
-                onChange={(e) => updateNoticeField('noticeOther', e.target.checked)}
-              />
-              <span>기타</span>
-            </label>
-            {values.noticeOther && (
-              <div style={styles.inlineGrid}>
-                <Field label="기타 성명" value={values.noticeOtherName} onChange={(v) => updateField('noticeOtherName', v)} />
-                <Field
-                  label="피보험자와의 관계"
-                  value={values.noticeOtherRelation}
-                  onChange={(v) => updateField('noticeOtherRelation', v)}
-                />
+            {visibleFields.receiptType !== false && receiptTypeOptions.length > 0 && (
+              <div style={styles.fieldBlock}>
+                <div style={styles.label}>접수종류</div>
+                <div style={styles.segmented}>
+                  {receiptTypeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateField('receiptType', values.receiptType === option.value ? '' : option.value)}
+                      style={{
+                        ...styles.segmentButton,
+                        background: values.receiptType === option.value ? COLORS.primary : '#fff',
+                        color: values.receiptType === option.value ? '#fff' : COLORS.primary,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </Section>
 
+          {visibleFields.noticeRecipient !== false && (
+            <Section title="보상안내 받으실 분">
+              <label style={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={values.noticePolicyholder}
+                  onChange={(e) => updateNoticeField('noticePolicyholder', e.target.checked)}
+                />
+                <span>보험계약자</span>
+              </label>
+              <label style={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={values.noticeInsured}
+                  onChange={(e) => updateNoticeField('noticeInsured', e.target.checked)}
+                />
+                <span>피보험자</span>
+              </label>
+              <label style={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={values.noticeOther}
+                  onChange={(e) => updateNoticeField('noticeOther', e.target.checked)}
+                />
+                <span>기타</span>
+              </label>
+              {values.noticeOther && (
+                <div style={styles.inlineGrid}>
+                  <Field label="기타 성명" value={values.noticeOtherName} onChange={(v) => updateField('noticeOtherName', v)} />
+                  <Field
+                    label="피보험자와의 관계"
+                    value={values.noticeOtherRelation}
+                    onChange={(v) => updateField('noticeOtherRelation', v)}
+                  />
+                </div>
+              )}
+            </Section>
+          )}
+
           <Section title="보험금 수령">
-            <label style={styles.checkRow}>
-              <input
-                type="checkbox"
-                checked={values.receiveSamePerson}
-                onChange={(e) => updateField('receiveSamePerson', e.target.checked)}
-              />
-              <span>피보험자 계좌와 동일 표시</span>
-            </label>
+            {visibleFields.receiveSamePerson !== false && (
+              <label style={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={values.receiveSamePerson}
+                  onChange={(e) => updateField('receiveSamePerson', e.target.checked)}
+                />
+                <span>피보험자 계좌와 동일 표시</span>
+              </label>
+            )}
             <Field label="예금주" value={values.accountHolder} onChange={(v) => updateField('accountHolder', v)} />
             <Field label="은행" value={values.bank} onChange={(v) => updateField('bank', v)} />
             <Field label="계좌번호" value={values.accountNumber} onChange={(v) => updateField('accountNumber', v)} />
           </Section>
 
-          <Section title="보험수익자">
-            <label style={styles.checkRow}>
-              <input
-                type="radio"
-                name="beneficiaryType"
-                checked={values.beneficiarySameAsInsured}
-                onChange={() => updateField('beneficiarySameAsInsured', true)}
+          {visibleFields.beneficiary !== false && (
+            <Section title="보험수익자">
+              <label style={styles.checkRow}>
+                <input
+                  type="radio"
+                  name="beneficiaryType"
+                  checked={values.beneficiarySameAsInsured}
+                  onChange={() => updateField('beneficiarySameAsInsured', true)}
+                />
+                <span>피보험자와 동일</span>
+              </label>
+              <label style={styles.checkRow}>
+                <input
+                  type="radio"
+                  name="beneficiaryType"
+                  checked={!values.beneficiarySameAsInsured}
+                  onChange={() => updateField('beneficiarySameAsInsured', false)}
+                />
+                <span>별도 보험수익자</span>
+              </label>
+              <Field
+                label="보험수익자 성명"
+                value={values.beneficiarySameAsInsured ? values.insuredName : values.beneficiaryName}
+                onChange={(v) => updateField('beneficiaryName', v)}
+                placeholder="보험수익자 성명"
+                disabled={values.beneficiarySameAsInsured}
               />
-              <span>피보험자와 동일</span>
-            </label>
-            <label style={styles.checkRow}>
-              <input
-                type="radio"
-                name="beneficiaryType"
-                checked={!values.beneficiarySameAsInsured}
-                onChange={() => updateField('beneficiarySameAsInsured', false)}
-              />
-              <span>별도 보험수익자</span>
-            </label>
-            <Field
-              label="보험수익자 성명"
-              value={values.beneficiarySameAsInsured ? values.insuredName : values.beneficiaryName}
-              onChange={(v) => updateField('beneficiaryName', v)}
-              placeholder="보험수익자 성명"
-              disabled={values.beneficiarySameAsInsured}
-            />
-            {!values.beneficiarySameAsInsured && (
-              <>
-                <div style={styles.label}>보험수익자 서명</div>
-                <div style={styles.signatureBox}>
-                  <canvas
-                    ref={beneficiaryCanvasRef}
-                    style={styles.signatureCanvas}
-                    onMouseDown={(event) => startSignature(event, 'beneficiary')}
-                    onMouseMove={(event) => drawSignature(event, 'beneficiary')}
-                    onMouseUp={endSignature}
-                    onMouseLeave={endSignature}
-                    onTouchStart={(event) => startSignature(event, 'beneficiary')}
-                    onTouchMove={(event) => drawSignature(event, 'beneficiary')}
-                    onTouchEnd={endSignature}
-                  />
-                </div>
-                <button type="button" onClick={() => clearSignature('beneficiary')} style={styles.secondaryButton}>
-                  보험수익자 서명 지우기
-                </button>
-              </>
-            )}
-          </Section>
+              {!values.beneficiarySameAsInsured && (
+                <>
+                  <div style={styles.label}>보험수익자 서명</div>
+                  <div style={styles.signatureBox}>
+                    <canvas
+                      ref={beneficiaryCanvasRef}
+                      style={styles.signatureCanvas}
+                      onMouseDown={(event) => startSignature(event, 'beneficiary')}
+                      onMouseMove={(event) => drawSignature(event, 'beneficiary')}
+                      onMouseUp={endSignature}
+                      onMouseLeave={endSignature}
+                      onTouchStart={(event) => startSignature(event, 'beneficiary')}
+                      onTouchMove={(event) => drawSignature(event, 'beneficiary')}
+                      onTouchEnd={endSignature}
+                    />
+                  </div>
+                  <button type="button" onClick={() => clearSignature('beneficiary')} style={styles.secondaryButton}>
+                    보험수익자 서명 지우기
+                  </button>
+                </>
+              )}
+            </Section>
+          )}
 
           <Section title="보험금 청구 필수 동의">
             <label style={{ ...styles.checkRow, ...styles.consentAllRow }}>
@@ -478,7 +515,7 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
               <span>필수 동의 전체 선택</span>
             </label>
             <div style={styles.consentList}>
-              {REQUIRED_CONSENT_OPTIONS.map((option) => (
+              {requiredConsentOptions.map((option) => (
                 <label key={option.key} style={styles.consentRow}>
                   <input
                     type="checkbox"
@@ -489,6 +526,23 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
                 </label>
               ))}
             </div>
+            {optionalConsentOptions.length > 0 && (
+              <>
+                <div style={{ ...styles.label, marginTop: 4 }}>{uiSchema.optionalConsentTitle || '선택 동의'}</div>
+                <div style={styles.consentList}>
+                  {optionalConsentOptions.map((option) => (
+                    <label key={option.key} style={styles.consentRow}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(consents[option.key])}
+                        onChange={(e) => updateConsent(option.key, e.target.checked)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
           </Section>
 
           <Section title="서명">

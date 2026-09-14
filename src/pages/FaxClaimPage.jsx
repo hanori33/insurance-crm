@@ -6,6 +6,7 @@ import ClaimFormEditor from '../components/ClaimFormEditor';
 import customerService from '../services/customerService';
 import faxHistoryService from '../services/faxHistoryService';
 import consultationService from '../services/consultationService';
+import { getClaimFormTemplate } from '../services/claimFormTemplateService';
 import { supabase } from '../supabaseClient';
 
 const STORAGE_KEY = 'boplan_fax_claims';
@@ -137,6 +138,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
 
   const selectedCompanyInfo = INSURANCE_COMPANIES.find((item) => item.name === selectedCompany);
+  const selectedClaimFormTemplate = getClaimFormTemplate(selectedCompanyInfo?.name);
   const totalFaxPages = useMemo(
     () => filePageCounts.reduce((sum, count) => sum + count, 0),
     [filePageCounts]
@@ -487,8 +489,8 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   }
 
   function openClaimEditor() {
-    if (selectedCompanyInfo?.name !== 'DB손해보험') {
-      alert('현재 청구서 작성은 DB손해보험만 지원합니다.');
+    if (!selectedClaimFormTemplate) {
+      alert('현재 이 보험사의 청구서 자동작성은 지원하지 않습니다.');
       return;
     }
 
@@ -638,7 +640,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
           <button type="button" onClick={openClaimForm} style={styles.formButton}>
             📄 청구서 보기
           </button>
-          {selectedCompanyInfo?.name === 'DB손해보험' && (
+          {selectedClaimFormTemplate && (
             <button type="button" onClick={openClaimEditor} style={styles.writeFormButton}>
               ✍️ 청구서 작성
             </button>
