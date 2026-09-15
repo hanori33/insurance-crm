@@ -91,13 +91,32 @@ function textToPngDataUrl(text, field) {
   ctx.fillStyle = TEXT_COLOR;
   ctx.font = `${fontSize * scale}px "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
   ctx.textBaseline = 'top';
+  ctx.textAlign = field.align === 'center' ? 'center' : 'left';
 
   const maxLines = Math.max(1, Math.floor(height / lineHeight));
   lines.slice(0, maxLines).forEach((line, index) => {
-    ctx.fillText(line, 2 * scale, index * lineHeight * scale);
+    const x = field.align === 'center' ? canvas.width / 2 : 2 * scale;
+    ctx.fillText(line, x, index * lineHeight * scale);
   });
 
   return { dataUrl: canvas.toDataURL('image/png'), width, height };
+}
+
+async function drawCellTextImage(pdfDoc, page, text, field) {
+  const raw = cleanText(text);
+  if (!raw || !field?.cellBoxes?.length) return;
+
+  const source = field.digitsOnly ? raw.replace(/\D/g, '') : raw.replace(/\s/g, '');
+  const chars = Array.from(source);
+
+  for (let index = 0; index < Math.min(chars.length, field.cellBoxes.length); index += 1) {
+    const cell = field.cellBoxes[index];
+    await drawTextImage(pdfDoc, page, chars[index], {
+      ...cell,
+      fontSize: cell.fontSize || field.fontSize || 10,
+      align: 'center',
+    });
+  }
 }
 
 async function drawTextImage(pdfDoc, page, text, field) {
@@ -115,6 +134,10 @@ async function drawTextImage(pdfDoc, page, text, field) {
 async function drawField(pdfDoc, pages, fields, key, text) {
   const field = fields?.[key];
   if (!field || !pages[field.page]) return;
+  if (field.cellBoxes) {
+    await drawCellTextImage(pdfDoc, pages[field.page], text, field);
+    return;
+  }
   await drawTextImage(pdfDoc, pages[field.page], text, field);
 }
 
@@ -233,6 +256,11 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
 
   const autoTransferBox = template.checkboxes?.autoTransfer?.receiveSamePerson;
   if (values.receiveSamePerson && autoTransferBox) drawCheck(pages[autoTransferBox.page], autoTransferBox);
+
+  const autoTransferRequestBox = template.checkboxes?.autoTransferRequest;
+  if (values.autoTransferRequest && autoTransferRequestBox) {
+    drawCheck(pages[autoTransferRequestBox.page], autoTransferRequestBox);
+  }
 
   Object.entries(values.consents || {}).forEach(([key, checked]) => {
     if (!checked) return;

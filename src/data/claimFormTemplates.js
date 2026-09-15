@@ -1,3 +1,27 @@
+function makeCells(x, y, count, width = 17.6, height = 15, gap = 0, fontSize = 10) {
+  return Array.from({ length: count }, (_, index) => ({
+    x: x + index * (width + gap),
+    y,
+    width,
+    height,
+    fontSize,
+  }));
+}
+
+function makeCellGroups(groups) {
+  return groups.flatMap((group) =>
+    makeCells(
+      group.x,
+      group.y,
+      group.count,
+      group.width,
+      group.height,
+      group.gap,
+      group.fontSize
+    )
+  );
+}
+
 export const CLAIM_FORM_TEMPLATES = {
   dbInsurance: {
     companyId: 'dbFire',
@@ -20,6 +44,7 @@ export const CLAIM_FORM_TEMPLATES = {
         noticeRecipient: true,
         receiptType: true,
         receiveSamePerson: true,
+        autoTransferRequest: true,
         beneficiary: true,
       },
       receiptTypeOptions: ['initial', 'additional'],
@@ -78,6 +103,7 @@ export const CLAIM_FORM_TEMPLATES = {
         insured: { page: 0, formPage: '1/4', x: 167.5, y: 626.4, size: 7.2, lineWidth: 2 },
         other: { page: 0, formPage: '1/4', x: 215.5, y: 626.4, size: 7.2, lineWidth: 2 },
       },
+      autoTransferRequest: { page: 0, formPage: '1/4', x: 139.4, y: 315.4, size: 6.4, lineWidth: 1.8 },
     },
     consents: {
       collectUniqueId: {
@@ -185,24 +211,43 @@ export const CLAIM_FORM_TEMPLATES = {
     },
     fields: {
       insuredName: { page: 0, formPage: '1/3', x: 136, y: 722, width: 90, height: 16, fontSize: 10 },
-      ssn: { page: 0, formPage: '1/3', x: 286, y: 722, width: 220, height: 16, fontSize: 10 },
-      phone: { page: 0, formPage: '1/3', x: 142, y: 697, width: 220, height: 16, fontSize: 10 },
+      ssn: {
+        page: 0,
+        formPage: '1/3',
+        fontSize: 9.5,
+        digitsOnly: true,
+        cellBoxes: makeCellGroups([
+          { x: 288.5, y: 722.5, count: 6, width: 17.8, height: 15 },
+          { x: 415, y: 722.5, count: 7, width: 17.8, height: 15 },
+        ]),
+      },
+      phone: {
+        page: 0,
+        formPage: '1/3',
+        fontSize: 9.5,
+        digitsOnly: true,
+        cellBoxes: makeCellGroups([
+          { x: 144.5, y: 697.5, count: 3, width: 18, height: 15 },
+          { x: 214, y: 697.5, count: 4, width: 18, height: 15 },
+          { x: 301.5, y: 697.5, count: 4, width: 18, height: 15 },
+        ]),
+      },
       job: { page: 0, formPage: '1/3', x: 455, y: 697, width: 80, height: 16, fontSize: 9 },
       address: { page: 0, formPage: '1/3', x: 130, y: 671, width: 335, height: 17, fontSize: 9 },
       noticeOtherName: { page: 0, formPage: '1/3', x: 355, y: 614, width: 65, height: 14, fontSize: 9 },
       noticeOtherRelation: { page: 0, formPage: '1/3', x: 468, y: 614, width: 58, height: 14, fontSize: 9 },
-      accidentYear: { page: 0, formPage: '1/3', x: 108, y: 435, width: 76, height: 16, fontSize: 10 },
-      accidentMonth: { page: 0, formPage: '1/3', x: 200, y: 435, width: 45, height: 16, fontSize: 10 },
-      accidentDay: { page: 0, formPage: '1/3', x: 253, y: 435, width: 45, height: 16, fontSize: 10 },
+      accidentYear: { page: 0, formPage: '1/3', fontSize: 9.5, digitsOnly: true, cellBoxes: makeCells(107.5, 435.5, 4, 18, 15) },
+      accidentMonth: { page: 0, formPage: '1/3', fontSize: 9.5, digitsOnly: true, cellBoxes: makeCells(197, 435.5, 2, 18, 15) },
+      accidentDay: { page: 0, formPage: '1/3', fontSize: 9.5, digitsOnly: true, cellBoxes: makeCells(245.5, 435.5, 2, 18, 15) },
       claimDescription: { page: 0, formPage: '1/3', x: 74, y: 390, width: 215, height: 42, fontSize: 9 },
       treatmentHospital: { page: 0, formPage: '1/3', x: 395, y: 406, width: 130, height: 16, fontSize: 10 },
       diagnosis: { page: 0, formPage: '1/3', x: 395, y: 384, width: 130, height: 16, fontSize: 10 },
       bank: { page: 0, formPage: '1/3', x: 145, y: 222, width: 70, height: 16, fontSize: 10 },
       accountNumber: { page: 0, formPage: '1/3', x: 255, y: 222, width: 155, height: 16, fontSize: 10 },
       accountHolder: { page: 0, formPage: '1/3', x: 480, y: 222, width: 55, height: 16, fontSize: 10 },
-      writtenYear: { page: 0, formPage: '1/3', x: 105, y: 70, width: 76, height: 16, fontSize: 10 },
-      writtenMonth: { page: 0, formPage: '1/3', x: 205, y: 70, width: 45, height: 16, fontSize: 10 },
-      writtenDay: { page: 0, formPage: '1/3', x: 267, y: 70, width: 45, height: 16, fontSize: 10 },
+      writtenYear: { page: 0, formPage: '1/3', fontSize: 9.5, digitsOnly: true, cellBoxes: makeCells(104.5, 70, 4, 18, 15) },
+      writtenMonth: { page: 0, formPage: '1/3', fontSize: 9.5, digitsOnly: true, cellBoxes: makeCells(205, 70, 2, 18, 15) },
+      writtenDay: { page: 0, formPage: '1/3', fontSize: 9.5, digitsOnly: true, cellBoxes: makeCells(267.5, 70, 2, 18, 15) },
       signatureName: { page: 0, formPage: '1/3', x: 365, y: 70, width: 82, height: 16, fontSize: 10 },
       signature: { page: 0, formPage: '1/3', x: 478, y: 73, width: 54, height: 25 },
       consentWrittenYear: { page: 2, formPage: '3/3', x: 113, y: 81, width: 58, height: 16, fontSize: 10 },
@@ -213,20 +258,20 @@ export const CLAIM_FORM_TEMPLATES = {
     },
     checkboxes: {
       claimType: {
-        injury: { page: 0, formPage: '1/3', x: 84, y: 541, size: 10, lineWidth: 2.2 },
-        disease: { page: 0, formPage: '1/3', x: 158, y: 541, size: 10, lineWidth: 2.2 },
-        traffic: { page: 0, formPage: '1/3', x: 224, y: 541, size: 10, lineWidth: 2.2 },
+        injury: { page: 0, formPage: '1/3', x: 94, y: 466.5, size: 10.5, lineWidth: 2.3 },
+        disease: { page: 0, formPage: '1/3', x: 167, y: 466.5, size: 10.5, lineWidth: 2.3 },
+        traffic: { page: 0, formPage: '1/3', x: 233, y: 466.5, size: 10.5, lineWidth: 2.3 },
       },
       receiptType: {
-        additional: { page: 0, formPage: '1/3', x: 336, y: 541, size: 10, lineWidth: 2.2 },
+        additional: { page: 0, formPage: '1/3', x: 338.5, y: 466.5, size: 10.5, lineWidth: 2.3 },
       },
       noticeRecipient: {
-        policyholder: { page: 0, formPage: '1/3', x: 88, y: 615, size: 10, lineWidth: 2.2 },
-        insured: { page: 0, formPage: '1/3', x: 195, y: 628, size: 10, lineWidth: 2.2 },
-        other: { page: 0, formPage: '1/3', x: 281, y: 615, size: 10, lineWidth: 2.2 },
+        policyholder: { page: 0, formPage: '1/3', x: 113.5, y: 619, size: 12, lineWidth: 2.5 },
+        insured: { page: 0, formPage: '1/3', x: 207.5, y: 619, size: 12, lineWidth: 2.5 },
+        other: { page: 0, formPage: '1/3', x: 293.5, y: 619, size: 12, lineWidth: 2.5 },
       },
       autoTransfer: {
-        receiveSamePerson: { page: 0, formPage: '1/3', x: 85, y: 278, size: 10, lineWidth: 2.2 },
+        receiveSamePerson: { page: 0, formPage: '1/3', x: 86.5, y: 281.5, size: 12, lineWidth: 2.5 },
       },
     },
     consents: {
@@ -235,70 +280,70 @@ export const CLAIM_FORM_TEMPLATES = {
         required: true,
         page: 1,
         formPage: '2/3',
-        agree: { x: 514, y: 507, size: 10.8, lineWidth: 2.4 },
+        agree: { x: 498, y: 504.5, size: 10, lineWidth: 2.3 },
       },
       collectSensitive: {
         label: '민감정보 수집·이용 동의',
         required: true,
         page: 1,
         formPage: '2/3',
-        agree: { x: 514, y: 442, size: 10.8, lineWidth: 2.4 },
+        agree: { x: 498, y: 439.5, size: 10, lineWidth: 2.3 },
       },
       collectPersonalCredit: {
         label: '개인(신용)정보 수집·이용 동의',
         required: true,
         page: 1,
         formPage: '2/3',
-        agree: { x: 514, y: 342, size: 10.8, lineWidth: 2.4 },
+        agree: { x: 498, y: 339.5, size: 10, lineWidth: 2.3 },
       },
       provideUniqueId: {
         label: '고유식별정보 제공 동의',
         required: true,
         page: 2,
         formPage: '3/3',
-        agree: { x: 500, y: 719, size: 9.5, lineWidth: 2.1 },
+        agree: { x: 498, y: 717, size: 9.5, lineWidth: 2.1 },
       },
       provideSensitive: {
         label: '민감정보 제공 동의',
         required: true,
         page: 2,
         formPage: '3/3',
-        agree: { x: 500, y: 651, size: 9.5, lineWidth: 2.1 },
+        agree: { x: 498, y: 649, size: 9.5, lineWidth: 2.1 },
       },
       providePersonalCredit: {
         label: '개인(신용)정보 제공 동의',
         required: true,
         page: 2,
         formPage: '3/3',
-        agree: { x: 500, y: 560, size: 9.5, lineWidth: 2.1 },
+        agree: { x: 498, y: 558, size: 9.5, lineWidth: 2.1 },
       },
       providePersonalCreditOverseas: {
         label: '국외 개인(신용)정보 제공 동의',
         required: false,
         page: 2,
         formPage: '3/3',
-        agree: { x: 500, y: 480, size: 9.5, lineWidth: 2.1 },
+        agree: { x: 498, y: 478, size: 9.5, lineWidth: 2.1 },
       },
       queryUniqueId: {
         label: '고유식별정보 조회 동의',
         required: true,
         page: 2,
         formPage: '3/3',
-        agree: { x: 500, y: 277, size: 9.5, lineWidth: 2.1 },
+        agree: { x: 498, y: 275, size: 9.5, lineWidth: 2.1 },
       },
       querySensitive: {
         label: '민감정보 조회 동의',
         required: true,
         page: 2,
         formPage: '3/3',
-        agree: { x: 500, y: 237, size: 9.5, lineWidth: 2.1 },
+        agree: { x: 498, y: 235, size: 9.5, lineWidth: 2.1 },
       },
       queryPersonalCredit: {
         label: '개인(신용)정보 조회 동의',
         required: true,
         page: 2,
         formPage: '3/3',
-        agree: { x: 500, y: 134, size: 9.5, lineWidth: 2.1 },
+        agree: { x: 498, y: 132, size: 9.5, lineWidth: 2.1 },
       },
     },
   },

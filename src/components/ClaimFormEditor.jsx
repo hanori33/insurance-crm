@@ -59,6 +59,7 @@ function createInitialValues(customer) {
     bank: '',
     accountNumber: '',
     receiveSamePerson: true,
+    autoTransferRequest: false,
     beneficiarySameAsInsured: true,
     beneficiaryName: customer?.name || '',
     receiptType: '',
@@ -447,6 +448,16 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
                   onChange={(e) => updateField('receiveSamePerson', e.target.checked)}
                 />
                 <span>피보험자 계좌와 동일 표시</span>
+              </label>
+            )}
+            {visibleFields.autoTransferRequest && (
+              <label style={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={values.autoTransferRequest}
+                  onChange={(e) => updateField('autoTransferRequest', e.target.checked)}
+                />
+                <span>자동이체계좌 요청</span>
               </label>
             )}
             <Field label="예금주" value={values.accountHolder} onChange={(v) => updateField('accountHolder', v)} />
