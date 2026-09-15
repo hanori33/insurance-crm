@@ -1,5 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { getToken } from 'firebase/messaging';
+import { getFirebaseMessaging, VAPID_KEY } from '../firebase';
 import { supabase } from '../supabaseClient';
 
 const TEST_NOTIFICATION_ID = 900001;
@@ -131,12 +133,14 @@ const notificationService = {
       throw new Error('알림 권한이 필요합니다.');
     }
 
+    await this.ensureWebFcmToken();
+
     const { data, error } = await supabase.functions.invoke('boplan-fcm-test', {
       body: { type: 'test' },
     });
 
     if (error) {
-      throw new Error(error.message || 'PC 푸시 테스트 발송에 실패했습니다.');
+      throw new Error(await this.getFunctionErrorMessage(error));
     }
 
     if (!data || Number(data.sent || 0) < 1) {
@@ -144,6 +148,72 @@ const notificationService = {
     }
 
     return data;
+  },
+
+  async ensureWebFcmToken() {
+    if (isNativeNotificationAvailable()) return null;
+    if (!('Notification' in window)) return null;
+
+    if (Notification.permission !== 'granted') {
+      throw new Error('알림 권한이 필요합니다.');
+    }
+
+    if (!('serviceWorker' in navigator)) {
+      throw new Error('이 브라우저에서는 PC 푸시 알림을 사용할 수 없습니다.');
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user?.id) {
+      throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.');
+    }
+
+    const messaging = await getFirebaseMessaging();
+    if (!messaging) {
+      throw new Error('이 브라우저에서는 PC 푸시 알림을 사용할 수 없습니다.');
+    }
+
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: registration,
+    });
+
+    if (!token) {
+      throw new Error('이 PC의 푸시 알림 토큰을 발급하지 못했습니다.');
+    }
+
+    const { error } = await supabase.from('fcm_tokens').upsert(
+      {
+        user_id: user.id,
+        token,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'token' }
+    );
+
+    if (error) {
+      throw new Error('이 PC의 푸시 알림 토큰 저장에 실패했습니다.');
+    }
+
+    return token;
+  },
+
+  async getFunctionErrorMessage(error) {
+    const fallback = error?.message || 'PC 푸시 테스트 발송에 실패했습니다.';
+    const response = error?.context;
+
+    if (!response) return fallback;
+
+    try {
+      const payload = await response.clone().json();
+      return payload?.error || payload?.message || fallback;
+    } catch {
+      return fallback;
+    }
   },
 
   async requestPermission() {
