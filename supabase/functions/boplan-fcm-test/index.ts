@@ -8,10 +8,23 @@ const corsHeaders = {
 };
 
 type ServiceAccount = {
+  type?: string;
   client_email: string;
   private_key: string;
   project_id: string;
 };
+
+class FcmTestError extends Error {
+  code: string;
+  status: number;
+
+  constructor(code: string, message: string, status = 500) {
+    super(message);
+    this.name = "FcmTestError";
+    this.code = code;
+    this.status = status;
+  }
+}
 
 function base64Url(input: ArrayBuffer | string) {
   const bytes = typeof input === "string"
@@ -82,10 +95,32 @@ async function getFirebaseAccessToken(serviceAccount: ServiceAccount) {
   if (!response.ok) {
     const detail = await response.text();
     console.error("Firebase access token request failed:", response.status, detail);
-    throw new Error("Firebase 인증 토큰을 발급하지 못했습니다.");
+    throw new FcmTestError(
+      "FIREBASE_OAUTH_FAILED",
+      "Firebase 인증에 실패했습니다.",
+      502,
+    );
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new FcmTestError(
+      "FIREBASE_OAUTH_FAILED",
+      "Firebase 인증 응답을 확인하지 못했습니다.",
+      502,
+    );
+  }
+
+  if (!data?.access_token) {
+    throw new FcmTestError(
+      "FIREBASE_OAUTH_FAILED",
+      "Firebase 인증 토큰을 발급하지 못했습니다.",
+      502,
+    );
+  }
+
   return data.access_token as string;
 }
 
@@ -149,12 +184,62 @@ async function sendFcmMessage(
 function parseServiceAccount() {
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON");
   if (!raw) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON secret이 필요합니다.");
+    throw new FcmTestError(
+      "SERVICE_ACCOUNT_SECRET_MISSING",
+      "Firebase 서버 인증 정보가 설정되지 않았습니다.",
+      500,
+    );
   }
 
-  const serviceAccount = JSON.parse(raw) as ServiceAccount;
-  if (!serviceAccount.client_email || !serviceAccount.private_key || !serviceAccount.project_id) {
-    throw new Error("Firebase service account 정보가 올바르지 않습니다.");
+  if (!raw.trim()) {
+    throw new FcmTestError(
+      "SERVICE_ACCOUNT_JSON_INVALID",
+      "Firebase 서버 인증 정보 형식이 올바르지 않습니다.",
+      500,
+    );
+  }
+
+  if (raw.trimStart()[0] !== "{") {
+    throw new FcmTestError(
+      "SERVICE_ACCOUNT_JSON_INVALID",
+      "Firebase 서버 인증 정보가 JSON 형식이 아닙니다.",
+      500,
+    );
+  }
+
+  let serviceAccount: ServiceAccount;
+  try {
+    serviceAccount = JSON.parse(raw) as ServiceAccount;
+  } catch {
+    throw new FcmTestError(
+      "SERVICE_ACCOUNT_JSON_INVALID",
+      "Firebase 서버 인증 정보 JSON을 해석하지 못했습니다.",
+      500,
+    );
+  }
+
+  if (serviceAccount.type && serviceAccount.type !== "service_account") {
+    throw new FcmTestError(
+      "SERVICE_ACCOUNT_JSON_INVALID",
+      "Firebase 서버 인증 정보 타입이 올바르지 않습니다.",
+      500,
+    );
+  }
+
+  if (serviceAccount.project_id !== "insu-real") {
+    throw new FcmTestError(
+      "SERVICE_ACCOUNT_PROJECT_MISMATCH",
+      "Firebase 프로젝트 설정이 일치하지 않습니다.",
+      500,
+    );
+  }
+
+  if (!serviceAccount.client_email || !serviceAccount.private_key) {
+    throw new FcmTestError(
+      "SERVICE_ACCOUNT_JSON_INVALID",
+      "Firebase 서버 인증 정보 필수 항목이 없습니다.",
+      500,
+    );
   }
 
   return serviceAccount;
@@ -196,6 +281,16 @@ serve(async (req) => {
 
     const failed = results.filter((result) => !result.ok);
 
+    if (failed.length === results.length) {
+      console.error("FCM send failed for all tokens:", failed.map((result) => result.status));
+      return jsonError(
+        "FCM_SEND_FAILED",
+        "Firebase 푸시 발송에 실패했습니다.",
+        502,
+        corsHeaders,
+      );
+    }
+
     return new Response(JSON.stringify({
       sent: results.length - failed.length,
       failed: failed.length,
@@ -207,6 +302,10 @@ serve(async (req) => {
     });
   } catch (error) {
     if (error instanceof AuthorizationError) {
+      return jsonError(error.code, error.message, error.status, corsHeaders);
+    }
+
+    if (error instanceof FcmTestError) {
       return jsonError(error.code, error.message, error.status, corsHeaders);
     }
 
