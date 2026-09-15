@@ -445,6 +445,7 @@ export default function App() {
 
   useEffect(() => {
   if (!session) return;
+  if (Capacitor.isNativePlatform()) return;
 
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
@@ -622,9 +623,12 @@ setProfile(nextProfile);
 
 useEffect(() => {
   if (!session?.user) return;
+  let unsubscribeFcmMessage = null;
+  let cancelled = false;
 
   async function setupFcmToken() {
     try {
+      if (Capacitor.isNativePlatform()) return;
       if (!('Notification' in window)) return;
 
       const permission = await Notification.requestPermission();
@@ -654,6 +658,22 @@ useEffect(() => {
 
       if (error) throw error;
 
+      if (cancelled) return;
+
+      unsubscribeFcmMessage = onMessage(messaging, (payload) => {
+        const title = payload.notification?.title || payload.data?.title || '보플랜';
+        const body = payload.notification?.body || payload.data?.body || '';
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, {
+            body,
+            icon: '/boplan192.png',
+            badge: '/boplan192.png',
+            tag: payload.data?.tag || payload.data?.notificationId || payload.data?.type || 'boplan-fcm',
+          });
+        }
+      });
+
     } catch (e) {
       console.error('FCM 토큰 저장 실패:', {
   code: e?.code,
@@ -665,6 +685,11 @@ useEffect(() => {
   }
 
   setupFcmToken();
+
+  return () => {
+    cancelled = true;
+    unsubscribeFcmMessage?.();
+  };
 }, [session]);
 
   function clearNotifCount() {

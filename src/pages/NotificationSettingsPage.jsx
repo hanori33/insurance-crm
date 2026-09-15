@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
 import { Card } from '../components/Common';
+import notificationService from '../services/notificationService';
 
 const DEFAULTS = {
   carExpiry: { enabled: true, days: 30 },
@@ -82,12 +83,127 @@ function SettingRow({ icon, title, desc, enabled, onToggle, children }) {
 
 export default function NotificationSettingsPage({ onBack }) {
   const [settings, setSettings] = useState(loadSettings);
+  const [permission, setPermission] = useState('checking');
+  const [testStatus, setTestStatus] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
+  const [pushTestLoading, setPushTestLoading] = useState(false);
+  const isNativeNotification = notificationService.isNativeNotificationAvailable();
+  const testDelayMinutes = isNativeNotification ? 5 : 1;
+  const testBody = isNativeNotification
+    ? '보플랜 휴대폰 알림 테스트입니다. 🔔'
+    : '보플랜 PC 알림 테스트입니다. 🔔';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    notificationService.checkNotificationPermission()
+      .then((status) => {
+        if (!cancelled) setPermission(status);
+      })
+      .catch(() => {
+        if (!cancelled) setPermission('unknown');
+      });
+
+    let listener = null;
+    notificationService.addActionListener((event) => {
+      console.log('보플랜 테스트 알림 클릭', event?.notification?.extra || {});
+    }).then((handle) => {
+      listener = handle;
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      listener?.remove?.();
+    };
+  }, []);
 
   function update(key, val) {
     const next = { ...settings, [key]: { ...settings[key], ...val } };
     setSettings(next);
     localStorage.setItem('notif_settings', JSON.stringify(next));
   }
+
+  async function requestPhoneNotificationPermission() {
+    setTestStatus('');
+    try {
+      const status = await notificationService.requestNotificationPermission();
+      setPermission(status);
+      if (status === 'granted') {
+        setTestStatus('알림 권한이 허용되었습니다.');
+      } else if (status === 'denied') {
+        setTestStatus('알림 권한이 허용되지 않았습니다. 휴대폰 설정에서 알림 권한을 확인해주세요.');
+      } else {
+        setTestStatus('알림 권한을 다시 확인해주세요.');
+      }
+    } catch (error) {
+      setTestStatus(error.message || '알림 권한 요청 중 오류가 발생했습니다.');
+    }
+  }
+
+  async function scheduleTestNotification() {
+    setTestLoading(true);
+    setTestStatus('');
+
+    try {
+      const status = await notificationService.checkNotificationPermission();
+      setPermission(status);
+
+      if (status !== 'granted') {
+        setTestStatus('먼저 알림 권한을 켜주세요.');
+        return;
+      }
+
+      await notificationService.cancelLocalNotification(notificationService.TEST_NOTIFICATION_ID);
+      await notificationService.scheduleLocalNotification({
+        id: notificationService.TEST_NOTIFICATION_ID,
+        title: '보플랜',
+        body: testBody,
+        delayMinutes: testDelayMinutes,
+        extra: {
+          type: 'test',
+          source: 'notification-settings',
+          platform: isNativeNotification ? 'android' : 'web',
+        },
+      });
+
+      setTestStatus(`${testDelayMinutes}분 후 보플랜 테스트 알림이 울립니다.`);
+    } catch (error) {
+      setTestStatus(error.message || '테스트 알림 예약 중 오류가 발생했습니다.');
+    } finally {
+      setTestLoading(false);
+    }
+  }
+
+  async function sendWebPushTestNotification() {
+    setPushTestLoading(true);
+    setTestStatus('');
+
+    try {
+      const status = await notificationService.checkNotificationPermission();
+      setPermission(status);
+
+      if (status !== 'granted') {
+        setTestStatus('먼저 알림 권한을 켜주세요.');
+        return;
+      }
+
+      const result = await notificationService.sendWebPushTestNotification();
+      setTestStatus(`PC 푸시 테스트를 보냈습니다. 성공 ${result.sent || 0}건 / 실패 ${result.failed || 0}건`);
+    } catch (error) {
+      setTestStatus(error.message || 'PC 푸시 테스트 발송 중 오류가 발생했습니다.');
+    } finally {
+      setPushTestLoading(false);
+    }
+  }
+
+  const permissionLabel = {
+    checking: '확인 중',
+    granted: '허용됨',
+    denied: '허용되지 않음',
+    prompt: '확인 필요',
+    unsupported: '지원하지 않음',
+    unknown: '확인 필요',
+  }[permission] || '확인 필요';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -101,6 +217,83 @@ export default function NotificationSettingsPage({ onBack }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ paddingBottom: 14, borderBottom: `1px solid ${COLORS.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text }}>휴대폰 알림</div>
+                <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 4, lineHeight: 1.5 }}>
+                  {isNativeNotification
+                    ? '보플랜의 일정과 고객 알림을 휴대폰 알림센터에서 받을 수 있습니다.'
+                    : 'Windows PC에서는 Edge/Chrome 또는 설치된 보플랜 앱의 시스템 알림으로 테스트할 수 있습니다.'}
+                </div>
+              </div>
+              <span style={{
+                flexShrink: 0,
+                borderRadius: 999,
+                padding: '5px 10px',
+                fontSize: 11,
+                fontWeight: 800,
+                color: permission === 'granted' ? '#047857' : COLORS.primary,
+                background: permission === 'granted' ? '#ECFDF5' : COLORS.primaryBg,
+                border: `1px solid ${permission === 'granted' ? '#A7F3D0' : '#DDD6FE'}`,
+              }}>
+                {permissionLabel}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
+            <button
+              type="button"
+              onClick={requestPhoneNotificationPermission}
+              style={styles.primaryButton}
+            >
+              알림 권한 켜기
+            </button>
+            <button
+              type="button"
+              onClick={scheduleTestNotification}
+              disabled={permission !== 'granted' || testLoading}
+              style={{
+                ...styles.secondaryButton,
+                opacity: permission !== 'granted' || testLoading ? 0.55 : 1,
+                cursor: permission !== 'granted' || testLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {testLoading ? '예약 중...' : `${testDelayMinutes}분 후 테스트 알림 보내기`}
+            </button>
+            {!isNativeNotification && (
+              <button
+                type="button"
+                onClick={sendWebPushTestNotification}
+                disabled={permission !== 'granted' || pushTestLoading}
+                style={{
+                  ...styles.secondaryButton,
+                  opacity: permission !== 'granted' || pushTestLoading ? 0.55 : 1,
+                  cursor: permission !== 'granted' || pushTestLoading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {pushTestLoading ? '발송 중...' : 'PC 푸시 테스트 보내기'}
+              </button>
+            )}
+          </div>
+
+          {testStatus && (
+            <div style={{
+              marginTop: 10,
+              padding: '10px 12px',
+              borderRadius: 12,
+              background: '#F8FAFC',
+              color: COLORS.textGray,
+              fontSize: 12,
+              lineHeight: 1.5,
+            }}>
+              {testStatus}
+            </div>
+          )}
+        </Card>
+
         <Card>
           <SettingRow
             icon="🚗" title="자동차 만기 알림"
@@ -152,3 +345,27 @@ export default function NotificationSettingsPage({ onBack }) {
     </div>
   );
 }
+
+const styles = {
+  primaryButton: {
+    width: '100%',
+    border: 'none',
+    borderRadius: 12,
+    padding: '12px 14px',
+    background: COLORS.primary,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  secondaryButton: {
+    width: '100%',
+    border: `1.5px solid ${COLORS.primary}`,
+    borderRadius: 12,
+    padding: '12px 14px',
+    background: COLORS.primaryBg,
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: 800,
+  },
+};
