@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
 import { Card } from '../components/Common';
 import notificationService from '../services/notificationService';
+import { supabase } from '../supabaseClient';
 
 const DEFAULTS = {
   carExpiry: { enabled: true, days: 30 },
@@ -87,6 +88,12 @@ export default function NotificationSettingsPage({ onBack }) {
   const [testStatus, setTestStatus] = useState('');
   const [testLoading, setTestLoading] = useState(false);
   const [pushTestLoading, setPushTestLoading] = useState(false);
+  const [authDebug, setAuthDebug] = useState({
+    loading: true,
+    sessionExists: false,
+    sessionEmail: '',
+    userEmail: '',
+  });
   const isNativeNotification = notificationService.isNativeNotificationAvailable();
   const testDelayMinutes = isNativeNotification ? 5 : 1;
   const testBody = isNativeNotification
@@ -95,6 +102,35 @@ export default function NotificationSettingsPage({ onBack }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    async function loadAuthDebug() {
+      try {
+        const [sessionResult, userResult] = await Promise.all([
+          supabase.auth.getSession(),
+          supabase.auth.getUser(),
+        ]);
+
+        if (cancelled) return;
+
+        setAuthDebug({
+          loading: false,
+          sessionExists: Boolean(sessionResult.data?.session),
+          sessionEmail: sessionResult.data?.session?.user?.email || '',
+          userEmail: userResult.data?.user?.email || '',
+        });
+      } catch {
+        if (!cancelled) {
+          setAuthDebug({
+            loading: false,
+            sessionExists: false,
+            sessionEmail: '',
+            userEmail: '',
+          });
+        }
+      }
+    }
+
+    loadAuthDebug();
 
     notificationService.checkNotificationPermission()
       .then((status) => {
@@ -241,6 +277,25 @@ export default function NotificationSettingsPage({ onBack }) {
                 {permissionLabel}
               </span>
             </div>
+            {!isNativeNotification && (
+              <div style={{
+                marginTop: 10,
+                padding: '10px 12px',
+                borderRadius: 12,
+                background: '#F8FAFC',
+                color: COLORS.textGray,
+                fontSize: 12,
+                lineHeight: 1.5,
+                border: `1px solid ${COLORS.border}`,
+              }}>
+                <div style={{ fontWeight: 800, color: COLORS.text, marginBottom: 4 }}>
+                  임시 진단
+                </div>
+                <div>세션 존재: {authDebug.loading ? '확인 중' : authDebug.sessionExists ? '있음' : '없음'}</div>
+                <div>현재 인증 계정: {authDebug.loading ? '확인 중' : authDebug.userEmail || '-'}</div>
+                <div>세션 계정: {authDebug.loading ? '확인 중' : authDebug.sessionEmail || '-'}</div>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
