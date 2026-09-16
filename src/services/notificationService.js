@@ -186,20 +186,26 @@ const notificationService = {
       throw new Error('이 PC의 푸시 알림 토큰을 발급하지 못했습니다.');
     }
 
-    const { error } = await supabase.from('fcm_tokens').upsert(
-      {
-        user_id: user.id,
-        token,
-        created_at: new Date().toISOString(),
-      },
-      { onConflict: 'token' }
-    );
-
-    if (error) {
-      throw new Error('이 PC의 푸시 알림 토큰 저장에 실패했습니다.');
-    }
+    await this.registerWebFcmToken(token);
 
     return token;
+  },
+
+  async registerWebFcmToken(token) {
+    const { data, error } = await supabase.functions.invoke('boplan-register-fcm-token', {
+      body: { token },
+    });
+
+    if (error) {
+      const message = await this.getFunctionErrorMessage(error);
+      throw new Error(message || 'PC 알림 기기 등록에 실패했습니다.');
+    }
+
+    if (!data?.registered) {
+      throw new Error('PC 알림 기기 등록에 실패했습니다.');
+    }
+
+    return data;
   },
 
   async getFunctionErrorMessage(error) {

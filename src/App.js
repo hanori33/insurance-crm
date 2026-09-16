@@ -40,6 +40,7 @@ import DiseaseDictionaryPage from './pages/DiseaseDictionaryPage';
 import TermsPage from './pages/TermsPage';
 import roleService, { isAdminRole } from './services/roleService';
 import DeleteAccountPublicPage from './pages/DeleteAccountPublicPage';
+import notificationService from './services/notificationService';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -647,16 +648,7 @@ useEffect(() => {
 
       if (!token) return;
 
-      const { error } = await supabase.from('fcm_tokens').upsert(
-        {
-          user_id: session.user.id,
-          token,
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: 'token' }
-      );
-
-      if (error) throw error;
+      await notificationService.registerWebFcmToken(token);
 
       if (cancelled) return;
 
