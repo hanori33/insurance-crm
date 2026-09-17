@@ -1,5 +1,5 @@
 // src/pages/NotificationSettingsPage.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { COLORS } from '../constants';
 import { Card } from '../components/Common';
 import notificationService from '../services/notificationService';
@@ -88,6 +88,10 @@ export default function NotificationSettingsPage({ onBack }) {
   const [testStatus, setTestStatus] = useState('');
   const [testLoading, setTestLoading] = useState(false);
   const [pushTestLoading, setPushTestLoading] = useState(false);
+  const [scheduleTest, setScheduleTest] = useState(null);
+  const [scheduleTestBusy, setScheduleTestBusy] = useState(false);
+  const [scheduleTestStatus, setScheduleTestStatus] = useState('');
+  const scheduleTestLock = useRef(false);
   const [authDebug, setAuthDebug] = useState({
     loading: true,
     sessionExists: false,
@@ -157,6 +161,70 @@ export default function NotificationSettingsPage({ onBack }) {
     const next = { ...settings, [key]: { ...settings[key], ...val } };
     setSettings(next);
     localStorage.setItem('notif_settings', JSON.stringify(next));
+  }
+
+  async function runScheduleTest(action) {
+    if (scheduleTestLock.current || isNativeNotification) return;
+    scheduleTestLock.current = true;
+    setScheduleTestBusy(true);
+    setScheduleTestStatus('');
+    try {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (authError || !auth?.user) throw new Error('로그인 상태를 확인해주세요.');
+      if (action === 'prepare') {
+        if (scheduleTest) throw new Error('기존 테스트 일정을 먼저 삭제해주세요.');
+        const dueAt = Date.now() + 3 * 60 * 1000;
+        const scheduledAt = new Date(dueAt + 60 * 1000);
+        const id = Date.now() * 1000 + window.crypto.getRandomValues(new Uint32Array(1))[0] % 1000;
+        const kst = new Date(scheduledAt.getTime() + 9 * 60 * 60 * 1000).toISOString();
+        const { error } = await supabase.from('schedules').insert({
+          id, user_id: auth.user.id, title: '알림 기능 테스트',
+          memo: '알림 설정 임시 UI에서 생성한 검증용 일정',
+          date: kst.slice(0, 10), time: kst.slice(11, 16),
+          scheduled_at: scheduledAt.toISOString(), reminder_minutes: 1,
+          push_enabled: true, completed: false, done: false,
+          reminder_sent_at: null, customer_app_id: null, customer_name: null,
+          schedule_type: 'etc',
+        });
+        if (error) throw new Error('테스트 일정 생성에 실패했습니다.');
+        setScheduleTest({ id: String(id), owner: auth.user.id, scheduledAt: scheduledAt.toISOString(), dueAt, sent: false });
+        setScheduleTestStatus('테스트 일정 생성 완료. 화면을 유지한 상태로 알림 예정 시각까지 기다려주세요.');
+      } else {
+        if (!scheduleTest || scheduleTest.owner !== auth.user.id) throw new Error('테스트 일정을 만든 계정으로 로그인해주세요.');
+        if (action === 'delete') {
+          const { data, error } = await supabase.from('schedules').delete()
+            .eq('id', scheduleTest.id).eq('user_id', auth.user.id)
+            .eq('title', '알림 기능 테스트')
+            .eq('memo', '알림 설정 임시 UI에서 생성한 검증용 일정').select('id');
+          if (error || data?.length !== 1) throw new Error('테스트 일정 삭제를 확인하지 못했습니다.');
+          setScheduleTest(null);
+          setScheduleTestStatus('테스트 일정 삭제 완료. 발송 검증 기록은 유지됩니다.');
+        } else {
+          if (Date.now() < scheduleTest.dueAt) {
+            setScheduleTestStatus('아직 알림 시간이 아닙니다.');
+            return;
+          }
+          const { data, error } = await supabase.functions.invoke('boplan-schedule-push', {
+            body: { testMode: true, scheduleId: scheduleTest.id },
+          });
+          if (error || !data || data.error) throw new Error('일정 Push 테스트에 실패했습니다. 로그인 상태와 함수 상태를 확인해주세요.');
+          const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
+          if (count(data.sent) > 0) {
+            setScheduleTest(current => ({ ...current, sent: true }));
+            setScheduleTestStatus(`일정 Push 테스트 완료 · 성공 ${count(data.sent)}건 / 실패 ${count(data.failed)}건 · 확인 ${count(data.checked)}건 / 알림 대상 ${count(data.due)}건`);
+          } else if (scheduleTest.sent && count(data.due) === 0) {
+            setScheduleTestStatus('중복 발송 방지 확인 · 이미 처리된 일정입니다.');
+          } else {
+            setScheduleTestStatus(`발송 성공 없음 · 성공 0건 / 실패 ${count(data.failed)}건 · 확인 ${count(data.checked)}건 / 알림 대상 ${count(data.due)}건`);
+          }
+        }
+      }
+    } catch (error) {
+      setScheduleTestStatus(error.message);
+    } finally {
+      scheduleTestLock.current = false;
+      setScheduleTestBusy(false);
+    }
   }
 
   async function requestPhoneNotificationPermission() {
@@ -294,6 +362,17 @@ export default function NotificationSettingsPage({ onBack }) {
                 <div>세션 존재: {authDebug.loading ? '확인 중' : authDebug.sessionExists ? '있음' : '없음'}</div>
                 <div>현재 인증 계정: {authDebug.loading ? '확인 중' : authDebug.userEmail || '-'}</div>
                 <div>세션 계정: {authDebug.loading ? '확인 중' : authDebug.sessionEmail || '-'}</div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+                  <div>임시 일정 검증 · 새로고침하거나 화면을 나가기 전에 테스트 일정을 삭제해주세요.</div>
+                  <button type="button" style={styles.secondaryButton} disabled={scheduleTestBusy || Boolean(scheduleTest)} onClick={() => runScheduleTest('prepare')}>일정 Push 테스트 준비</button>
+                  {scheduleTest && <>
+                    <div>예정 시각: {new Date(scheduleTest.scheduledAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (KST)</div>
+                    <div>알림 예정 시각: {new Date(scheduleTest.dueAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (KST)</div>
+                    <button type="button" style={styles.secondaryButton} disabled={scheduleTestBusy} onClick={() => runScheduleTest('send')}>일정 Push 지금 테스트</button>
+                    <button type="button" style={styles.secondaryButton} disabled={scheduleTestBusy} onClick={() => runScheduleTest('delete')}>테스트 일정 삭제</button>
+                  </>}
+                  {scheduleTestStatus && <div role="status">{scheduleTestStatus}</div>}
+                </div>
               </div>
             )}
           </div>
