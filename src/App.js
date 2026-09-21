@@ -142,7 +142,6 @@ export default function App() {
   const isPublicDeleteAccount = window.location.pathname === '/delete-account';
   const [activeTab, setActiveTab] = useState('home');
   const [stack, setStack] = useState([]);
-  const [notifiedIds, setNotifiedIds] = useState([]);
   const [customersFilter, setCustomersFilter] = useState('전체');
   const [headerSearch, setHeaderSearch] = useState('');
   const [customersSearch, setCustomersSearch] = useState('');
@@ -443,96 +442,6 @@ export default function App() {
       resumeListener?.remove();
     };
   }, []);
-
-  useEffect(() => {
-  if (!session) return;
-  if (Capacitor.isNativePlatform()) return;
-
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
-
-  const getNotifiedIds = () => {
-    try {
-      return JSON.parse(localStorage.getItem('boplan_notified_schedule_ids') || '[]');
-    } catch {
-      return [];
-    }
-  };
-
-  const saveNotifiedId = (id) => {
-    const ids = getNotifiedIds();
-
-    if (!ids.includes(id)) {
-      const next = [...ids, id].slice(-200);
-      localStorage.setItem('boplan_notified_schedule_ids', JSON.stringify(next));
-      setNotifiedIds(next);
-    }
-  };
-
-  const checkScheduleReminders = async () => {
-    try {
-      const schedules = await scheduleService.today();
-      const now = new Date();
-      const notified = getNotifiedIds();
-
-      schedules.forEach((schedule) => {
-        if (!schedule.reminder_minutes || schedule.reminder_minutes === 'none') return;
-        if (!schedule.scheduled_at) return;
-        if (schedule.completed) return;
-
-        const id = `schedule-${schedule.id}-${schedule.reminder_minutes}`;
-        if (notified.includes(id)) return;
-
-        const raw = String(schedule.scheduled_at);
-        const match = raw.match(/(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
-
-        if (!match) return;
-
-        const scheduleTime = new Date(
-          Number(match[1]),
-          Number(match[2]) - 1,
-          Number(match[3]),
-          Number(match[4]),
-          Number(match[5]),
-          0
-        );
-
-        const reminderTime = new Date(
-          scheduleTime.getTime() - Number(schedule.reminder_minutes) * 60 * 1000
-        );
-
-        const notifyWindowEnd = new Date(reminderTime.getTime() + 60 * 1000);
-
-        if (now >= reminderTime && now <= notifyWindowEnd) {
-          const title = schedule.title || '일정 알림';
-          const customer = schedule.customer_name ? `\n${schedule.customer_name} 고객` : '';
-          const timeText = `${String(scheduleTime.getHours()).padStart(2, '0')}:${String(scheduleTime.getMinutes()).padStart(2, '0')}`;
-
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('📅 보플랜 일정 알림', {
-              body: `${timeText} ${title}${customer}`,
-              icon: '/boplan192.png',
-              badge: '/boplan192.png',
-            });
-          } else {
-            alert(`📅 보플랜 일정 알림\n${timeText} ${title}${customer}`);
-          }
-
-          saveNotifiedId(id);
-        }
-      });
-    } catch (e) {
-      console.error('일정 알림 체크 실패', e);
-    }
-  };
-
-  checkScheduleReminders();
-
-  const interval = setInterval(checkScheduleReminders, 15000);
-
-  return () => clearInterval(interval);
-}, [session]);
 
 useEffect(() => {
   if (!session) return;
