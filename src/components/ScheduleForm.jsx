@@ -3,6 +3,7 @@ import { COLORS } from '../constants';
 import Modal from './Modal';
 import Field from './Field';
 import scheduleService from '../services/scheduleService';
+import { kstWallClockToUtcIso, utcIsoToKstParts } from '../utils';
 
 const SCHEDULE_TYPES = [
   { value: 'phone', label: '전화상담', icon: '📞' },
@@ -45,7 +46,7 @@ const COLOR_OPTIONS = [
 export default function ScheduleForm({ visible, onClose, onSave, dateStr, initial = null }) {
   const isEdit = !!initial;
   const defaultTime = initial?.scheduled_at
-    ? new Date(initial.scheduled_at).toTimeString().slice(0, 5)
+    ? utcIsoToKstParts(initial.scheduled_at).time
     : '09:00';
   const [title, setTitle] = useState(initial?.title || '');
   const [customer, setCustomer] = useState(initial?.customer_name || '');
@@ -65,7 +66,7 @@ export default function ScheduleForm({ visible, onClose, onSave, dateStr, initia
   useEffect(() => {
     if (visible) {
       const t = initial?.scheduled_at
-        ? new Date(initial.scheduled_at).toTimeString().slice(0, 5)
+        ? utcIsoToKstParts(initial.scheduled_at).time
         : '09:00';
       const rawTitle = initial?.title || '';
       const cleanTitle = rawTitle.replace(/^[\p{Emoji}\s]+/u, '').trim();
@@ -98,7 +99,7 @@ export default function ScheduleForm({ visible, onClose, onSave, dateStr, initia
         title: `${selectedEmoji} ${title.trim()}`,
         color: selectedColor,
         customer_name: customer.trim(),
-        scheduled_at: `${dateStr} ${time}:00`,
+        scheduled_at: kstWallClockToUtcIso(dateStr, time),
 
         schedule_type: scheduleType,
         schedule_icon: selectedEmoji,

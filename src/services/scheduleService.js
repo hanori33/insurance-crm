@@ -1,13 +1,15 @@
 // src/services/scheduleService.js
 import { supabase } from '../supabaseClient';
+import { kstDateRangeToUtcIso, todayStr } from '../utils';
 
 const scheduleService = {
   async listByDate(dateStr) {
+    const { start, endExclusive } = kstDateRangeToUtcIso(dateStr);
     const { data, error } = await supabase
       .from('schedules')
       .select('*')
-      .gte('scheduled_at', `${dateStr}T00:00:00`)
-      .lte('scheduled_at', `${dateStr}T23:59:59`)
+      .gte('scheduled_at', start)
+      .lt('scheduled_at', endExclusive)
       .order('scheduled_at', { ascending: true });
 
     if (error) throw error;
@@ -15,11 +17,12 @@ const scheduleService = {
   },
 
   async getMonthSchedules(startDate, endDate) {
+    const { start, endExclusive } = kstDateRangeToUtcIso(startDate, endDate);
     const { data, error } = await supabase
       .from('schedules')
       .select('*')
-      .gte('scheduled_at', `${startDate}T00:00:00`)
-      .lte('scheduled_at', `${endDate}T23:59:59`)
+      .gte('scheduled_at', start)
+      .lt('scheduled_at', endExclusive)
       .order('scheduled_at', { ascending: true });
 
     if (error) throw error;
@@ -27,10 +30,7 @@ const scheduleService = {
   },
 
   async today() {
-    const d = new Date();
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-    return scheduleService.listByDate(dateStr);
+    return scheduleService.listByDate(todayStr());
   },
 
   async listByCustomer(customerName) {

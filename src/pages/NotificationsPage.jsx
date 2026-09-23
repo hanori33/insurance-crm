@@ -5,6 +5,7 @@ import customerService from '../services/customerService';
 import scheduleService from '../services/scheduleService';
 import { supabase } from '../supabaseClient';
 import { isAdminRole } from '../services/roleService';
+import { toTimeStr } from '../utils';
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -65,7 +66,7 @@ export default function NotificationsPage({ onBack, onRead, onReadOne, currentRo
       // ① 오늘 일정
       schedules.forEach(s => {
         const cleanTitle = (s.title || '').replace(/^[^\s]+\s/, '');
-        const time = s.scheduled_at ? s.scheduled_at.slice(11, 16) : '';
+        const time = toTimeStr(s.scheduled_at);
         notifs.push({
           id: `schedule-${s.id}`,
           icon: '📅',

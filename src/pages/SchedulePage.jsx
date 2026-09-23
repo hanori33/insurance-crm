@@ -6,7 +6,7 @@ import EmptyState from '../components/EmptyState';
 import ScheduleForm from '../components/ScheduleForm';
 import scheduleService from '../services/scheduleService';
 import customerService from '../services/customerService';
-import { buildCalendarMatrix, toTimeStr } from '../utils';
+import { buildCalendarMatrix, toTimeStr, utcIsoToKstParts } from '../utils';
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -176,8 +176,8 @@ function buildCustomerAutoSchedules(customers = [], start, end) {
 
 function sortSchedulesByTime(items = []) {
   return [...items].sort((a, b) => {
-    const aTime = a.scheduled_at || '';
-    const bTime = b.scheduled_at || '';
+    const aTime = toTimeStr(a.scheduled_at);
+    const bTime = toTimeStr(b.scheduled_at);
     return aTime.localeCompare(bTime);
   });
 }
@@ -354,7 +354,7 @@ function Calendar({
             const daySchedules = dateKey
               ? monthSchedules.filter(
                   (s) =>
-                    (s.scheduled_at || '').slice(0, 10) === dateKey
+                    utcIsoToKstParts(s.scheduled_at).date === dateKey
                 )
               : [];
 

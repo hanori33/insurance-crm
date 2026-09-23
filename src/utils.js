@@ -8,6 +8,80 @@ export function formatDate(dateStr) {
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
+function parseDatePart(dateStr) {
+  const match = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+export function kstWallClockToUtcIso(dateStr, timeStr) {
+  const datePart = parseDatePart(dateStr);
+  const timeMatch = String(timeStr || '').match(/^(\d{2}):(\d{2})$/);
+  if (!datePart || !timeMatch) throw new Error('올바른 일정 날짜와 시간을 입력해주세요.');
+
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  if (hour > 23 || minute > 59) throw new Error('올바른 일정 날짜와 시간을 입력해주세요.');
+
+  const utcMilliseconds = Date.UTC(
+    datePart.year,
+    datePart.month - 1,
+    datePart.day,
+    hour,
+    minute
+  ) - KST_OFFSET_MS;
+
+  return new Date(utcMilliseconds).toISOString();
+}
+
+export function utcIsoToKstParts(value) {
+  if (!value) return { date: '', time: '' };
+
+  const raw = String(value);
+  const hasExplicitOffset = /(?:Z|[+-]\d{2}:\d{2})$/i.test(raw);
+
+  // Synthetic schedules use offset-free KST wall-clock values.
+  if (!hasExplicitOffset) {
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+    return match ? { date: match[1], time: match[2] } : { date: '', time: '' };
+  }
+
+  const instant = new Date(raw);
+  if (Number.isNaN(instant.getTime())) return { date: '', time: '' };
+
+  const korea = new Date(instant.getTime() + KST_OFFSET_MS);
+  const date = `${korea.getUTCFullYear()}-${String(korea.getUTCMonth() + 1).padStart(2, '0')}-${String(korea.getUTCDate()).padStart(2, '0')}`;
+  const time = `${String(korea.getUTCHours()).padStart(2, '0')}:${String(korea.getUTCMinutes()).padStart(2, '0')}`;
+  return { date, time };
+}
+
+export function kstDateRangeToUtcIso(startDateStr, endDateStr = startDateStr) {
+  const endDate = parseDatePart(endDateStr);
+  if (!parseDatePart(startDateStr) || !endDate) throw new Error('올바른 조회 날짜를 입력해주세요.');
+
+  const nextDay = new Date(Date.UTC(endDate.year, endDate.month - 1, endDate.day + 1));
+  const nextDateStr = `${nextDay.getUTCFullYear()}-${String(nextDay.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDay.getUTCDate()).padStart(2, '0')}`;
+
+  return {
+    start: kstWallClockToUtcIso(startDateStr, '00:00'),
+    endExclusive: kstWallClockToUtcIso(nextDateStr, '00:00'),
+  };
+}
+
 export function formatPhoneNumber(value = '') {
   const digits = String(value || '').replace(/\D/g, '');
 
@@ -149,8 +223,7 @@ export function formatDateKorean(dateStr) {
 }
 
 export function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return utcIsoToKstParts(new Date().toISOString()).date;
 }
 
 export function formatNumber(n) {
@@ -220,13 +293,7 @@ export function validateSignupName(value, email = '') {
 
 export function toTimeStr(value) {
   if (!value) return '';
-
-  const str = String(value);
-  const match = str.match(/(\d{2}):(\d{2})/);
-
-  if (match) return `${match[1]}:${match[2]}`;
-
-  return '';
+  return utcIsoToKstParts(value).time;
 }
 
 export function money(n) {
