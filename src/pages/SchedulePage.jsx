@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState';
 import ScheduleForm from '../components/ScheduleForm';
 import scheduleService from '../services/scheduleService';
 import customerService from '../services/customerService';
+import holidayService from '../services/holidayService';
 import { buildCalendarMatrix, toTimeStr, utcIsoToKstParts } from '../utils';
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -200,6 +201,7 @@ function Calendar({
   selDay,
   today,
   monthSchedules = [],
+  holidays = [],
   onPrev,
   onNext,
   onSelect,
@@ -237,6 +239,13 @@ function Calendar({
   for (let i = 0; i < days.length; i += 7) {
     weeks.push(days.slice(i, i + 7));
   }
+
+  const holidayMap = new Map();
+  holidays.forEach((holiday) => {
+    const names = holidayMap.get(holiday.date) || [];
+    if (!names.includes(holiday.name)) names.push(holiday.name);
+    holidayMap.set(holiday.date, names);
+  });
 
   return (
     <Card
@@ -357,6 +366,9 @@ function Calendar({
                     utcIsoToKstParts(s.scheduled_at).date === dateKey
                 )
               : [];
+            const holidayNames = dateKey ? holidayMap.get(dateKey) || [] : [];
+            const isHoliday = holidayNames.length > 0;
+            const holidayLabel = holidayNames.join(', ');
 
             return (
               <button
@@ -364,7 +376,7 @@ function Calendar({
                 disabled={!isCurrent}
                 onClick={() => isCurrent && onSelect(day)}
                 style={{
-                  minHeight: compact ? 56 : 88,
+                  minHeight: compact ? 68 : 96,
                   padding: '5px 3px',
                   borderRadius: 10,
                   border: isSel
@@ -400,10 +412,10 @@ function Calendar({
                         : isSat
                         ? '#BFDBFE'
                         : '#D1D5DB'
+                      : isHoliday || isSun
+                      ? '#F87171'
                       : isToday
                       ? COLORS.primary
-                      : isSun
-                      ? '#F87171'
                       : isSat
                       ? '#60A5FA'
                       : COLORS.text,
@@ -411,6 +423,28 @@ function Calendar({
                 >
                   {day}
                 </div>
+
+                {isHoliday && (
+                  <div
+                    title={holidayLabel}
+                    aria-label={`공휴일: ${holidayLabel}`}
+                    style={{
+                      width: '100%',
+                      paddingLeft: 2,
+                      paddingRight: 2,
+                      color: '#DC2626',
+                      fontSize: compact ? 9 : 10,
+                      fontWeight: 700,
+                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {holidayLabel}
+                  </div>
+                )}
 
                 {/* 일정 */}
                 <div
@@ -687,6 +721,7 @@ export default function SchedulePage({ initialSchedule }) {
   const [selDay, setSelDay] = useState(today.getDate());
   const [schedules, setSchedules] = useState([]);
   const [monthSchedules, setMonthSchedules] = useState([]);
+  const [holidays, setHolidays] = useState([]);
   const [loading, setLoading]     = useState(false);
   const [showForm, setShowForm]   = useState(false);
   const [editItem, setEditItem]   = useState(null);
@@ -724,10 +759,19 @@ useEffect(() => {
   const DAY_KR  = ['일', '월', '화', '수', '목', '금', '토'];
   const dayLabel = `${month + 1}월 ${selDay}일 (${DAY_KR[new Date(year, month, selDay).getDay()]})`;
 
-  useEffect(() => {
+useEffect(() => {
   loadDay();
   loadMonth();
 }, [dateStr, month, year]);
+
+useEffect(() => {
+  let active = true;
+  setHolidays([]);
+  holidayService.fetchByYear(year).then((items) => {
+    if (active) setHolidays(items);
+  });
+  return () => { active = false; };
+}, [year]);
 
 async function loadMonth() {
   try {
@@ -815,6 +859,7 @@ async function loadDay() {
           onNext={nextMonth}
           onSelect={setSelDay}
           monthSchedules={monthSchedules}
+          holidays={holidays}
           compact={true}
         />
 
@@ -970,6 +1015,7 @@ async function loadDay() {
     selDay={selDay}
     today={today}
     monthSchedules={monthSchedules}
+    holidays={holidays}
     onPrev={prevMonth}
     onNext={nextMonth}
     onSelect={setSelDay}
