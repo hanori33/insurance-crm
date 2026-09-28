@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
 import { Card } from '../components/Common';
 import notificationService from '../services/notificationService';
+import notificationSettingsService from '../services/notificationSettingsService';
+import { supabase } from '../supabaseClient';
 
 const DEFAULTS = {
   carExpiry: { enabled: true, days: 30 },
@@ -18,15 +20,18 @@ function loadSettings() {
   } catch { return DEFAULTS; }
 }
 
-function Toggle({ value, onChange }) {
+function Toggle({ value, onChange, disabled = false }) {
   return (
     <div
-      onClick={() => onChange(!value)}
+      onClick={() => {
+        if (!disabled) onChange(!value);
+      }}
       style={{
         width: 44, height: 24, borderRadius: 999,
         background: value ? COLORS.primary : '#D1D5DB',
-        position: 'relative', cursor: 'pointer',
+        position: 'relative', cursor: disabled ? 'wait' : 'pointer',
         transition: 'background 0.2s', flexShrink: 0,
+        opacity: disabled ? 0.55 : 1,
       }}
     >
       <div style={{
@@ -63,7 +68,7 @@ function DaysSelector({ value, onChange, disabled }) {
   );
 }
 
-function SettingRow({ icon, title, desc, enabled, onToggle, children }) {
+function SettingRow({ icon, title, desc, enabled, onToggle, toggleDisabled = false, children }) {
   return (
     <div style={{ padding: '14px 0', borderBottom: `1px solid ${COLORS.border}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -74,7 +79,7 @@ function SettingRow({ icon, title, desc, enabled, onToggle, children }) {
             {desc && <div style={{ fontSize: 12, color: COLORS.textGray, marginTop: 2 }}>{desc}</div>}
           </div>
         </div>
-        <Toggle value={enabled} onChange={onToggle} />
+        <Toggle value={enabled} onChange={onToggle} disabled={toggleDisabled} />
       </div>
       {children}
     </div>
@@ -85,6 +90,11 @@ export default function NotificationSettingsPage({ onBack }) {
   const [settings, setSettings] = useState(loadSettings);
   const [permission, setPermission] = useState('checking');
   const [testStatus, setTestStatus] = useState('');
+  const [carSettingsLoading, setCarSettingsLoading] = useState(true);
+  const [carSettingsSaving, setCarSettingsSaving] = useState(false);
+  const [carSettingsError, setCarSettingsError] = useState('');
+  const [carPushTestStatus, setCarPushTestStatus] = useState('');
+  const [carPushTesting, setCarPushTesting] = useState(false);
   const isNativeNotification = notificationService.isNativeNotificationAvailable();
 
   useEffect(() => {
@@ -96,6 +106,22 @@ export default function NotificationSettingsPage({ onBack }) {
       })
       .catch(() => {
         if (!cancelled) setPermission('unknown');
+      });
+
+    notificationSettingsService.ensureCarExpirySettings()
+      .then((carExpiry) => {
+        if (!cancelled) {
+          setSettings((current) => ({ ...current, carExpiry }));
+          setCarSettingsError('');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCarSettingsError('자동차 만기 알림 설정을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCarSettingsLoading(false);
       });
 
     let listener = null;
@@ -115,6 +141,47 @@ export default function NotificationSettingsPage({ onBack }) {
     const next = { ...settings, [key]: { ...settings[key], ...val } };
     setSettings(next);
     localStorage.setItem('notif_settings', JSON.stringify(next));
+  }
+
+  async function updateCarExpiry(val) {
+    if (carSettingsLoading || carSettingsSaving) return;
+
+    const next = { ...settings.carExpiry, ...val };
+    setCarSettingsSaving(true);
+    setCarSettingsError('');
+    try {
+      const saved = await notificationSettingsService.updateCarExpirySettings(next);
+      setSettings((current) => ({ ...current, carExpiry: saved }));
+    } catch {
+      setCarSettingsError('자동차 만기 알림 설정을 저장하지 못했습니다. 기존 설정을 유지합니다.');
+    } finally {
+      setCarSettingsSaving(false);
+    }
+  }
+
+  async function testCarExpiryPush() {
+    if (carPushTesting) return;
+
+    setCarPushTesting(true);
+    setCarPushTestStatus('');
+    try {
+      const { data, error } = await supabase.functions.invoke('boplan-car-expiry-push', {
+        body: { testMode: true },
+      });
+      if (error) throw error;
+
+      if (Number(data?.skipped) > 0 && Number(data?.sent) === 0) {
+        setCarPushTestStatus('이미 오늘 테스트한 알림입니다.');
+      } else {
+        setCarPushTestStatus(
+          `자동차 만기 Push 테스트 완료 · 성공 ${Number(data?.sent) || 0}건 / 실패 ${Number(data?.failed) || 0}건`
+        );
+      }
+    } catch {
+      setCarPushTestStatus('자동차 만기 Push 테스트를 보내지 못했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setCarPushTesting(false);
+    }
   }
 
   async function requestPhoneNotificationPermission() {
@@ -213,13 +280,37 @@ export default function NotificationSettingsPage({ onBack }) {
             icon="🚗" title="자동차 만기 알림"
             desc="자동차 보험 만기 전 알림"
             enabled={settings.carExpiry.enabled}
-            onToggle={v => update('carExpiry', { enabled: v })}
+            onToggle={v => updateCarExpiry({ enabled: v })}
+            toggleDisabled={carSettingsLoading || carSettingsSaving}
           >
             <DaysSelector
               value={settings.carExpiry.days}
-              onChange={d => update('carExpiry', { days: d })}
-              disabled={!settings.carExpiry.enabled}
+              onChange={d => updateCarExpiry({ days: d })}
+              disabled={!settings.carExpiry.enabled || carSettingsLoading || carSettingsSaving}
             />
+            {carSettingsError && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#B91C1C', lineHeight: 1.4 }}>
+                {carSettingsError}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={testCarExpiryPush}
+              disabled={carPushTesting}
+              style={{
+                ...styles.secondaryButton,
+                marginTop: 10,
+                cursor: carPushTesting ? 'wait' : 'pointer',
+                opacity: carPushTesting ? 0.6 : 1,
+              }}
+            >
+              {carPushTesting ? '전송 중...' : '🚗 자동차 만기 Push 테스트'}
+            </button>
+            {carPushTestStatus && (
+              <div style={{ marginTop: 8, fontSize: 12, color: COLORS.textGray, lineHeight: 1.4 }}>
+                {carPushTestStatus}
+              </div>
+            )}
           </SettingRow>
 
           <SettingRow

@@ -41,6 +41,7 @@ import TermsPage from './pages/TermsPage';
 import roleService, { isAdminRole } from './services/roleService';
 import DeleteAccountPublicPage from './pages/DeleteAccountPublicPage';
 import notificationService from './services/notificationService';
+import notificationSettingsService from './services/notificationSettingsService';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -451,6 +452,14 @@ useEffect(() => {
 
   return () => clearInterval(interval);
 }, [session, currentRole]);
+
+useEffect(() => {
+  if (!session?.user?.id) return;
+
+  notificationSettingsService.ensureCarExpirySettings().catch(() => {
+    // 서버 설정을 불러오지 못하면 기존 기기 설정은 그대로 보존한다.
+  });
+}, [session?.user?.id]);
 
 useEffect(() => {
   if (!session?.user) return;
