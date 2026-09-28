@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { COLORS } from '../constants';
 import { Card } from '../components/Common';
 import notificationService from '../services/notificationService';
+import { supabase } from '../supabaseClient';
 
 const DEFAULTS = {
   carExpiry: { enabled: true, days: 30 },
@@ -85,6 +86,7 @@ export default function NotificationSettingsPage({ onBack }) {
   const [settings, setSettings] = useState(loadSettings);
   const [permission, setPermission] = useState('checking');
   const [testStatus, setTestStatus] = useState('');
+  const [birthdayTestLoading, setBirthdayTestLoading] = useState(false);
   const isNativeNotification = notificationService.isNativeNotificationAvailable();
 
   useEffect(() => {
@@ -131,6 +133,38 @@ export default function NotificationSettingsPage({ onBack }) {
       }
     } catch (error) {
       setTestStatus(error.message || '알림 권한 요청 중 오류가 발생했습니다.');
+    }
+  }
+
+  async function sendBirthdayPushTest() {
+    if (birthdayTestLoading) return;
+
+    setBirthdayTestLoading(true);
+    setTestStatus('');
+
+    try {
+      const { data, error } = await supabase.functions.invoke('boplan-birthday-push', {
+        body: { testMode: true },
+      });
+
+      if (error) {
+        throw new Error(await notificationService.getFunctionErrorMessage(error));
+      }
+
+      const sent = Number(data?.sent || 0);
+      const failed = Number(data?.failed || 0);
+      const skipped = Number(data?.skipped || 0);
+
+      if (sent === 0 && failed === 0 && skipped > 0) {
+        setTestStatus('이미 오늘 테스트한 알림입니다.');
+        return;
+      }
+
+      setTestStatus(`생일 Push 테스트 완료 · 성공 ${sent}건 / 실패 ${failed}건`);
+    } catch (error) {
+      setTestStatus(error?.message || '생일 Push 테스트를 실행하지 못했습니다.');
+    } finally {
+      setBirthdayTestLoading(false);
     }
   }
 
@@ -192,6 +226,21 @@ export default function NotificationSettingsPage({ onBack }) {
             </button>
           </div>
           )}
+
+          <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
+            <button
+              type="button"
+              onClick={sendBirthdayPushTest}
+              disabled={birthdayTestLoading}
+              style={{
+                ...styles.secondaryButton,
+                cursor: birthdayTestLoading ? 'wait' : 'pointer',
+                opacity: birthdayTestLoading ? 0.65 : 1,
+              }}
+            >
+              {birthdayTestLoading ? '생일 Push 테스트 중...' : '🎂 생일 Push 테스트'}
+            </button>
+          </div>
 
           {testStatus && (
             <div style={{
