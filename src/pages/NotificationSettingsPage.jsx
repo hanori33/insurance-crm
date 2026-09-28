@@ -4,7 +4,6 @@ import { COLORS } from '../constants';
 import { Card } from '../components/Common';
 import notificationService from '../services/notificationService';
 import notificationSettingsService from '../services/notificationSettingsService';
-import { supabase } from '../supabaseClient';
 
 const DEFAULTS = {
   carExpiry: { enabled: true, days: 30 },
@@ -96,8 +95,6 @@ export default function NotificationSettingsPage({ onBack }) {
   const [insuranceSettingsLoading, setInsuranceSettingsLoading] = useState(true);
   const [insuranceSettingsSaving, setInsuranceSettingsSaving] = useState(false);
   const [insuranceSettingsError, setInsuranceSettingsError] = useState('');
-  const [insurancePushTesting, setInsurancePushTesting] = useState(false);
-  const [insurancePushTestStatus, setInsurancePushTestStatus] = useState('');
   const isNativeNotification = notificationService.isNativeNotificationAvailable();
 
   useEffect(() => {
@@ -190,29 +187,6 @@ export default function NotificationSettingsPage({ onBack }) {
       setInsuranceSettingsError('보험 만기 알림 설정을 저장하지 못했습니다. 기존 설정을 유지합니다.');
     } finally {
       setInsuranceSettingsSaving(false);
-    }
-  }
-
-  async function testInsuranceExpiryPush() {
-    if (insurancePushTesting) return;
-    setInsurancePushTesting(true);
-    setInsurancePushTestStatus('');
-    try {
-      const { data, error } = await supabase.functions.invoke('boplan-insurance-expiry-push', {
-        body: { testMode: true },
-      });
-      if (error) throw error;
-      if (Number(data?.skipped) > 0 && Number(data?.sent) === 0) {
-        setInsurancePushTestStatus('이미 오늘 테스트한 알림입니다.');
-      } else {
-        setInsurancePushTestStatus(
-          `보험 만기 Push 테스트 완료 · 성공 ${Number(data?.sent) || 0}건 / 실패 ${Number(data?.failed) || 0}건`
-        );
-      }
-    } catch {
-      setInsurancePushTestStatus('보험 만기 Push 테스트를 보내지 못했습니다. 잠시 후 다시 시도해주세요.');
-    } finally {
-      setInsurancePushTesting(false);
     }
   }
 
@@ -342,24 +316,6 @@ export default function NotificationSettingsPage({ onBack }) {
             {insuranceSettingsError && (
               <div style={{ marginTop: 8, fontSize: 12, color: '#B91C1C', lineHeight: 1.4 }}>
                 {insuranceSettingsError}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={testInsuranceExpiryPush}
-              disabled={insurancePushTesting}
-              style={{
-                ...styles.secondaryButton,
-                marginTop: 10,
-                cursor: insurancePushTesting ? 'wait' : 'pointer',
-                opacity: insurancePushTesting ? 0.6 : 1,
-              }}
-            >
-              {insurancePushTesting ? '전송 중...' : '📋 보험 만기 Push 테스트'}
-            </button>
-            {insurancePushTestStatus && (
-              <div style={{ marginTop: 8, fontSize: 12, color: COLORS.textGray, lineHeight: 1.4 }}>
-                {insurancePushTestStatus}
               </div>
             )}
           </SettingRow>
