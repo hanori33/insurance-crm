@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 
 const VALID_CAR_EXPIRY_DAYS = new Set([7, 14, 30]);
 const DEFAULT_CAR_EXPIRY = { enabled: true, days: 30 };
+const DEFAULT_INSURANCE_EXPIRY = { enabled: true, days: 30 };
 
 function readLocalCarExpirySettings() {
   try {
@@ -32,6 +33,35 @@ function syncLocalCarExpirySettings(settings) {
   }
 }
 
+function readLocalInsuranceExpirySettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('notif_settings') || '{}');
+    const candidate = saved?.saleExpiry || {};
+    return {
+      enabled: typeof candidate.enabled === 'boolean'
+        ? candidate.enabled
+        : DEFAULT_INSURANCE_EXPIRY.enabled,
+      days: VALID_CAR_EXPIRY_DAYS.has(Number(candidate.days))
+        ? Number(candidate.days)
+        : DEFAULT_INSURANCE_EXPIRY.days,
+    };
+  } catch {
+    return { ...DEFAULT_INSURANCE_EXPIRY };
+  }
+}
+
+function syncLocalInsuranceExpirySettings(settings) {
+  try {
+    const saved = JSON.parse(localStorage.getItem('notif_settings') || '{}');
+    localStorage.setItem('notif_settings', JSON.stringify({
+      ...saved,
+      saleExpiry: settings,
+    }));
+  } catch {
+    localStorage.setItem('notif_settings', JSON.stringify({ saleExpiry: settings }));
+  }
+}
+
 function fromRow(row) {
   return {
     enabled: row.car_expiry_enabled !== false,
@@ -56,6 +86,26 @@ async function loadExisting(userId) {
 
   if (error) throw error;
   return data;
+}
+
+async function loadInsuranceExisting(userId) {
+  const { data, error } = await supabase
+    .from('notification_settings')
+    .select('insurance_expiry_enabled,insurance_expiry_days,insurance_expiry_initialized')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+function insuranceFromRow(row) {
+  return {
+    enabled: row.insurance_expiry_enabled !== false,
+    days: VALID_CAR_EXPIRY_DAYS.has(Number(row.insurance_expiry_days))
+      ? Number(row.insurance_expiry_days)
+      : DEFAULT_INSURANCE_EXPIRY.days,
+  };
 }
 
 const notificationSettingsService = {
@@ -118,6 +168,63 @@ const notificationSettingsService = {
 
     const settings = fromRow(data);
     syncLocalCarExpirySettings(settings);
+    return settings;
+  },
+
+  async ensureInsuranceExpirySettings() {
+    await notificationSettingsService.ensureCarExpirySettings();
+    const user = await currentUser();
+    const existing = await loadInsuranceExisting(user.id);
+
+    if (existing?.insurance_expiry_initialized) {
+      const settings = insuranceFromRow(existing);
+      syncLocalInsuranceExpirySettings(settings);
+      return settings;
+    }
+
+    const localSettings = readLocalInsuranceExpirySettings();
+    const payload = {
+      user_id: user.id,
+      insurance_expiry_enabled: localSettings.enabled,
+      insurance_expiry_days: localSettings.days,
+      insurance_expiry_initialized: true,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('notification_settings')
+      .upsert(payload, { onConflict: 'user_id' })
+      .select('insurance_expiry_enabled,insurance_expiry_days,insurance_expiry_initialized')
+      .single();
+    if (error) throw error;
+
+    const settings = insuranceFromRow(data);
+    syncLocalInsuranceExpirySettings(settings);
+    return settings;
+  },
+
+  async updateInsuranceExpirySettings(nextSettings) {
+    const enabled = nextSettings?.enabled === true;
+    const days = Number(nextSettings?.days);
+    if (!VALID_CAR_EXPIRY_DAYS.has(days)) {
+      throw new Error('보험 만기 알림 시점을 확인해주세요.');
+    }
+
+    const user = await currentUser();
+    const { data, error } = await supabase
+      .from('notification_settings')
+      .update({
+        insurance_expiry_enabled: enabled,
+        insurance_expiry_days: days,
+        insurance_expiry_initialized: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id)
+      .select('insurance_expiry_enabled,insurance_expiry_days')
+      .single();
+    if (error) throw error;
+
+    const settings = insuranceFromRow(data);
+    syncLocalInsuranceExpirySettings(settings);
     return settings;
   },
 };

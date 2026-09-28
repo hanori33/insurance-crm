@@ -459,6 +459,9 @@ useEffect(() => {
   notificationSettingsService.ensureCarExpirySettings().catch(() => {
     // 서버 설정을 불러오지 못하면 기존 기기 설정은 그대로 보존한다.
   });
+  notificationSettingsService.ensureInsuranceExpirySettings().catch(() => {
+    // 보험 만기 설정도 서버 이관 실패 시 기존 기기 설정을 보존한다.
+  });
 }, [session?.user?.id]);
 
 useEffect(() => {

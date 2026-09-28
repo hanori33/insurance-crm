@@ -4,6 +4,7 @@ import { COLORS } from '../constants';
 import { Card } from '../components/Common';
 import notificationService from '../services/notificationService';
 import notificationSettingsService from '../services/notificationSettingsService';
+import { supabase } from '../supabaseClient';
 
 const DEFAULTS = {
   carExpiry: { enabled: true, days: 30 },
@@ -92,6 +93,11 @@ export default function NotificationSettingsPage({ onBack }) {
   const [carSettingsLoading, setCarSettingsLoading] = useState(true);
   const [carSettingsSaving, setCarSettingsSaving] = useState(false);
   const [carSettingsError, setCarSettingsError] = useState('');
+  const [insuranceSettingsLoading, setInsuranceSettingsLoading] = useState(true);
+  const [insuranceSettingsSaving, setInsuranceSettingsSaving] = useState(false);
+  const [insuranceSettingsError, setInsuranceSettingsError] = useState('');
+  const [insurancePushTesting, setInsurancePushTesting] = useState(false);
+  const [insurancePushTestStatus, setInsurancePushTestStatus] = useState('');
   const isNativeNotification = notificationService.isNativeNotificationAvailable();
 
   useEffect(() => {
@@ -119,6 +125,22 @@ export default function NotificationSettingsPage({ onBack }) {
       })
       .finally(() => {
         if (!cancelled) setCarSettingsLoading(false);
+      });
+
+    notificationSettingsService.ensureInsuranceExpirySettings()
+      .then((saleExpiry) => {
+        if (!cancelled) {
+          setSettings((current) => ({ ...current, saleExpiry }));
+          setInsuranceSettingsError('');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInsuranceSettingsError('보험 만기 알림 설정을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setInsuranceSettingsLoading(false);
       });
 
     let listener = null;
@@ -153,6 +175,44 @@ export default function NotificationSettingsPage({ onBack }) {
       setCarSettingsError('자동차 만기 알림 설정을 저장하지 못했습니다. 기존 설정을 유지합니다.');
     } finally {
       setCarSettingsSaving(false);
+    }
+  }
+
+  async function updateInsuranceExpiry(val) {
+    if (insuranceSettingsLoading || insuranceSettingsSaving) return;
+    const next = { ...settings.saleExpiry, ...val };
+    setInsuranceSettingsSaving(true);
+    setInsuranceSettingsError('');
+    try {
+      const saved = await notificationSettingsService.updateInsuranceExpirySettings(next);
+      setSettings((current) => ({ ...current, saleExpiry: saved }));
+    } catch {
+      setInsuranceSettingsError('보험 만기 알림 설정을 저장하지 못했습니다. 기존 설정을 유지합니다.');
+    } finally {
+      setInsuranceSettingsSaving(false);
+    }
+  }
+
+  async function testInsuranceExpiryPush() {
+    if (insurancePushTesting) return;
+    setInsurancePushTesting(true);
+    setInsurancePushTestStatus('');
+    try {
+      const { data, error } = await supabase.functions.invoke('boplan-insurance-expiry-push', {
+        body: { testMode: true },
+      });
+      if (error) throw error;
+      if (Number(data?.skipped) > 0 && Number(data?.sent) === 0) {
+        setInsurancePushTestStatus('이미 오늘 테스트한 알림입니다.');
+      } else {
+        setInsurancePushTestStatus(
+          `보험 만기 Push 테스트 완료 · 성공 ${Number(data?.sent) || 0}건 / 실패 ${Number(data?.failed) || 0}건`
+        );
+      }
+    } catch {
+      setInsurancePushTestStatus('보험 만기 Push 테스트를 보내지 못했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setInsurancePushTesting(false);
     }
   }
 
@@ -271,13 +331,37 @@ export default function NotificationSettingsPage({ onBack }) {
             icon="📋" title="보험 만기 알림"
             desc="보험 계약 만기 전 알림"
             enabled={settings.saleExpiry.enabled}
-            onToggle={v => update('saleExpiry', { enabled: v })}
+            onToggle={v => updateInsuranceExpiry({ enabled: v })}
+            toggleDisabled={insuranceSettingsLoading || insuranceSettingsSaving}
           >
             <DaysSelector
               value={settings.saleExpiry.days}
-              onChange={d => update('saleExpiry', { days: d })}
-              disabled={!settings.saleExpiry.enabled}
+              onChange={d => updateInsuranceExpiry({ days: d })}
+              disabled={!settings.saleExpiry.enabled || insuranceSettingsLoading || insuranceSettingsSaving}
             />
+            {insuranceSettingsError && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#B91C1C', lineHeight: 1.4 }}>
+                {insuranceSettingsError}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={testInsuranceExpiryPush}
+              disabled={insurancePushTesting}
+              style={{
+                ...styles.secondaryButton,
+                marginTop: 10,
+                cursor: insurancePushTesting ? 'wait' : 'pointer',
+                opacity: insurancePushTesting ? 0.6 : 1,
+              }}
+            >
+              {insurancePushTesting ? '전송 중...' : '📋 보험 만기 Push 테스트'}
+            </button>
+            {insurancePushTestStatus && (
+              <div style={{ marginTop: 8, fontSize: 12, color: COLORS.textGray, lineHeight: 1.4 }}>
+                {insurancePushTestStatus}
+              </div>
+            )}
           </SettingRow>
 
           <SettingRow
