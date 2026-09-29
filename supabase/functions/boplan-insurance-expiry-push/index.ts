@@ -9,7 +9,7 @@ import {
   kstDateParts,
   parseServiceAccount,
   PushError,
-  sendFcmMessage,
+  sendFcmMessagesAndCleanup,
 } from "../_shared/fcm.ts";
 
 type ExpiryParseResult =
@@ -189,10 +189,14 @@ serve(async (req) => {
 
     const serviceAccount = parseServiceAccount();
     const accessToken = await getFirebaseAccessToken(serviceAccount);
-    const tokenCache = new Map<string, Array<{ token: string }>>();
+    const tokenCache = new Map<string, Array<{ id: string; user_id: string; token: string }>>();
     let sent = 0;
     let failed = 0;
     let skipped = 0;
+    let attempted = 0;
+    let permanentInvalid = 0;
+    let transientFailed = 0;
+    let deletedInvalidTokens = 0;
 
     for (const target of targets) {
       const eventKey = testMode
@@ -203,7 +207,7 @@ serve(async (req) => {
       if (!tokens) {
         const { data, error } = await adminClient
           .from("fcm_tokens")
-          .select("token")
+          .select("id, user_id, token")
           .eq("user_id", target.userId);
         if (error) throw error;
         tokens = data || [];
@@ -249,8 +253,12 @@ serve(async (req) => {
         }
       }
 
-      const results = await Promise.all(tokens.map(({ token }) =>
-        sendFcmMessage(serviceAccount, accessToken, token, {
+      const batch = await sendFcmMessagesAndCleanup(
+        adminClient,
+        serviceAccount,
+        accessToken,
+        tokens,
+        {
           title: "📋 보험 만기가 다가와요",
           body: "보험 만기 예정 고객을 확인해보세요.",
           tag: `boplan-${testMode ? "insurance-expiry-test" : "insurance-expiry"}-${today.dateKey}`,
@@ -260,11 +268,16 @@ serve(async (req) => {
             url: "/?notification=insurance-expiry",
             testMode: String(testMode),
           },
-        })
-      ));
+        },
+        "insurance-expiry",
+      );
 
-      const sentCount = results.filter((result) => result.ok).length;
-      const failedCount = results.length - sentCount;
+      const sentCount = batch.sent;
+      const failedCount = batch.failed;
+      attempted += batch.attempted;
+      permanentInvalid += batch.permanentInvalid;
+      transientFailed += batch.transientFailed;
+      deletedInvalidTokens += batch.deletedInvalidTokens;
       sent += sentCount;
       failed += failedCount;
 
@@ -291,9 +304,13 @@ serve(async (req) => {
       date: today.dateKey,
       checked: targets.length,
       due: targets.length,
+      attempted,
       sent,
       failed,
       skipped,
+      permanentInvalid,
+      transientFailed,
+      deletedInvalidTokens,
       emptyExpiryCount,
       invalidExpiryCount,
       testMode,

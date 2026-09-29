@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { networkFcmFailure, parseFcmResponse } from "./fcmError.ts";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -192,60 +193,143 @@ export type PushPayload = {
   data: Record<string, string>;
 };
 
+export type FcmTokenRow = {
+  id: string;
+  user_id: string;
+  token: string;
+};
+
+export type FcmSendResult = {
+  ok: boolean;
+  status: number;
+  firebaseStatus: string;
+  detailErrorCode: string;
+  permanentInvalid: boolean;
+  transient: boolean;
+};
+
+export type FcmBatchResult = {
+  attempted: number;
+  sent: number;
+  failed: number;
+  permanentInvalid: number;
+  transientFailed: number;
+  deletedInvalidTokens: number;
+};
+
 export async function sendFcmMessage(
   serviceAccount: ServiceAccount,
   accessToken: string,
   token: string,
   payload: PushPayload,
-) {
-  const response = await fetch(
-    `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: {
-          token,
-          notification: {
-            title: payload.title,
-            body: payload.body,
-          },
-          data: payload.data,
-          webpush: {
-            notification: {
-              icon: "/boplan192.png",
-              badge: "/boplan192.png",
-              tag: payload.tag,
-              requireInteraction: false,
-            },
-            fcm_options: {
-              link: "https://www.boplan.kr/",
-            },
-          },
+): Promise<FcmSendResult> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
-      }),
-    },
-  );
+        body: JSON.stringify({
+          message: {
+            token,
+            notification: {
+              title: payload.title,
+              body: payload.body,
+            },
+            data: payload.data,
+            webpush: {
+              notification: {
+                icon: "/boplan192.png",
+                badge: "/boplan192.png",
+                tag: payload.tag,
+                requireInteraction: false,
+              },
+              fcm_options: {
+                link: "https://www.boplan.kr/",
+              },
+            },
+          },
+        }),
+      },
+    );
+  } catch {
+    return networkFcmFailure();
+  }
 
   const detail = await response.text();
-  let errorCode = "";
+  return parseFcmResponse(response.ok, response.status, detail);
+}
 
-  if (!response.ok) {
-    try {
-      const payload = JSON.parse(detail);
-      errorCode = payload?.error?.status || payload?.error?.details?.[0]?.errorCode || "";
-    } catch {
-      errorCode = "";
+function safeCode(value: string) {
+  return /^[A-Z0-9_-]+$/.test(value) ? value : "OTHER";
+}
+
+export async function sendFcmMessagesAndCleanup(
+  adminClient: ReturnType<typeof createAdminClient>,
+  serviceAccount: ServiceAccount,
+  accessToken: string,
+  tokens: FcmTokenRow[],
+  payload: PushPayload,
+  logLabel: string,
+): Promise<FcmBatchResult> {
+  const attempts = await Promise.all(tokens.map(async (row) => ({
+    row,
+    result: await sendFcmMessage(serviceAccount, accessToken, row.token, payload),
+  })));
+
+  const failedAttempts = attempts.filter(({ result }) => !result.ok);
+  const permanentAttempts = failedAttempts.filter(({ result }) => result.permanentInvalid);
+  const httpStatuses: Record<string, number> = {};
+  const firebaseStatuses: Record<string, number> = {};
+  const detailErrorCodes: Record<string, number> = {};
+
+  for (const { result } of failedAttempts) {
+    const httpStatus = result.status === 0 ? "NETWORK" : String(result.status);
+    const firebaseStatus = safeCode(result.firebaseStatus || "NONE");
+    const detailErrorCode = safeCode(result.detailErrorCode || "NONE");
+    httpStatuses[httpStatus] = (httpStatuses[httpStatus] || 0) + 1;
+    firebaseStatuses[firebaseStatus] = (firebaseStatuses[firebaseStatus] || 0) + 1;
+    detailErrorCodes[detailErrorCode] = (detailErrorCodes[detailErrorCode] || 0) + 1;
+  }
+
+  if (failedAttempts.length > 0) {
+    console.error(`${logLabel} FCM failure summary`, {
+      httpStatuses,
+      firebaseStatuses,
+      detailErrorCodes,
+      permanentInvalid: permanentAttempts.length,
+      transientFailed: failedAttempts.filter(({ result }) => result.transient).length,
+    });
+  }
+
+  let deletedInvalidTokens = 0;
+  for (const { row } of permanentAttempts) {
+    const { data, error } = await adminClient
+      .from("fcm_tokens")
+      .delete()
+      .eq("id", row.id)
+      .eq("user_id", row.user_id)
+      .eq("token", row.token)
+      .select("id");
+
+    if (error) {
+      console.error(`${logLabel} invalid FCM token cleanup failed`, { count: 1 });
+      continue;
     }
+    deletedInvalidTokens += data?.length || 0;
   }
 
   return {
-    ok: response.ok,
-    status: response.status,
-    errorCode,
+    attempted: attempts.length,
+    sent: attempts.length - failedAttempts.length,
+    failed: failedAttempts.length,
+    permanentInvalid: permanentAttempts.length,
+    transientFailed: failedAttempts.filter(({ result }) => result.transient).length,
+    deletedInvalidTokens,
   };
 }
 

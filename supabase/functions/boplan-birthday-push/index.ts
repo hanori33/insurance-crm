@@ -9,7 +9,7 @@ import {
   kstDateParts,
   parseServiceAccount,
   PushError,
-  sendFcmMessage,
+  sendFcmMessagesAndCleanup,
 } from "../_shared/fcm.ts";
 
 type CustomerRow = {
@@ -164,13 +164,17 @@ serve(async (req) => {
     let sent = 0;
     let failed = 0;
     let skipped = 0;
+    let attempted = 0;
+    let permanentInvalid = 0;
+    let transientFailed = 0;
+    let deletedInvalidTokens = 0;
 
     for (const [userId, birthdayCount] of countsByUser.entries()) {
       const eventKey = `${testMode ? "birthday-test" : "birthday"}:${today.dateKey}:${userId}`;
 
       const { data: tokens, error: tokenError } = await adminClient
         .from("fcm_tokens")
-        .select("id, token")
+        .select("id, user_id, token")
         .eq("user_id", userId);
 
       if (tokenError) throw tokenError;
@@ -219,24 +223,31 @@ serve(async (req) => {
         }
       }
 
-      const results = await Promise.all(
-        tokens.map(({ token }) =>
-          sendFcmMessage(serviceAccount, accessToken, token, {
-            title: "🎂 오늘 생일 고객이 있어요",
-            body: "오늘 생일인 고객을 확인해보세요.",
-            tag: `boplan-${testMode ? "birthday-test" : "birthday"}-${today.dateKey}`,
-            data: {
-              type: "birthday",
-              route: "customers",
-              url: "/?notification=birthday",
-              testMode: String(testMode),
-            },
-          })
-        ),
+      const batch = await sendFcmMessagesAndCleanup(
+        adminClient,
+        serviceAccount,
+        accessToken,
+        tokens,
+        {
+          title: "🎂 오늘 생일 고객이 있어요",
+          body: "오늘 생일인 고객을 확인해보세요.",
+          tag: `boplan-${testMode ? "birthday-test" : "birthday"}-${today.dateKey}`,
+          data: {
+            type: "birthday",
+            route: "customers",
+            url: "/?notification=birthday",
+            testMode: String(testMode),
+          },
+        },
+        "birthday",
       );
 
-      const sentCount = results.filter((result) => result.ok).length;
-      const failedCount = results.length - sentCount;
+      const sentCount = batch.sent;
+      const failedCount = batch.failed;
+      attempted += batch.attempted;
+      permanentInvalid += batch.permanentInvalid;
+      transientFailed += batch.transientFailed;
+      deletedInvalidTokens += batch.deletedInvalidTokens;
       sent += sentCount;
       failed += failedCount;
 
@@ -266,7 +277,20 @@ serve(async (req) => {
       }
     }
 
-    return jsonResponse({ date: today.dateKey, users: countsByUser.size, sent, failed, skipped, emptyBirthCount, invalidBirthCount, testMode });
+    return jsonResponse({
+      date: today.dateKey,
+      users: countsByUser.size,
+      attempted,
+      sent,
+      failed,
+      skipped,
+      permanentInvalid,
+      transientFailed,
+      deletedInvalidTokens,
+      emptyBirthCount,
+      invalidBirthCount,
+      testMode,
+    });
   } catch (error) {
     if (error instanceof PushError || error instanceof AuthorizationError) {
       return jsonError(error.code, error.message, error.status);

@@ -8,7 +8,7 @@ import {
   jsonResponse,
   parseServiceAccount,
   PushError,
-  sendFcmMessage,
+  sendFcmMessagesAndCleanup,
 } from "../_shared/fcm.ts";
 
 type ScheduleRow = {
@@ -136,6 +136,10 @@ serve(async (req) => {
     let sent = 0;
     let failed = 0;
     let skipped = 0;
+    let attempted = 0;
+    let permanentInvalid = 0;
+    let transientFailed = 0;
+    let deletedInvalidTokens = 0;
 
     for (const schedule of dueSchedules) {
       const minutes = Number(schedule.reminder_minutes);
@@ -143,7 +147,7 @@ serve(async (req) => {
 
       const { data: tokens, error: tokenError } = await adminClient
         .from("fcm_tokens")
-        .select("id, token")
+        .select("id, user_id, token")
         .eq("user_id", schedule.user_id);
 
       if (tokenError) throw tokenError;
@@ -192,41 +196,32 @@ serve(async (req) => {
         }
       }
 
-      const results = await Promise.all(
-        tokens.map(({ token }) =>
-          sendFcmMessage(serviceAccount, accessToken, token, {
-            title: "📅 보플랜 일정 알림",
-            body: reminderBody(minutes),
-            tag: `boplan-schedule-${schedule.id}-${minutes}`,
-            data: {
-              type: "schedule",
-              scheduleId: String(schedule.id),
-              customerAppId: schedule.customer_app_id == null ? "" : String(schedule.customer_app_id),
-              route: "schedule",
-              url: "/?notification=schedule",
-            },
-          })
-        ),
+      const batch = await sendFcmMessagesAndCleanup(
+        adminClient,
+        serviceAccount,
+        accessToken,
+        tokens,
+        {
+          title: "📅 보플랜 일정 알림",
+          body: reminderBody(minutes),
+          tag: `boplan-schedule-${schedule.id}-${minutes}`,
+          data: {
+            type: "schedule",
+            scheduleId: String(schedule.id),
+            customerAppId: schedule.customer_app_id == null ? "" : String(schedule.customer_app_id),
+            route: "schedule",
+            url: "/?notification=schedule",
+          },
+        },
+        "schedule",
       );
 
-      const sentCount = results.filter((result) => result.ok).length;
-      const failedCount = results.length - sentCount;
-      if (failedCount > 0) {
-        const httpStatuses: Record<string, number> = {};
-        const errorCodes: Record<string, number> = {};
-        const allowedCodes = new Set([
-          "UNREGISTERED", "INVALID_ARGUMENT", "SENDER_ID_MISMATCH",
-          "THIRD_PARTY_AUTH_ERROR", "UNAUTHENTICATED", "PERMISSION_DENIED",
-          "NOT_FOUND", "RESOURCE_EXHAUSTED", "INTERNAL", "UNAVAILABLE",
-        ]);
-        for (const result of results.filter((result) => !result.ok)) {
-          const status = String(result.status);
-          const code = allowedCodes.has(result.errorCode) ? result.errorCode : "OTHER";
-          httpStatuses[status] = (httpStatuses[status] || 0) + 1;
-          errorCodes[code] = (errorCodes[code] || 0) + 1;
-        }
-        console.error("schedule FCM failure summary", { httpStatuses, errorCodes });
-      }
+      const sentCount = batch.sent;
+      const failedCount = batch.failed;
+      attempted += batch.attempted;
+      permanentInvalid += batch.permanentInvalid;
+      transientFailed += batch.transientFailed;
+      deletedInvalidTokens += batch.deletedInvalidTokens;
       sent += sentCount;
       failed += failedCount;
 
@@ -262,7 +257,17 @@ serve(async (req) => {
       }
     }
 
-    return jsonResponse({ checked: schedules?.length || 0, due: dueSchedules.length, sent, failed, skipped });
+    return jsonResponse({
+      checked: schedules?.length || 0,
+      due: dueSchedules.length,
+      attempted,
+      sent,
+      failed,
+      skipped,
+      permanentInvalid,
+      transientFailed,
+      deletedInvalidTokens,
+    });
   } catch (error) {
     if (error instanceof PushError || error instanceof AuthorizationError) {
       return jsonError(error.code, error.message, error.status);
