@@ -8,7 +8,7 @@ import customerService from '../services/customerService';
 import { formatNumber } from '../utils';
 import { supabase } from '../supabaseClient';
 
-function DonutChart({ pct = 88, size = 100 }) {
+function DonutChart({ pct = 0, size = 100 }) {
   const r = size / 2 - 10;
   const c = 2 * Math.PI * r;
   return (
@@ -42,11 +42,12 @@ function LineChart({ data = [], labels = [] }) {
 }
 
 export default function SalesPage({ onBack }) {
-  const [retention, setRetention] = useState(88);
-  const [total, setTotal] = useState(24580);
-  const [chartData, setChartData] = useState([10, 18, 16, 28, 25, 32]);
-  const [chartLabels, setChartLabels] = useState(['1월','2월','3월','4월','5월']);
-  const [loading, setLoading] = useState(false);
+  const [retention, setRetention] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [chartData, setChartData] = useState([]);
+  const [chartLabels, setChartLabels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [salesList, setSalesList] = useState([]);
   const [editItem, setEditItem] = useState(null);
@@ -56,22 +57,25 @@ export default function SalesPage({ onBack }) {
 
   async function load() {
   setLoading(true);
+  setLoadError('');
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    const [monthly, counts, sales] = await Promise.all([
-      salesService.monthlySales(5).catch(() => ({})),
-      customerService.statusCounts().catch(() => ({})),
-      supabase.from('sales').select('*').eq('user_id', user.id).order('sale_date', { ascending: false }).then(r => r.data || []),
+    if (!user) throw new Error('로그인 정보를 확인할 수 없습니다.');
+
+    const [monthly, counts, salesResult] = await Promise.all([
+      salesService.monthlySales(5),
+      customerService.statusCounts(),
+      supabase.from('sales').select('*').eq('user_id', user.id).order('sale_date', { ascending: false }),
     ]);
+    if (salesResult.error) throw salesResult.error;
+    const sales = salesResult.data || [];
     const tot = Object.values(counts).reduce((a, b) => a + b, 0);
     const active = (counts['유지중'] || 0) + (counts['계약중'] || 0);
-    if (tot > 0) setRetention(Math.round(active / tot * 100));
+    setRetention(tot > 0 ? Math.round(active / tot * 100) : 0);
     const keys = Object.keys(monthly).sort();
-    if (keys.length > 0) {
-      setChartData(keys.map(k => monthly[k]));
-      setChartLabels(keys.map(k => `${parseInt(k.split('-')[1])}월`));
-      setTotal(Math.round(monthly[keys[keys.length-1]] || 0));
-    }
+    setChartData(keys.map(k => monthly[k]));
+    setChartLabels(keys.map(k => `${parseInt(k.split('-')[1])}월`));
+    setTotal(keys.length > 0 ? Math.round(monthly[keys[keys.length-1]] || 0) : 0);
     setSalesList(sales);
 
     // ✅ 최신 월만 기본으로 열기
@@ -80,6 +84,8 @@ export default function SalesPage({ onBack }) {
       if (latestMonth) setOpenMonths({ [latestMonth]: true });
     }
 
+  } catch {
+    setLoadError('통계 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   } finally { setLoading(false); }
 }
 
@@ -98,17 +104,23 @@ export default function SalesPage({ onBack }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {loading ? <LoadingSpinner /> : (
+        {loading ? <LoadingSpinner /> : loadError ? (
+          <Card>
+            <div style={{ color: COLORS.red, fontSize: 13, textAlign: 'center', padding: '12px 0' }}>{loadError}</div>
+            <button
+              type="button"
+              onClick={load}
+              style={{ width: '100%', border: 'none', borderRadius: 8, padding: '10px 12px', background: COLORS.primary, color: COLORS.white, fontWeight: 700, cursor: 'pointer' }}
+            >다시 시도</button>
+          </Card>
+        ) : (
           <>
             <Card>
               <div style={{ fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 14 }}>유지율 현황</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontSize: 38, fontWeight: 800, color: COLORS.primary }}>{retention}%</div>
-                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                    <span style={{ color: COLORS.green, fontSize: 12, fontWeight: 700 }}>▲ 3%</span>
-                    <span style={{ color: COLORS.textGray, fontSize: 12 }}>전월 대비</span>
-                  </div>
+                  <div style={{ color: COLORS.textGray, fontSize: 12, marginTop: 4 }}>비교 데이터 없음</div>
                 </div>
                 <DonutChart pct={retention} />
               </div>
@@ -117,10 +129,7 @@ export default function SalesPage({ onBack }) {
             <Card>
               <div style={{ fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>월별 매출 현황 <span style={{ fontSize: 11, color: COLORS.textGray }}>(단위: 천원)</span></div>
               <div style={{ fontSize: 34, fontWeight: 800, color: COLORS.text, margin: '10px 0 4px' }}>{formatNumber(total)}</div>
-              <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-                <span style={{ color: COLORS.green, fontSize: 12, fontWeight: 700 }}>▲ 12%</span>
-                <span style={{ color: COLORS.textGray, fontSize: 12 }}>전월 대비</span>
-              </div>
+              <div style={{ color: COLORS.textGray, fontSize: 12, marginBottom: 16 }}>비교 데이터 없음</div>
               <LineChart data={chartData} labels={chartLabels} />
             </Card>
 

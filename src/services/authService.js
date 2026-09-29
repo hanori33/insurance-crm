@@ -214,8 +214,6 @@ const authService = {
       },
     });
 
-    console.log('[BoPlan signUp result]', { data, error });
-
     if (error) {
       if (isAlreadyRegisteredSignup(error)) {
         return authService.resendSignupVerification(email);
@@ -238,8 +236,6 @@ const authService = {
         emailRedirectTo: getAuthRedirectUrl('/'),
       },
     });
-
-    console.log('[BoPlan signup resend result]', { data, error });
 
     if (error) throw new Error(error.message || String(error));
     return { data, resent: true };
