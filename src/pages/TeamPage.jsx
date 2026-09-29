@@ -57,193 +57,24 @@ function getStatusMeta(status) {
   return STATUS_LIST.find((s) => s.key === status) || STATUS_LIST[0];
 }
 
-function getDescendantUserIds(items, rootUserId, includeRoot = true) {
-  if (!rootUserId) return [];
+const MEMBERSHIP_ROLE_LABELS = {
+  owner: "조직 소유자",
+  org_admin: "조직 관리자",
+  manager: "관리자",
+  team_leader: "팀장",
+  team_member: "팀원",
+  member: "일반 구성원",
+  agent: "설계사",
+  staff: "스태프",
+};
 
-  const childrenMap = {};
+function getTeamLoadErrorMessage(error) {
+  const message = String(error?.message || error || "");
 
-  (items || []).forEach((item) => {
-    const parentId = item.parent_user_id || item.parentUserId || null;
-    if (!parentId) return;
-
-    if (!childrenMap[parentId]) childrenMap[parentId] = [];
-    childrenMap[parentId].push(item.user_id || item.userId);
-  });
-
-  const result = [];
-  const queue = includeRoot ? [rootUserId] : childrenMap[rootUserId] || [];
-  const visited = new Set();
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current || visited.has(current)) continue;
-
-    visited.add(current);
-    result.push(current);
-
-    (childrenMap[current] || []).forEach((childId) => {
-      if (childId && !visited.has(childId)) queue.push(childId);
-    });
-  }
-
-  return result;
-}
-
-function getRootUserId(items, userId) {
-  if (!userId) return null;
-
-  const byUserId = {};
-  (items || []).forEach((item) => {
-    if (item.user_id || item.userId) byUserId[item.user_id || item.userId] = item;
-  });
-
-  let currentId = userId;
-  const visited = new Set();
-
-  while (currentId && byUserId[currentId] && !visited.has(currentId)) {
-    visited.add(currentId);
-    const parentId = byUserId[currentId].parent_user_id || byUserId[currentId].parentUserId;
-    if (!parentId || !byUserId[parentId]) break;
-    currentId = parentId;
-  }
-
-  return currentId || userId;
-}
-
-
-function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-
-  const yyyy = start.getFullYear();
-  const mm = String(start.getMonth() + 1).padStart(2, "0");
-  const dd = String(start.getDate()).padStart(2, "0");
-
-  return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
-    todayStr: `${yyyy}-${mm}-${dd}`,
-  };
-}
-
-function increaseCount(map, userId, key) {
-  if (!userId) return;
-
-  if (!map[userId]) {
-    map[userId] = {
-      consultCount: 0,
-      scheduleCount: 0,
-      customerCount: 0,
-    };
-  }
-
-  map[userId][key] += 1;
-}
-
-async function fetchRowsSafely(label, queryBuilder) {
-  try {
-    const { data, error } = await queryBuilder();
-
-    if (error) {
-      console.warn(`${label} 집계 실패:`, error.message);
-      return [];
-    }
-
-    return data || [];
-  } catch (error) {
-    console.warn(`${label} 집계 예외:`, error.message);
-    return [];
-  }
-}
-
-async function loadTodayActivityCounts(userIds) {
-  const ids = (userIds || []).filter(Boolean);
-
-  const emptyResult = {
-    byUserId: {},
-    total: {
-      consultCount: 0,
-      scheduleCount: 0,
-      customerCount: 0,
-    },
-  };
-
-  if (ids.length === 0) return emptyResult;
-
-  const { startIso, endIso, todayStr } = getTodayRange();
-  const byUserId = {};
-
-  const consultationRows = await fetchRowsSafely("상담기록", () =>
-    supabase
-      .from("consultations")
-      .select("id, user_id, created_at")
-      .in("user_id", ids)
-      .gte("created_at", startIso)
-      .lt("created_at", endIso)
-  );
-
-  consultationRows.forEach((row) => {
-    increaseCount(byUserId, row.user_id, "consultCount");
-  });
-
-  let scheduleRows = await fetchRowsSafely("일정", () =>
-    supabase
-      .from("schedules")
-      .select("id, user_id, scheduled_at")
-      .in("user_id", ids)
-      .gte("scheduled_at", startIso)
-      .lt("scheduled_at", endIso)
-  );
-
-  if (scheduleRows.length === 0) {
-    const fallbackScheduleRows = await fetchRowsSafely("일정(date fallback)", () =>
-      supabase
-        .from("schedules")
-        .select("id, user_id, date")
-        .in("user_id", ids)
-        .eq("date", todayStr)
-    );
-
-    scheduleRows = fallbackScheduleRows;
-  }
-
-  scheduleRows.forEach((row) => {
-    increaseCount(byUserId, row.user_id, "scheduleCount");
-  });
-
-  const customerRows = await fetchRowsSafely("고객등록", () =>
-    supabase
-      .from("customers")
-      .select("id, user_id, created_at")
-      .in("user_id", ids)
-      .gte("created_at", startIso)
-      .lt("created_at", endIso)
-  );
-
-  customerRows.forEach((row) => {
-    increaseCount(byUserId, row.user_id, "customerCount");
-  });
-
-  const total = Object.values(byUserId).reduce(
-    (acc, count) => ({
-      consultCount: acc.consultCount + count.consultCount,
-      scheduleCount: acc.scheduleCount + count.scheduleCount,
-      customerCount: acc.customerCount + count.customerCount,
-    }),
-    {
-      consultCount: 0,
-      scheduleCount: 0,
-      customerCount: 0,
-    }
-  );
-
-  return {
-    byUserId,
-    total,
-  };
+  if (message.includes("AUTH_REQUIRED")) return "로그인이 필요합니다.";
+  if (message.includes("TEAM_STATS_FORBIDDEN")) return "팀 통계를 볼 수 있는 권한이 없습니다.";
+  if (message.includes("ORG_UNIT_NOT_MANAGED")) return "관리할 수 없는 조직입니다.";
+  return "팀 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.";
 }
 
 function TeamPage({ onBack }) {
@@ -251,6 +82,8 @@ function TeamPage({ onBack }) {
   const [teamManageTab, setTeamManageTab] = useState("members");
   const [viewMode, setViewMode] = useState("myteam");
   const [members, setMembers] = useState([]);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [teamLoadError, setTeamLoadError] = useState("");
   const [currentUserId, setCurrentUserId] = useState(null);
   const [myRole, setMyRole] = useState("");
   const [myBranchId, setMyBranchId] = useState(null);
@@ -338,6 +171,11 @@ function TeamPage({ onBack }) {
   }, [currentUserId]);
 
   async function loadMembers() {
+  setTeamLoading(true);
+  setTeamLoadError("");
+  setMembers([]);
+  setLadderSelected([]);
+
   try {
     const {
       data: { user },
@@ -345,7 +183,7 @@ function TeamPage({ onBack }) {
     } = await supabase.auth.getUser();
 
     if (userError) throw userError;
-    if (!user) return;
+    if (!user) throw new Error("AUTH_REQUIRED");
 
     setCurrentUserId(user.id);
 
@@ -356,14 +194,6 @@ function TeamPage({ onBack }) {
       .single();
 
     if (myProfileError) throw myProfileError;
-
-    const { data: myUserRole, error: myUserRoleError } = await supabase
-      .from("user_roles")
-      .select("user_id, role, organization, branch, office, team")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (myUserRoleError) throw myUserRoleError;
 
     setMyRole(myProfile.role || "");
     setMyBranchId(myProfile.branch_id || null);
@@ -384,124 +214,59 @@ function TeamPage({ onBack }) {
       branchData = foundBranch;
     }
 
-    let scopedRoles = [];
-
-    const { data: allProfilesData, error: allProfilesError } = await supabase
-      .from("profiles")
-      .select("id, user_id, name, role, role_name, parent_user_id, branch_id, status, photo_url, created_at, last_seen")
-      .order("created_at", { ascending: true });
-
-    if (allProfilesError) throw allProfilesError;
-
-    const allProfiles = (allProfilesData || []).filter((m) => m.user_id);
-    const rootUserId = getRootUserId(allProfiles, user.id);
-    const orgUserIds = getDescendantUserIds(allProfiles, rootUserId, true);
-
-    let profiles = allProfiles.filter((m) => orgUserIds.includes(m.user_id));
-
-    if (profiles.length === 0 && myProfile?.branch_id) {
-      profiles = allProfiles.filter((m) => m.branch_id === myProfile.branch_id);
-    }
-
-    if (profiles.length === 0) {
-      profiles = allProfiles.filter((m) => m.user_id === user.id);
-    }
-
-    const profileUserIds = profiles.map((m) => m.user_id).filter(Boolean);
-
-    if (profileUserIds.length > 0) {
-      const { data: roleRows, error: roleRowsError } = await supabase
-        .from("user_roles")
-        .select("user_id, role, organization, branch, office, team")
-        .in("user_id", profileUserIds);
-
-      if (roleRowsError) throw roleRowsError;
-
-      scopedRoles = roleRows || [];
-    }
-
-    const roleMap = {};
-    scopedRoles.forEach((r) => {
-      roleMap[r.user_id] = r;
-    });
-
-    const getRoleLabel = (profileRole, userRole, roleName) => {
-      if (roleName) return roleName;
-      if (userRole === "division_head") return "사업단장";
-      if (userRole === "branch_head") return "본부장";
-      if (userRole === "deputy_branch_head") return "부본부장";
-      if (userRole === "office_head") return "지점장";
-      if (userRole === "deputy_office_head") return "부지점장";
-      if (userRole === "team_leader") return "팀장";
-      if (userRole === "team_member") return "팀원";
-
-      if (profileRole === "admin") return "관리자";
-      if (profileRole === "manager") return "지점장";
-      return "팀원";
-    };
-
-    const mapped = profiles.map((m) => {
-      const roleInfo = roleMap[m.user_id] || {};
-
-      return {
-        id: m.id,
-        user_id: m.user_id,
-        photoUrl: m.photo_url || "",
-        parentUserId: m.parent_user_id || "",
-        roleName: m.role_name || "",
-        name: m.name || "이름없음",
-        role: getRoleLabel(m.role, roleInfo.role, m.role_name),
-
-        division: roleInfo.organization || branchData?.division || "소속사업단",
-        headquarters: roleInfo.branch || "",
-        branch: roleInfo.office || branchData?.name || "소속지점",
-        team: roleInfo.team || "",
-
-        status: m.status || "상담중",
-        phone: "",
-        consultCount: 0,
-        scheduleCount: 0,
-        customerCount: 0,
-        profile: (m.name || "?").charAt(0),
-        lastSeen:
-  m.last_seen &&
-  Date.now() - new Date(m.last_seen).getTime() < 5 * 60 * 1000
-    ? "접속중"
-    : "미접속",
-        branch_id: m.branch_id,
-      };
-    });
-
-    const activityCounts = await loadTodayActivityCounts(
-      mapped.map((m) => m.user_id)
+    const { data: teamRows, error: teamStatsError } = await supabase.rpc(
+      "get_managed_team_activity_stats",
+      { p_org_unit_id: null }
     );
 
-    const mappedWithActivity = mapped.map((member) => {
-      const count = activityCounts.byUserId[member.user_id] || {};
+    if (teamStatsError) throw teamStatsError;
 
+    const mapped = (teamRows || []).map((row) => {
+      const orgName = row.org_unit_name || "소속조직";
       return {
-        ...member,
-        consultCount: count.consultCount || 0,
-        scheduleCount: count.scheduleCount || 0,
-        customerCount: count.customerCount || 0,
+        id: row.profile_id || row.member_user_id,
+        user_id: row.member_user_id,
+        photoUrl: row.photo_url || "",
+        roleName: MEMBERSHIP_ROLE_LABELS[row.membership_role] || row.membership_role || "팀원",
+        name: row.display_name || "이름없음",
+        role: MEMBERSHIP_ROLE_LABELS[row.membership_role] || row.membership_role || "팀원",
+        division: branchData?.division || "소속조직",
+        headquarters: "",
+        branch: orgName,
+        team: orgName,
+        status: row.profile_status || "상담중",
+        phone: "",
+        consultCount: Number(row.consultation_count || 0),
+        scheduleCount: Number(row.schedule_count || 0),
+        customerCount: Number(row.customer_count || 0),
+        profile: (row.display_name || "?").charAt(0),
+        lastSeen:
+  row.last_seen &&
+  Date.now() - new Date(row.last_seen).getTime() < 5 * 60 * 1000
+    ? "접속중"
+    : "미접속",
+        branch_id: row.org_unit_id,
       };
     });
 
-    setMembers(mappedWithActivity);
-    setLadderSelected(mappedWithActivity.map((m) => m.id));
+    setMembers(mapped);
+    setLadderSelected(mapped.map((m) => m.id));
 
     setLadderEmojiMap((prev) => {
       const next = { ...prev };
 
-      mappedWithActivity.forEach((m, index) => {
+      mapped.forEach((m, index) => {
         if (!next[m.id]) next[m.id] = EMOJIS[index % EMOJIS.length];
       });
 
       return next;
     });
   } catch (err) {
-    console.error("팀원 불러오기 실패:", err);
-    alert("팀원 불러오기 실패: " + err.message);
+    setMembers([]);
+    setLadderSelected([]);
+    setTeamLoadError(getTeamLoadErrorMessage(err));
+  } finally {
+    setTeamLoading(false);
   }
 }
 
@@ -985,13 +750,8 @@ async function saveMessage() {
   setEditingMessage(false);
 }
   const myTeamMembers = useMemo(() => {
-    if (!currentUserId) return members;
-
-    const userIds = getDescendantUserIds(members, currentUserId, true);
-    const filtered = members.filter((m) => userIds.includes(m.user_id));
-
-    return filtered.length > 0 ? filtered : members.filter((m) => m.user_id === currentUserId);
-  }, [members, currentUserId]);
+    return members;
+  }, [members]);
 
   const visibleMembers = useMemo(() => {
     return viewMode === "myteam" ? myTeamMembers : members;
@@ -1198,6 +958,30 @@ async function saveMessage() {
       setRouletteResult(rouletteItems[pickedIndex]);
     }, 3300);
   };
+
+  if (teamLoading || teamLoadError) {
+    return (
+      <div ref={pageRef} style={pageStyles.page}>
+        <div style={pageStyles.header}>
+          <div>
+            <div style={pageStyles.title}>팀관리</div>
+            <div style={pageStyles.subtitle}>팀 현황 · 랭킹 · 사다리 · 룰렛</div>
+          </div>
+        </div>
+
+        <section style={pageStyles.card}>
+          <div style={pageStyles.sectionTitle}>
+            {teamLoading ? "팀 정보를 불러오는 중입니다." : teamLoadError}
+          </div>
+          {!teamLoading && teamLoadError && (
+            <button type="button" style={pageStyles.primaryButton} onClick={loadMembers}>
+              다시 시도
+            </button>
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div ref={pageRef} style={pageStyles.page}>
