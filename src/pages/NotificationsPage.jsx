@@ -6,6 +6,8 @@ import scheduleService from '../services/scheduleService';
 import { supabase } from '../supabaseClient';
 import { isAdminRole } from '../services/roleService';
 import { toTimeStr } from '../utils';
+import notificationSettingsService from '../services/notificationSettingsService';
+import { getExpiryNotificationDays } from '../utils/expiryNotifications';
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -38,6 +40,7 @@ function timeAgo(dateStr) {
 
 export default function NotificationsPage({ onBack, onRead, onReadOne, currentRole }) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [readNotifIds, setReadNotifIds] = useState(() => {
   const saved = localStorage.getItem('read_notif_ids');
@@ -50,10 +53,13 @@ export default function NotificationsPage({ onBack, onRead, onReadOne, currentRo
 
   async function load() {
     setLoading(true);
+    setLoadError('');
     try {
-      const [schedules, customers] = await Promise.all([
+      const [schedules, customers, carSettings, insuranceSettings] = await Promise.all([
         scheduleService.today().catch(() => []),
         customerService.list({ status: '전체', search: '' }).catch(() => []),
+        notificationSettingsService.ensureCarExpirySettings(),
+        notificationSettingsService.ensureInsuranceExpirySettings(),
       ]);
 
       const today = new Date();
@@ -92,28 +98,28 @@ export default function NotificationsPage({ onBack, onRead, onReadOne, currentRo
         }
       });
 
-     // ③ 자동차 만기 30일 이내
-customers.forEach(c => {
-  const carDate =
-    c.car_expiry ||
-    c.carExpiry ||
-    c.car_expiry_date ||
-    c.carExpiryDate ||
-    c.car_expiry_at;
+      // ③ 자동차 만기
+      if (carSettings.enabled) {
+        customers.forEach(c => {
+          const carDate = c.car_expiry
+            || c.carExpiry
+            || c.car_expiry_date
+            || c.carExpiryDate
+            || c.car_expiry_at;
+          const d = getExpiryNotificationDays(carDate, 'car', carSettings);
 
-  const d = daysUntil(carDate);
-
-  if (d !== null && d >= 0 && d <= 30) {
-    notifs.push({
-      id: `car-${c.id}`,
-      icon: '🚗',
-      title: '자동차 만기 임박',
-      body: `${c.name} 고객 자동차 보험 만기 ${d === 0 ? '오늘' : `${d}일 후`}`,
-      time: d === 0 ? '오늘' : `${d}일 후`,
-      color: '#EFF6FF',
-    });
-  }
-});
+          if (d !== null) {
+            notifs.push({
+              id: `car-${c.id}`,
+              icon: '🚗',
+              title: '자동차 만기 임박',
+              body: `${c.name} 고객 자동차 보험 만기 ${d === 0 ? '오늘' : `${d}일 후`}`,
+              time: d === 0 ? '오늘' : `${d}일 후`,
+              color: '#EFF6FF',
+            });
+          }
+        });
+      }
 
       // ④ 태아 D-day (출산예정일 30일 이내)
       customers.forEach(c => {
@@ -179,29 +185,34 @@ customers.forEach(c => {
         });
       });
     }
-// ✅ 보험 만기 알림 (30일 이내)
-const { data: salesData } = await supabase
-  .from('sales')
-  .select('*')
-  .eq('user_id', (await supabase.auth.getUser()).data.user.id);
+      if (insuranceSettings.enabled) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user?.id) throw new Error('로그인 정보를 확인할 수 없습니다.');
+        const { data: salesData, error: salesError } = await supabase
+          .from('sales')
+          .select('*')
+          .eq('user_id', user.id);
+        if (salesError) throw salesError;
 
-(salesData || []).forEach(s => {
-  if (!s.expiry_date) return;
-  const d = daysUntil(s.expiry_date);
-  if (d !== null && d >= 0 && d <= 30) {
-    notifs.push({
-      id: `sale-expiry-${s.id}`,
-      icon: '📋',
-      title: '보험 만기 임박',
-      body: `${s.customer_name} 고객 ${s.product_name || '보험'} 만기 ${d === 0 ? '오늘' : `${d}일 후`}`,
-      time: d === 0 ? '오늘' : `${d}일 후`,
-      color: '#FFF7ED',
-    });
-  }
-});
+        (salesData || []).forEach(s => {
+          const d = getExpiryNotificationDays(s.expiry_date, 'insurance', insuranceSettings);
+          if (d !== null) {
+            notifs.push({
+              id: `sale-expiry-${s.id}`,
+              icon: '📋',
+              title: '보험 만기 임박',
+              body: `${s.customer_name} 고객 ${s.product_name || '보험'} 만기 ${d === 0 ? '오늘' : `${d}일 후`}`,
+              time: d === 0 ? '오늘' : `${d}일 후`,
+              color: '#FFF7ED',
+            });
+          }
+        });
+      }
       setNotifications(notifs);
     } catch (e) {
       console.error(e);
+      setNotifications([]);
+      setLoadError('알림 설정과 알림 내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
@@ -233,6 +244,15 @@ const { data: salesData } = await supabase
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading ? (
           <LoadingSpinner />
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', color: COLORS.red, marginTop: 60, fontSize: 14 }}>
+            <div>{loadError}</div>
+            <button
+              type="button"
+              onClick={load}
+              style={{ border: 'none', background: COLORS.primary, color: COLORS.white, borderRadius: 8, padding: '9px 14px', marginTop: 14, fontWeight: 700, cursor: 'pointer' }}
+            >다시 시도</button>
+          </div>
         ) : notifications.length === 0 ? (
           <div style={{ textAlign: 'center', color: COLORS.textGray, marginTop: 60, fontSize: 14 }}>
             새로운 알림이 없습니다

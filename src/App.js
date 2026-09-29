@@ -42,6 +42,7 @@ import roleService, { isAdminRole } from './services/roleService';
 import DeleteAccountPublicPage from './pages/DeleteAccountPublicPage';
 import notificationService from './services/notificationService';
 import notificationSettingsService from './services/notificationSettingsService';
+import { getExpiryNotificationDays } from './utils/expiryNotifications';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -618,16 +619,14 @@ useEffect(() => {
     const readIds = JSON.parse(localStorage.getItem('read_notif_ids') || '[]');
     const notifSettings = JSON.parse(localStorage.getItem('notif_settings') || '{}');
 
-    const carEnabled = notifSettings.carExpiry?.enabled !== false;
-    const carDays = notifSettings.carExpiry?.days || 30;
-    const saleEnabled = notifSettings.saleExpiry?.enabled !== false;
-    const saleDays = notifSettings.saleExpiry?.days || 30;
     const birthdayEnabled = notifSettings.birthday?.enabled !== false;
 
     try {
-      const [schedules, customers] = await Promise.all([
+      const [schedules, customers, carSettings, insuranceSettings] = await Promise.all([
         scheduleService.today().catch(() => []),
         customerService.list({ status: '전체', search: '' }).catch(() => []),
+        notificationSettingsService.ensureCarExpirySettings(),
+        notificationSettingsService.ensureInsuranceExpirySettings(),
       ]);
 
       const today = new Date();
@@ -665,19 +664,12 @@ useEffect(() => {
         });
       }
 
-      if (carEnabled) {
+      if (carSettings.enabled) {
         customers.forEach(c => {
-          const carDate = c.car_expiry || c.carExpiry || c.car_expiry_date || c.carExpiryDate;
-          if (!carDate) return;
+          const carDate = c.car_expiry || c.carExpiry || c.car_expiry_date || c.carExpiryDate || c.car_expiry_at;
+          const d = getExpiryNotificationDays(carDate, 'car', carSettings);
 
-          const target = new Date(carDate);
-          if (Number.isNaN(target.getTime())) return;
-
-          const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-          const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-          const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-
-          if (d >= 0 && d <= carDays && !readIds.includes(`car-${c.id}`)) {
+          if (d !== null && !readIds.includes(`car-${c.id}`)) {
             count += 1;
           }
         });
@@ -692,23 +684,17 @@ useEffect(() => {
         count += (requests || []).length;
       }
 
-      if (saleEnabled) {
-        const { data: salesData } = await supabase
+      if (insuranceSettings.enabled) {
+        const { data: salesData, error: salesError } = await supabase
           .from('sales')
           .select('id, expiry_date')
           .eq('user_id', session?.user?.id);
+        if (salesError) throw salesError;
 
         (salesData || []).forEach(s => {
-          if (!s.expiry_date) return;
+          const d = getExpiryNotificationDays(s.expiry_date, 'insurance', insuranceSettings);
 
-          const target = new Date(s.expiry_date);
-          if (Number.isNaN(target.getTime())) return;
-
-          const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-          const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-          const d = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-
-          if (d >= 0 && d <= saleDays && !readIds.includes(`sale-expiry-${s.id}`)) {
+          if (d !== null && !readIds.includes(`sale-expiry-${s.id}`)) {
             count += 1;
           }
         });
