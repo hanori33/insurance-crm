@@ -45,6 +45,8 @@ function createInitialValues(customer) {
     insuredName: customer?.name || '',
     birth: normalizeBirth(customer?.birth),
     ssn: '',
+    policyholderName: '',
+    policyholderSsn: '',
     phone: customer?.phone || '',
     job: customer?.job || '',
     address: customer?.address || '',
@@ -60,9 +62,12 @@ function createInitialValues(customer) {
     accountNumber: '',
     receiveSamePerson: true,
     autoTransferRequest: false,
+    partialClaimCoverages: [],
     beneficiarySameAsInsured: true,
     beneficiaryName: customer?.name || '',
     receiptType: '',
+    autoInsuranceProcessed: '',
+    vehicleOccupant: '',
     noticePolicyholder: false,
     noticeInsured: false,
     noticeOther: false,
@@ -86,10 +91,15 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
   const template = useMemo(() => getClaimFormTemplate(companyName), [companyName]);
   const uiSchema = template?.uiSchema || {};
   const visibleFields = uiSchema.fields || {};
+  const claimTypeOptions = useMemo(
+    () => CLAIM_TYPE_OPTIONS.filter((option) => !uiSchema.claimTypeOptions || uiSchema.claimTypeOptions.includes(option.value)),
+    [uiSchema.claimTypeOptions]
+  );
   const receiptTypeOptions = useMemo(
     () => RECEIPT_TYPE_OPTIONS.filter((option) => !uiSchema.receiptTypeOptions || uiSchema.receiptTypeOptions.includes(option.value)),
     [uiSchema.receiptTypeOptions]
   );
+  const partialClaimCoverageOptions = uiSchema.partialClaimCoverageOptions || [];
   const consentOptions = useMemo(() => {
     if (!template?.consents) return DEFAULT_CONSENT_OPTIONS.map((option) => ({ ...option, required: true }));
     return Object.entries(template.consents)
@@ -177,6 +187,16 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
 
   function updateConsent(key, checked) {
     setConsents((prev) => ({ ...prev, [key]: checked }));
+    setPreviewFile(null);
+  }
+
+  function updatePartialClaimCoverage(key, checked) {
+    setValues((prev) => ({
+      ...prev,
+      partialClaimCoverages: checked
+        ? [...new Set([...(prev.partialClaimCoverages || []), key])]
+        : (prev.partialClaimCoverages || []).filter((value) => value !== key),
+    }));
     setPreviewFile(null);
   }
 
@@ -345,13 +365,29 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
             <Field label="연락처" value={values.phone} onChange={(v) => updateField('phone', v)} />
             <Field label="직업" value={values.job} onChange={(v) => updateField('job', v)} />
             <Field label="주소" value={values.address} onChange={(v) => updateField('address', v)} multiline />
+            {visibleFields.policyholder && (
+              <>
+                <Field
+                  label="보험계약자 성명"
+                  value={values.policyholderName}
+                  onChange={(v) => updateField('policyholderName', v)}
+                  placeholder="피보험자와 구분하여 직접 입력"
+                />
+                <Field
+                  label="보험계약자 주민번호"
+                  value={values.policyholderSsn}
+                  onChange={(v) => updateField('policyholderSsn', v)}
+                  placeholder="필요 시 직접 입력"
+                />
+              </>
+            )}
           </Section>
 
           <Section title="청구 정보">
             <div style={styles.fieldBlock}>
               <div style={styles.label}>청구유형</div>
               <div style={styles.segmented}>
-                {CLAIM_TYPE_OPTIONS.map((option) => (
+                {claimTypeOptions.map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -390,6 +426,65 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
                         ...styles.segmentButton,
                         background: values.receiptType === option.value ? COLORS.primary : '#fff',
                         color: values.receiptType === option.value ? '#fff' : COLORS.primary,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {partialClaimCoverageOptions.length > 0 && (
+              <div style={styles.fieldBlock}>
+                <div style={styles.label}>일부청구 시 청구담보</div>
+                <div style={styles.consentList}>
+                  {partialClaimCoverageOptions.map((option) => (
+                    <label key={option.value} style={styles.consentRow}>
+                      <input
+                        type="checkbox"
+                        checked={(values.partialClaimCoverages || []).includes(option.value)}
+                        onChange={(event) => updatePartialClaimCoverage(option.value, event.target.checked)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            {uiSchema.autoInsuranceProcessedOptions?.length > 0 && (
+              <div style={styles.fieldBlock}>
+                <div style={styles.label}>자동차보험 처리여부</div>
+                <div style={styles.segmented}>
+                  {uiSchema.autoInsuranceProcessedOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateField('autoInsuranceProcessed', values.autoInsuranceProcessed === option.value ? '' : option.value)}
+                      style={{
+                        ...styles.segmentButton,
+                        background: values.autoInsuranceProcessed === option.value ? COLORS.primary : '#fff',
+                        color: values.autoInsuranceProcessed === option.value ? '#fff' : COLORS.primary,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {uiSchema.vehicleOccupantOptions?.length > 0 && (
+              <div style={styles.fieldBlock}>
+                <div style={styles.label}>차량탑승위치</div>
+                <div style={styles.segmented}>
+                  {uiSchema.vehicleOccupantOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateField('vehicleOccupant', values.vehicleOccupant === option.value ? '' : option.value)}
+                      style={{
+                        ...styles.segmentButton,
+                        background: values.vehicleOccupant === option.value ? COLORS.primary : '#fff',
+                        color: values.vehicleOccupant === option.value ? '#fff' : COLORS.primary,
                       }}
                     >
                       {option.label}
@@ -457,7 +552,7 @@ export default function ClaimFormEditor({ visible, onClose, customer, company, o
                   checked={values.autoTransferRequest}
                   onChange={(e) => updateField('autoTransferRequest', e.target.checked)}
                 />
-                <span>자동이체계좌 요청</span>
+                <span>{uiSchema.autoTransferRequestLabel || '자동이체계좌 요청'}</span>
               </label>
             )}
             <Field label="예금주" value={values.accountHolder} onChange={(v) => updateField('accountHolder', v)} />

@@ -90,13 +90,16 @@ function textToPngDataUrl(text, field) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = TEXT_COLOR;
   ctx.font = `${fontSize * scale}px "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = field.valign === 'center' ? 'middle' : 'top';
   ctx.textAlign = field.align === 'center' ? 'center' : 'left';
 
   const maxLines = Math.max(1, Math.floor(height / lineHeight));
   lines.slice(0, maxLines).forEach((line, index) => {
     const x = field.align === 'center' ? canvas.width / 2 : 2 * scale;
-    ctx.fillText(line, x, index * lineHeight * scale);
+    const y = field.valign === 'center'
+      ? canvas.height / 2 + (index - (Math.min(lines.length, maxLines) - 1) / 2) * lineHeight * scale
+      : index * lineHeight * scale;
+    ctx.fillText(line, x, y);
   });
 
   return { dataUrl: canvas.toDataURL('image/png'), width, height };
@@ -115,6 +118,7 @@ async function drawCellTextImage(pdfDoc, page, text, field) {
       ...cell,
       fontSize: cell.fontSize || field.fontSize || 10,
       align: 'center',
+      valign: cell.valign || field.valign,
     });
   }
 }
@@ -143,17 +147,23 @@ async function drawField(pdfDoc, pages, fields, key, text) {
 
 function drawCheck(page, box) {
   if (!box) return;
-  const size = box.size || 8;
+  const size = box.markSize || box.size || 8;
+  // Center the visible path bounds, not the nominal drawing square. The check
+  // path spans x=0.16..0.86 and y=0.19..0.84 of its nominal size.
+  const visualCenterX = size * ((0.16 + 0.86) / 2);
+  const visualCenterY = size * ((0.19 + 0.84) / 2);
+  const x = box.boxWidth ? box.x + box.boxWidth / 2 - visualCenterX : box.x;
+  const y = box.boxHeight ? box.y + box.boxHeight / 2 - visualCenterY : box.y;
   const thickness = box.lineWidth || Math.max(1.8, size * 0.22);
   page.drawLine({
-    start: { x: box.x + size * 0.16, y: box.y + size * 0.5 },
-    end: { x: box.x + size * 0.39, y: box.y + size * 0.19 },
+    start: { x: x + size * 0.16, y: y + size * 0.5 },
+    end: { x: x + size * 0.39, y: y + size * 0.19 },
     thickness,
     color: CHECK_COLOR,
   });
   page.drawLine({
-    start: { x: box.x + size * 0.39, y: box.y + size * 0.19 },
-    end: { x: box.x + size * 0.86, y: box.y + size * 0.84 },
+    start: { x: x + size * 0.39, y: y + size * 0.19 },
+    end: { x: x + size * 0.86, y: y + size * 0.84 },
     thickness,
     color: CHECK_COLOR,
   });
@@ -162,12 +172,19 @@ function drawCheck(page, box) {
 async function drawSignature(pdfDoc, page, signatureDataUrl, field) {
   if (!signatureDataUrl || !field) return;
   const signature = await pdfDoc.embedPng(signatureDataUrl);
-  page.drawImage(signature, {
-    x: field.x,
-    y: field.y,
-    width: field.width,
-    height: field.height,
-  });
+  if (field.fit === 'contain') {
+    const scale = Math.min(field.width / signature.width, field.height / signature.height);
+    const width = signature.width * scale;
+    const height = signature.height * scale;
+    page.drawImage(signature, {
+      x: field.x + (field.width - width) / 2,
+      y: field.y + (field.height - height) / 2,
+      width,
+      height,
+    });
+    return;
+  }
+  page.drawImage(signature, { x: field.x, y: field.y, width: field.width, height: field.height });
 }
 
 async function drawSignatureField(pdfDoc, pages, fields, key, signatureDataUrl) {
@@ -198,9 +215,12 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
 
   await drawField(pdfDoc, pages, fields, 'insuredName', values.insuredName);
   await drawField(pdfDoc, pages, fields, 'ssn', ssnOrBirth);
+  await drawField(pdfDoc, pages, fields, 'policyholderName', values.policyholderName);
+  await drawField(pdfDoc, pages, fields, 'policyholderSsn', values.policyholderSsn);
   await drawField(pdfDoc, pages, fields, 'job', values.job);
   await drawField(pdfDoc, pages, fields, 'address', values.address);
   await drawField(pdfDoc, pages, fields, 'phone', values.phone);
+  await drawField(pdfDoc, pages, fields, 'noticePhone', values.phone);
   await drawField(pdfDoc, pages, fields, 'accidentYear', accidentDate.yyyy);
   await drawField(pdfDoc, pages, fields, 'accidentMonth', accidentDate.mm);
   await drawField(pdfDoc, pages, fields, 'accidentDay', accidentDate.dd);
@@ -244,6 +264,18 @@ export async function generateClaimFormPdf({ companyName, values, signatureDataU
 
   const receiptTypeMap = template.checkboxes?.receiptType || {};
   drawCheck(firstPage, receiptTypeMap[values.receiptType]);
+
+  const autoInsuranceProcessedMap = template.checkboxes?.autoInsuranceProcessed || {};
+  drawCheck(firstPage, autoInsuranceProcessedMap[values.autoInsuranceProcessed]);
+
+  const vehicleOccupantMap = template.checkboxes?.vehicleOccupant || {};
+  drawCheck(firstPage, vehicleOccupantMap[values.vehicleOccupant]);
+
+  const partialClaimCoverageMap = template.checkboxes?.partialClaimCoverage || {};
+  (values.partialClaimCoverages || []).forEach((key) => {
+    const box = partialClaimCoverageMap[key];
+    if (box) drawCheck(pages[box.page], box);
+  });
 
   const noticeRecipientMap = template.checkboxes?.noticeRecipient || {};
   if (values.noticePolicyholder) drawCheck(firstPage, noticeRecipientMap.policyholder);

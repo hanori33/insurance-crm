@@ -97,7 +97,7 @@ function sendPopbillFax({ corpNum, senderNum, receiverNum, receiverName, filePat
   return new Promise((resolve, reject) => {
     console.log('POPBILL REQUEST NUM =', requestNum);
 
-    faxService.sendFAX(
+    faxService.sendFax(
       corpNum,
       senderNum,
       receiverNum,
