@@ -11,62 +11,27 @@ const faxHistoryService = {
 
     const { data, error } = await supabase
       .from('fax_history')
-      .select('*')
+      .select('id,request_id,customer_id,customer_name,insurance_company,fax_number,files,status,provider_receipt_id,sent_at,created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
-  },
+    const rows = data || [];
+    const requestIds = rows.map((row) => row.request_id).filter(Boolean);
+    if (requestIds.length === 0) return rows;
 
-  async create(payload) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) throw new Error('로그인이 필요합니다.');
-
-    const cleanPayload = {
-      user_id: user.id,
-      customer_id: payload.customer_id || null,
-      customer_name: payload.customer_name || '',
-      insurance_company: payload.insurance_company || '',
-      fax_number: payload.fax_number || '',
-      files: payload.files || [],
-      status: payload.status || '대기',
-      provider: payload.provider || 'manual',
-      provider_receipt_id: payload.provider_receipt_id || null,
-      error_message: payload.error_message || null,
-      sent_at: payload.sent_at || null,
-    };
-
-    const { data, error } = await supabase
-      .from('fax_history')
-      .insert(cleanPayload)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  async update(id, payload) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) throw new Error('로그인이 필요합니다.');
-
-    const { data, error } = await supabase
-      .from('fax_history')
-      .update(payload)
-      .eq('id', id)
+    const { data: transactions, error: transactionError } = await supabase
+      .from('fax_credit_transactions')
+      .select('request_id,status')
       .eq('user_id', user.id)
-      .select()
-      .single();
+      .in('request_id', requestIds);
+    if (transactionError) throw transactionError;
 
-    if (error) throw error;
-    return data;
+    const statusByRequest = new Map((transactions || []).map((row) => [row.request_id, row.status]));
+    return rows.map((row) => ({
+      ...row,
+      credit_status: row.request_id ? statusByRequest.get(row.request_id) || null : null,
+    }));
   },
 
   async remove(id) {
@@ -80,6 +45,7 @@ const faxHistoryService = {
       .from('fax_history')
       .delete()
       .eq('id', id)
+      .is('request_id', null)
       .eq('user_id', user.id);
 
     if (error) throw error;

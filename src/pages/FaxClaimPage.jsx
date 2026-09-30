@@ -8,6 +8,7 @@ import faxHistoryService from '../services/faxHistoryService';
 import consultationService from '../services/consultationService';
 import { getClaimFormTemplate } from '../services/claimFormTemplateService';
 import { supabase } from '../supabaseClient';
+import { readPending, getOrCreatePending, clearResolvedPending, displayStatus } from '../utils/faxTracking';
 
 const STORAGE_KEY = 'boplan_fax_claims';
 const FAX_API_BASE_URL = (process.env.REACT_APP_FAX_API_BASE_URL || 'https://www.boplan.kr').replace(/\/$/, '');
@@ -113,7 +114,6 @@ async function countFilePages(file) {
     const text = new TextDecoder('latin1').decode(buffer);
     return countPdfPagesFromText(text);
   } catch (error) {
-    console.error('PDF page count failed:', error);
     return 1;
   }
 }
@@ -132,7 +132,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const [isSending, setIsSending] = useState(false);
   const [claimEditorOpen, setClaimEditorOpen] = useState(false);
   const fileSelectionIdRef = useRef(0);
-  const faxRequestIdRef = useRef(null);
+  const sendLockRef = useRef(false);
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
@@ -180,7 +180,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
       const data = await customerService.list({ status: '전체', search: '' });
       setCustomers(data || []);
     } catch (e) {
-      console.error(e);
       alert('고객 목록을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
@@ -192,7 +191,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     const data = await faxHistoryService.list();
     setClaims(data || []);
   } catch (e) {
-    console.error(e);
     alert('팩스 이력을 불러오지 못했습니다.');
   }
 }
@@ -213,7 +211,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const files = Array.from(e.target.files || []);
   const selectionId = fileSelectionIdRef.current + 1;
   fileSelectionIdRef.current = selectionId;
-  faxRequestIdRef.current = null;
   setSelectedFiles(files);
   setFilePageCounts([]);
   setIsCountingPages(true);
@@ -248,8 +245,51 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     setMemo('');
     setSelectedFiles([]);
     setFilePageCounts([]);
-    faxRequestIdRef.current = null;
   }
+
+ async function withFaxLock(action) {
+   if (sendLockRef.current) return;
+   sendLockRef.current = true;
+   setIsSending(true);
+   try {
+     if (!navigator.locks) throw new Error('LOCK_UNAVAILABLE');
+     await navigator.locks.request('boplan-fax-send', { ifAvailable: true }, async (lock) => {
+       if (!lock) { alert('다른 창에서 팩스 요청을 처리 중입니다.'); return; }
+       await action();
+     });
+   } catch {
+     alert('요청 상태를 확인하지 못했습니다. 중복 발송 방지를 위해 다시 발송하지 말고 청구이력을 확인해주세요.');
+   } finally {
+     sendLockRef.current = false;
+     setIsSending(false);
+   }
+ }
+
+ async function lookupPending(session, requestId) {
+   const response = await fetch(`${FAX_API_BASE_URL}/api/send-fax`, {
+     method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+     body: JSON.stringify({ requestId, statusOnly: true }),
+   });
+   if (!response.ok) throw new Error('STATUS_UNAVAILABLE');
+   return response.json();
+ }
+
+ async function checkPending(startNew = false) {
+   const { data: { session } } = await supabase.auth.getSession();
+   if (!session?.user?.id) throw new Error('AUTH_REQUIRED');
+   const requestId = readPending(window.localStorage, session.user.id);
+   if (!requestId) { alert('확인할 이전 요청이 없습니다.'); return; }
+   const result = await lookupPending(session, requestId);
+   if (startNew) {
+     if (!window.confirm('기존 전송 상태를 확인했습니다. 별도의 새 발송을 준비할까요?')) return;
+     clearResolvedPending(window.localStorage, session.user.id, result);
+     resetForm();
+     alert('새 발송을 준비할 수 있습니다.');
+   } else {
+     alert(result.status === 'not_found' ? '아직 서버 이력이 없습니다. 동일 요청으로 첨부파일을 선택해 진행할 수 있습니다.' : displayStatus({ status: result.status }, result.accounting_status));
+   }
+   await loadClaims();
+ }
 
  async function handleSendFax() {
   if (isCountingPages) {
@@ -257,7 +297,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     return;
   }
 
-  if (isSending) return;
 
   const estimatedPages = Math.max(1, totalFaxPages);
 
@@ -295,14 +334,16 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
 
     if (!session?.access_token) throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.');
 
-    const requestId =
-  faxRequestIdRef.current ||
-  `FAX${Date.now()}${Math.random()
-    .toString(36)
-    .substring(2, 8)
-    .toUpperCase()}`;
-
-    faxRequestIdRef.current = requestId;
+    const pending = readPending(window.localStorage, session.user.id);
+    if (pending) {
+      const previous = await lookupPending(session, pending);
+      if (previous.status !== 'not_found') {
+        alert(displayStatus({ status: previous.status }, previous.accounting_status));
+        await loadClaims();
+        return;
+      }
+    }
+    const requestId = getOrCreatePending(window.localStorage, session.user.id, () => window.crypto.randomUUID());
 
     const uploadedFiles = [];
     try {
@@ -351,7 +392,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
           body: JSON.stringify({ paths: uploadedFiles.map((file) => file.path) }),
         }).catch(() => {});
       }
-      throw new Error(uploadError.message || '팩스 파일 업로드에 실패했습니다.');
+      throw new Error('UPLOAD_FAILED');
     }
 
     const response = await fetch(`${FAX_API_BASE_URL}/api/send-fax`, {
@@ -364,6 +405,8 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
         receiverNum: faxNumber,
         receiverName: selectedCompany,
         title: `${selectedCustomer.name || '고객'} ${claimType} 보험금 청구`,
+        customerId: String(selectedCustomer.db_id || selectedCustomer.id || ''),
+        insuranceCompany: selectedCompany,
         requestId,
         files: uploadedFiles,
       }),
@@ -371,8 +414,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      const responseText = await response.text();
-      console.error('팩스 API 비정상 응답:', response.status, responseText.slice(0, 300));
       throw new Error(
         response.status === 401
           ? '팩스 서버 접근이 차단되었습니다. 실사용 도메인에서 다시 시도해주세요.'
@@ -383,11 +424,12 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     const result = await response.json();
 
     if (!response.ok || !result.success) {
-      if (response.status === 502) faxRequestIdRef.current = null;
       if (Number.isFinite(Number(result.remaining_credit))) {
         setProfile((prev) => ({ ...prev, fax_credit: Number(result.remaining_credit) }));
       }
-      throw new Error(result.error || '팩스 발송 실패');
+      alert(result.status ? displayStatus({ status: result.status }, result.accounting_status) : '전송 상태를 확인하지 못했습니다. 다시 발송하지 마세요.');
+      await loadClaims();
+      return;
     }
 
     const chargedPages = Number(result.total_pages);
@@ -436,8 +478,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
 
     let historySaved = true;
     try {
-      await faxHistoryService.create(item);
-      await consultationService.create({
+      if (!result.duplicate) await consultationService.create({
         customer_id: item.customer_id,
         customer_name: item.customer_name,
         category: '청구',
@@ -452,7 +493,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
       await loadClaims();
     } catch (historyError) {
       historySaved = false;
-      console.error('팩스 발송 이력 저장 실패:', historyError);
     }
 
     alert(
@@ -461,8 +501,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     );
     resetForm();
   } catch (e) {
-    console.error(e);
-    alert('팩스 발송 중 오류가 발생했습니다: ' + (e.message || '알 수 없는 오류'));
+    alert('전송 상태를 확인하지 못했습니다. 기존 전송 상태 확인 버튼을 이용하고 다시 발송하지 마세요.');
   } finally {
     setIsSending(false);
   }
@@ -475,7 +514,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     await faxHistoryService.remove(id);
     await loadClaims();
   } catch (e) {
-    console.error(e);
     alert('청구이력 삭제 실패');
   }
 }
@@ -505,7 +543,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   async function addGeneratedClaimFormFile(file) {
     if (!file) return;
 
-    faxRequestIdRef.current = null;
     setSelectedFiles((prev) => [...prev, file]);
     setIsCountingPages(true);
 
@@ -514,7 +551,6 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
       setFilePageCounts((prev) => [...prev, pageCount]);
       alert('작성된 청구서가 팩스 첨부파일에 추가되었습니다.');
     } catch (error) {
-      console.error('작성 청구서 첨부 실패:', error);
       alert('작성된 청구서를 첨부하지 못했습니다.');
     } finally {
       setIsCountingPages(false);
@@ -747,14 +783,16 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
 
         <button
           type="button"
-          onClick={handleSendFax}
+          onClick={() => withFaxLock(handleSendFax)}
           disabled={isSending || isCountingPages}
           style={{ ...styles.primaryButton, opacity: isSending || isCountingPages ? 0.6 : 1 }}
         >
   {isSending ? '발송 중...' : isCountingPages ? '장수 계산 중...' : '📠 팩스 발송'}
 </button>
 
-        <div style={styles.helpText}>※ 팩스 발송 완료 후 접수번호와 함께 청구이력이 저장됩니다.</div>
+        <button type="button" disabled={isSending} onClick={() => withFaxLock(() => checkPending())}>기존 전송 상태 확인</button>
+        <button type="button" disabled={isSending} onClick={() => withFaxLock(() => checkPending(true))}>새 발송 준비</button>
+        <div style={styles.helpText}>※ 발송 시도부터 이력이 저장됩니다. 결과 확인 중에는 다시 발송하지 마세요.</div>
       </Card>
     );
   }
@@ -778,10 +816,14 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
                 </div>
 
                 <div style={styles.claimGrid}>
+                  <Info label="상태" value={displayStatus(claim, claim.credit_status)} />
                   <Info label="보험사" value={claim.insurance_company} />
                   <Info label="청구유형" value={claim.claim_type} />
                   <Info label="팩스번호" value={claim.fax_number} />
                   <Info label="등록일" value={formatDateTime(claim.created_at)} />
+                  {(claim.status === 'sent' || claim.status === '발송완료') && claim.provider_receipt_id && (
+                    <Info label="접수번호" value={claim.provider_receipt_id} />
+                  )}
                 </div>
 
                 {claim.memo && <div style={styles.memoBox}>📝 {claim.memo}</div>}
@@ -797,9 +839,9 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
                 )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-                  <button type="button" onClick={() => handleDeleteClaim(claim.id)} style={styles.deleteButton}>
+                  {!claim.request_id && <button type="button" onClick={() => handleDeleteClaim(claim.id)} style={styles.deleteButton}>
                     삭제
-                  </button>
+                  </button>}
                 </div>
               </div>
             ))}

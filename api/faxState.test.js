@@ -1,0 +1,23 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { classifyRequest, classifyProviderFailure, displayStatus } = require('./faxState');
+const { classifyForReconciliation } = require('./faxReconciliation');
+
+test('new request starts once', () => assert.equal(classifyRequest(null).action, 'start'));
+test('sent request returns receipt', () => assert.deepEqual(classifyRequest({ status: 'sent', provider_receipt_id: 'r' }), { action: 'return-existing', receiptNum: 'r' }));
+test('processing request is not resent', () => assert.equal(classifyRequest({ status: 'processing' }).action, 'reject-duplicate'));
+test('failed request is not automatically resent', () => assert.equal(classifyRequest({ status: 'failed' }).action, 'reject-duplicate'));
+test('unknown request is not automatically resent', () => assert.equal(classifyRequest({ status: 'unknown' }).action, 'reject-duplicate'));
+test('explicit provider rejection is failed', () => assert.equal(classifyProviderFailure({ errorCode: -100 }), 'failed'));
+test('timeout is unknown', () => assert.equal(classifyProviderFailure({ timedOut: true }), 'unknown'));
+test('missing provider detail is unknown', () => assert.equal(classifyProviderFailure({}), 'unknown'));
+test('legacy remains unclassified', () => assert.equal(displayStatus({ status: 'legacy' }, null), '상태 확인 불가(기존 이력)'));
+test('sent displays receipt state', () => assert.equal(displayStatus({ status: 'sent' }, 'sent'), '전송완료'));
+test('processing displays processing state', () => assert.equal(displayStatus({ status: 'processing' }, 'reserved'), '처리중'));
+test('failed refunded displays refund state', () => assert.equal(displayStatus({ status: 'failed' }, 'refunded'), '전송실패 · 크레딧 환불완료'));
+test('failed reserved displays refund pending state', () => assert.equal(displayStatus({ status: 'failed' }, 'reserved'), '전송실패 · 환불 처리중'));
+test('old Korean sent status with receipt remains compatible', () => assert.equal(displayStatus({ status: '발송완료', provider_receipt_id: 'synthetic' }, 'sent'), '전송완료'));
+test('reserved processing is reconciliation review', () => assert.equal(classifyForReconciliation({ status: 'processing', credit_status: 'reserved' }), 'needs_review'));
+test('proven rejection with reserved requires idempotent refund', () => assert.equal(classifyForReconciliation({ status: 'failed', credit_status: 'reserved', error_message: 'provider_rejected' }), 'refund_required'));
+test('unknown requires provider check', () => assert.equal(classifyForReconciliation({ status: 'unknown' }), 'provider_check_required'));
+test('sent without receipt is incomplete', () => assert.equal(classifyForReconciliation({ status: 'sent' }), 'incomplete_success'));
