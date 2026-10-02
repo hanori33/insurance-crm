@@ -8,7 +8,7 @@ import faxHistoryService from '../services/faxHistoryService';
 import consultationService from '../services/consultationService';
 import { getClaimFormTemplate } from '../services/claimFormTemplateService';
 import { supabase } from '../supabaseClient';
-import { readPending, getOrCreatePending, clearResolvedPending, displayStatus } from '../utils/faxTracking';
+import { readPending, displayStatus, statusPresentation, prepareRequest, historyDetails } from '../utils/faxTracking';
 
 const STORAGE_KEY = 'boplan_fax_claims';
 const FAX_API_BASE_URL = (process.env.REACT_APP_FAX_API_BASE_URL || 'https://www.boplan.kr').replace(/\/$/, '');
@@ -133,6 +133,12 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   const [claimEditorOpen, setClaimEditorOpen] = useState(false);
   const fileSelectionIdRef = useRef(0);
   const sendLockRef = useRef(false);
+  const submittedDraftRef = useRef(false);
+  const draftRequestRef = useRef(undefined);
+  const draftUserRef = useRef(null);
+  const [faxStatus, setFaxStatus] = useState({ status: 'loading' });
+  const [retryRequest, setRetryRequest] = useState(null);
+  const faxPresentation = statusPresentation(faxStatus);
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
@@ -172,6 +178,10 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   useEffect(() => {
     loadCustomers();
     loadClaims();
+    refreshPending();
+    const onFocus = () => { if (!sendLockRef.current) refreshPending(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   async function loadCustomers() {
@@ -208,6 +218,8 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   }
 
  async function handleFileChange(e) {
+  if (sendLockRef.current) return;
+  submittedDraftRef.current = false;
   const files = Array.from(e.target.files || []);
   const selectionId = fileSelectionIdRef.current + 1;
   fileSelectionIdRef.current = selectionId;
@@ -258,6 +270,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
        await action();
      });
    } catch {
+     setFaxStatus({ status: 'lookup_failed' });
      alert('요청 상태를 확인하지 못했습니다. 중복 발송 방지를 위해 다시 발송하지 말고 청구이력을 확인해주세요.');
    } finally {
      sendLockRef.current = false;
@@ -274,24 +287,36 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
    return response.json();
  }
 
- async function checkPending(startNew = false) {
+ async function refreshPending(rewrite = false, locked = false) {
+   try {
    const { data: { session } } = await supabase.auth.getSession();
    if (!session?.user?.id) throw new Error('AUTH_REQUIRED');
    const requestId = readPending(window.localStorage, session.user.id);
-   if (!requestId) { alert('확인할 이전 요청이 없습니다.'); return; }
-   const result = await lookupPending(session, requestId);
-   if (startNew) {
-     if (!window.confirm('기존 전송 상태를 확인했습니다. 별도의 새 발송을 준비할까요?')) return;
-     clearResolvedPending(window.localStorage, session.user.id, result);
+   const result = requestId ? await lookupPending(session, requestId) : { status: 'idle' };
+   if (sendLockRef.current && !locked) return;
+   if (draftRequestRef.current === undefined || draftUserRef.current !== session.user.id) {
+     if (draftUserRef.current && draftUserRef.current !== session.user.id) { resetForm(); setRetryRequest(null); }
+     draftRequestRef.current = requestId;
+     draftUserRef.current = session.user.id;
+   } else if (draftRequestRef.current !== requestId) {
+     // Another tab changed the attempt. Discard the stale form before adopting it.
      resetForm();
-     alert('새 발송을 준비할 수 있습니다.');
-   } else {
-     alert(result.status === 'not_found' ? '아직 서버 이력이 없습니다. 동일 요청으로 첨부파일을 선택해 진행할 수 있습니다.' : displayStatus({ status: result.status }, result.accounting_status));
+     setRetryRequest(null);
+     draftRequestRef.current = requestId;
    }
-   await loadClaims();
+   setFaxStatus(result);
+   if (rewrite) {
+     if (result.status !== 'failed' || result.accounting_status !== 'refunded') return;
+     if (!window.confirm('환불이 완료된 실패 건입니다. 별도의 새 발송으로 다시 작성할까요?')) return;
+     resetForm();
+     setRetryRequest(requestId);
+   }
+   } catch { setFaxStatus({ status: 'lookup_failed' }); }
  }
 
  async function handleSendFax() {
+  if (submittedDraftRef.current) return;
+  if (faxPresentation.blocked && !(faxPresentation.retry && retryRequest && retryRequest === draftRequestRef.current)) return;
   if (isCountingPages) {
     alert('첨부파일 장수를 계산하고 있습니다. 잠시 후 다시 시도해주세요.');
     return;
@@ -334,16 +359,21 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
 
     if (!session?.access_token) throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.');
 
-    const pending = readPending(window.localStorage, session.user.id);
-    if (pending) {
-      const previous = await lookupPending(session, pending);
-      if (previous.status !== 'not_found') {
-        alert(displayStatus({ status: previous.status }, previous.accounting_status));
-        await loadClaims();
-        return;
-      }
-    }
-    const requestId = getOrCreatePending(window.localStorage, session.user.id, () => window.crypto.randomUUID());
+    if (draftUserRef.current !== session.user.id) throw new Error('STALE_DRAFT');
+    const requestId = await prepareRequest({
+      storage: window.localStorage, userId: session.user.id,
+      expectedRequest: draftRequestRef.current, retryRequest,
+      lookup: async (id) => {
+        const result = await lookupPending(session, id);
+        setFaxStatus(result);
+        return result;
+      },
+      randomUUID: () => window.crypto.randomUUID(),
+    });
+    draftRequestRef.current = requestId;
+    submittedDraftRef.current = true;
+    setRetryRequest(null);
+    setFaxStatus({ status: 'processing' });
 
     const uploadedFiles = [];
     try {
@@ -422,6 +452,7 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     }
 
     const result = await response.json();
+    setFaxStatus(result.status ? result : { status: 'lookup_failed' });
 
     if (!response.ok || !result.success) {
       if (Number.isFinite(Number(result.remaining_credit))) {
@@ -496,12 +527,13 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
     }
 
     alert(
-      `팩스 발송 완료!\n접수번호: ${result.receiptNum}\n차감: ${chargedPages}장` +
+      `팩스 접수 완료!\n접수번호: ${result.receiptNum}\n차감: ${chargedPages}장\nPopbill 접수 성공이며 최종 수신 완료를 의미하지 않습니다.` +
       (historySaved ? '' : '\n단, 발송 이력 저장을 확인해주세요.')
     );
     resetForm();
   } catch (e) {
-    alert('전송 상태를 확인하지 못했습니다. 기존 전송 상태 확인 버튼을 이용하고 다시 발송하지 마세요.');
+    setFaxStatus({ status: 'lookup_failed' });
+    alert('전송 상태를 확인하지 못했습니다. 상태 다시 확인을 이용하고 다시 발송하지 마세요.');
   } finally {
     setIsSending(false);
   }
@@ -541,7 +573,8 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
   }
 
   async function addGeneratedClaimFormFile(file) {
-    if (!file) return;
+    if (!file || sendLockRef.current) return;
+    submittedDraftRef.current = false;
 
     setSelectedFiles((prev) => [...prev, file]);
     setIsCountingPages(true);
@@ -784,14 +817,15 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
         <button
           type="button"
           onClick={() => withFaxLock(handleSendFax)}
-          disabled={isSending || isCountingPages}
-          style={{ ...styles.primaryButton, opacity: isSending || isCountingPages ? 0.6 : 1 }}
+          disabled={isSending || isCountingPages || (faxPresentation.blocked && !(faxPresentation.retry && retryRequest && retryRequest === draftRequestRef.current))}
+          style={{ ...styles.primaryButton, opacity: isSending || isCountingPages || (faxPresentation.blocked && !retryRequest) ? 0.6 : 1 }}
         >
   {isSending ? '발송 중...' : isCountingPages ? '장수 계산 중...' : '📠 팩스 발송'}
 </button>
 
-        <button type="button" disabled={isSending} onClick={() => withFaxLock(() => checkPending())}>기존 전송 상태 확인</button>
-        <button type="button" disabled={isSending} onClick={() => withFaxLock(() => checkPending(true))}>새 발송 준비</button>
+        {faxPresentation.message && <div role="status" style={styles.helpText}>{faxPresentation.message}</div>}
+        {faxPresentation.refresh && <button type="button" disabled={isSending} onClick={() => withFaxLock(async () => { await refreshPending(false, true); await loadClaims(); })}>상태 다시 확인</button>}
+        {faxPresentation.retry && !retryRequest && <button type="button" disabled={isSending} onClick={() => withFaxLock(() => refreshPending(true, true))}>다시 작성</button>}
         <div style={styles.helpText}>※ 발송 시도부터 이력이 저장됩니다. 결과 확인 중에는 다시 발송하지 마세요.</div>
       </Card>
     );
@@ -816,15 +850,19 @@ export default function FaxClaimPage({ onBack, profile, setProfile }) {
                 </div>
 
                 <div style={styles.claimGrid}>
-                  <Info label="상태" value={displayStatus(claim, claim.credit_status)} />
+                  <Info label="상태" value={claim.status === 'failed' ? statusPresentation({ status: claim.status, accounting_status: claim.credit_status }).message : displayStatus(claim, claim.credit_status)} />
                   <Info label="보험사" value={claim.insurance_company} />
                   <Info label="청구유형" value={claim.claim_type} />
                   <Info label="팩스번호" value={claim.fax_number} />
-                  <Info label="등록일" value={formatDateTime(claim.created_at)} />
+                  <Info label="발송일시" value={historyDetails(claim).sentAt} />
+                  <Info label="총 장수" value={historyDetails(claim).pages} />
+                  {claim.status !== 'sent' && <Info label="요청일시" value={formatDateTime(claim.created_at)} />}
                   {(claim.status === 'sent' || claim.status === '발송완료') && claim.provider_receipt_id && (
                     <Info label="접수번호" value={claim.provider_receipt_id} />
                   )}
                 </div>
+
+                {claim.status === 'sent' && <div style={styles.helpText}>Popbill 접수 성공 기준이며 최종 수신 완료를 의미하지 않습니다.</div>}
 
                 {claim.memo && <div style={styles.memoBox}>📝 {claim.memo}</div>}
 
